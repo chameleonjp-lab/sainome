@@ -3,41 +3,53 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-  <meta name="theme-color" content="#111827">
+  <meta name="theme-color" content="#08090d">
   <title>サイノメ</title>
   <link rel="stylesheet" href="./css/style.css">
 </head>
 <body>
   <main class="app">
     <section id="start-screen" class="screen active" aria-labelledby="game-title">
+      <div class="title-mark" aria-hidden="true">
+        <span class="title-die"><i></i><i></i><i></i><i></i><i></i></span>
+      </div>
       <div class="panel hero-panel">
-        <p class="eyebrow">DICE CHAIN PUZZLE</p>
+        <p class="eyebrow">ROLL・CONNECT・BREAK</p>
         <h1 id="game-title">サイノメ</h1>
-        <p class="lead">サイコロを転がし、上面の数字と同じ数以上をつなげて消そう。</p>
+        <p class="lead">目を読み、道を作り、連鎖をつなぐ。<br>60秒のサイコロパズル。</p>
         <label class="name-field">
           <span>プレイヤー名</span>
           <input id="player-name" maxlength="12" autocomplete="nickname" placeholder="名前を入力">
         </label>
-        <button id="start-button" class="primary-button" type="button">ゲーム開始</button>
+        <button id="start-button" class="primary-button" type="button">はじめる</button>
         <details class="rules">
-          <summary>遊び方</summary>
-          <p>方向ボタンで移動すると、足元のサイコロが転がります。同じ数字を必要数つなげると消えて得点になります。制限時間は60秒です。</p>
+          <summary>遊び方を見る</summary>
+          <div class="rule-grid">
+            <p><b>1</b><span>スワイプして<br>サイコロを転がす</span></p>
+            <p><b>2</b><span>上面の目と同じ数<br>つなげる</span></p>
+            <p><b>3</b><span>消去中につないで<br>連鎖を伸ばす</span></p>
+          </div>
         </details>
       </div>
     </section>
 
     <section id="game-screen" class="screen" aria-label="ゲーム画面">
       <header class="hud">
-        <div><span>TIME</span><strong id="time-display">60</strong></div>
-        <div><span>SCORE</span><strong id="score-display">0</strong></div>
-        <div><span>CHAIN</span><strong id="chain-display">0</strong></div>
+        <div class="hud-item time-item"><span>TIME</span><strong id="time-display">60</strong></div>
+        <div class="hud-item score-item"><span>SCORE</span><strong id="score-display">0</strong></div>
+        <div class="hud-item chain-item"><span>CHAIN</span><strong id="chain-display">0</strong></div>
       </header>
 
-      <div class="board-wrap">
-        <div id="board" class="board" role="grid" aria-label="5×5のサイコロ盤面"></div>
+      <div id="game-stage" class="game-stage">
+        <div class="stage-glow" aria-hidden="true"></div>
+        <div class="board-shadow" aria-hidden="true"></div>
+        <div class="board-wrap">
+          <div id="board" class="board" role="grid" aria-label="5×5のサイコロ盤面"></div>
+        </div>
+        <div id="chain-burst" class="chain-burst" aria-live="polite"></div>
       </div>
 
-      <p id="status-message" class="status-message" aria-live="polite">方向ボタンで移動</p>
+      <p id="status-message" class="status-message" aria-live="polite">盤面をスワイプして移動</p>
 
       <div class="controls" aria-label="移動操作">
         <button class="control-button up" data-direction="up" aria-label="上へ移動">▲</button>
@@ -45,18 +57,22 @@
         <button class="control-button down" data-direction="down" aria-label="下へ移動">▼</button>
         <button class="control-button right" data-direction="right" aria-label="右へ移動">▶</button>
       </div>
+
+      <div id="countdown" class="countdown" aria-live="assertive"></div>
     </section>
 
     <section id="result-screen" class="screen" aria-labelledby="result-title">
       <div class="panel result-panel">
         <p class="eyebrow">RESULT</p>
-        <h2 id="result-title">ゲーム終了</h2>
+        <h2 id="result-title">刻まれた目</h2>
+        <p id="result-rank" class="result-rank">C</p>
         <dl class="result-list">
-          <div><dt>スコア</dt><dd id="result-score">0</dd></div>
-          <div><dt>消した数</dt><dd id="result-cleared">0</dd></div>
+          <div class="result-score-row"><dt>スコア</dt><dd id="result-score">0</dd></div>
+          <div><dt>消したサイコロ</dt><dd id="result-cleared">0</dd></div>
           <div><dt>最大連鎖</dt><dd id="result-chain">0</dd></div>
         </dl>
-        <button id="retry-button" class="primary-button" type="button">もう一度遊ぶ</button>
+        <p id="best-message" class="best-message"></p>
+        <button id="retry-button" class="primary-button" type="button">もう一度挑む</button>
         <button id="back-button" class="secondary-button" type="button">タイトルへ戻る</button>
       </div>
     </section>
