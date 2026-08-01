@@ -21,6 +21,7 @@ export class SainomeGame {
     this.timeLeft = GAME_SECONDS;
     this.running = false;
     this.inputLocked = false;
+    this.pendingDirection = null;
     this.timerId = null;
     this.chainTimerId = null;
     this.diceSequence = 0;
@@ -35,10 +36,11 @@ export class SainomeGame {
     this.timeLeft = GAME_SECONDS;
     this.running = true;
     this.inputLocked = false;
+    this.pendingDirection = null;
     this.player = { row: 2, column: 2 };
     this.createBoard();
     this.emitState();
-    this.callbacks.onMessage?.('方向ボタンで移動');
+    this.callbacks.onMessage?.('盤面をスワイプして移動');
 
     this.timerId = window.setInterval(() => {
       if (!this.running) return;
@@ -57,19 +59,28 @@ export class SainomeGame {
 
   createDice(row, column) {
     this.diceSequence += 1;
-    return new Dice(`dice-${this.diceSequence}`, row, column);
+    const die = new Dice(`dice-${this.diceSequence}`, row, column);
+    die.rollDirection = null;
+    return die;
   }
 
   reduceOpeningMatches() {
-    for (let attempt = 0; attempt < 20; attempt += 1) {
+    for (let attempt = 0; attempt < 30; attempt += 1) {
       const groups = this.findAllValidGroups();
       if (groups.length === 0) return;
       for (const group of groups) {
-        for (const die of group) {
-          Object.assign(die, Dice.randomOrientation());
-        }
+        for (const die of group) Object.assign(die, Dice.randomOrientation());
       }
     }
+  }
+
+  requestMove(direction) {
+    if (!this.running || !DIRECTIONS[direction]) return;
+    if (this.inputLocked) {
+      this.pendingDirection = direction;
+      return;
+    }
+    void this.move(direction);
   }
 
   async move(direction) {
@@ -80,7 +91,8 @@ export class SainomeGame {
     const nextColumn = this.player.column + delta.column;
 
     if (!this.isInside(nextRow, nextColumn)) {
-      this.callbacks.onMessage?.('盤面の外には移動できません');
+      this.callbacks.onMessage?.('その先に盤面はない');
+      this.callbacks.onBlocked?.(direction);
       return;
     }
 
@@ -88,9 +100,11 @@ export class SainomeGame {
     const currentDie = this.board[this.player.row][this.player.column];
     const targetDie = this.board[nextRow][nextColumn];
     currentDie.state = 'rolling';
+    currentDie.rollDirection = direction;
     this.emitState();
 
-    await this.wait(170);
+    await this.wait(210);
+    if (!this.running) return;
 
     const oldRow = this.player.row;
     const oldColumn = this.player.column;
@@ -101,16 +115,22 @@ export class SainomeGame {
     this.board[oldRow][oldColumn] = targetDie;
     this.player = { row: nextRow, column: nextColumn };
     currentDie.state = 'normal';
+    currentDie.rollDirection = null;
     this.emitState();
+    this.callbacks.onLand?.();
 
     await this.resolveMatches();
     this.inputLocked = false;
+
+    const queued = this.pendingDirection;
+    this.pendingDirection = null;
+    if (queued && this.running) void this.move(queued);
   }
 
   async resolveMatches() {
     const groups = this.findAllValidGroups();
     if (groups.length === 0) {
-      this.callbacks.onMessage?.('同じ数字を必要数つなげよう');
+      this.callbacks.onMessage?.('目と同じ数だけ、縦か横につなぐ');
       return;
     }
 
@@ -121,26 +141,30 @@ export class SainomeGame {
     this.chainTimerId = window.setTimeout(() => {
       this.chain = 0;
       this.emitState();
-    }, 1800);
+    }, 1900);
 
     for (const die of uniqueDice) die.state = 'matched';
-    this.callbacks.onMessage?.(`${this.chain}連鎖！ ${uniqueDice.length}個消去`);
+    this.callbacks.onMessage?.(`${this.chain}連鎖・${uniqueDice.length}個`);
+    this.callbacks.onChain?.({ chain: this.chain, count: uniqueDice.length });
     this.emitState();
-    await this.wait(650);
+    await this.wait(620);
+    if (!this.running) return;
 
     for (const die of uniqueDice) die.state = 'deleting';
     this.emitState();
-    await this.wait(260);
+    await this.wait(280);
+    if (!this.running) return;
 
+    const multiplier = this.getChainMultiplier();
     let gained = 0;
     for (const die of uniqueDice) {
-      const multiplier = this.getChainMultiplier();
       gained += die.top * 100 * multiplier;
       this.board[die.row][die.column] = this.createDice(die.row, die.column);
     }
 
     this.cleared += uniqueDice.length;
     this.score += Math.round(gained);
+    this.callbacks.onScore?.(Math.round(gained));
     this.emitState();
   }
 
@@ -191,14 +215,11 @@ export class SainomeGame {
     if (!this.running) return;
     this.running = false;
     this.inputLocked = true;
+    this.pendingDirection = null;
     this.timeLeft = 0;
     this.stopTimers();
     this.emitState();
-    this.callbacks.onFinish?.({
-      score: this.score,
-      cleared: this.cleared,
-      maxChain: this.maxChain
-    });
+    this.callbacks.onFinish?.({ score: this.score, cleared: this.cleared, maxChain: this.maxChain });
   }
 
   stopTimers() {
