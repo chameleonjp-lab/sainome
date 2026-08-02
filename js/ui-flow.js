@@ -1,3 +1,5 @@
+import { getGameMode } from './game-modes.js';
+
 export const SCREEN_PHASES = Object.freeze({
   HOME: 'home',
   COUNTDOWN: 'countdown',
@@ -17,7 +19,9 @@ function normalizeResult(result) {
     throw new TypeError('result must include a non-negative finite score');
   }
 
+  const mode = getGameMode(result.modeId);
   return Object.freeze({
+    modeId: mode.id,
     score: result.score,
     clearedDice: Math.max(0, Number(result.clearedDice) || 0),
     maxChain: Math.max(0, Number(result.maxChain) || 0),

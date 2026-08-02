@@ -1,4 +1,9 @@
-export const DEFAULT_GAME_DURATION_MS = 60_000;
+import {
+  DEFAULT_GAME_MODE_ID,
+  getGameMode
+} from './game-modes.js';
+
+export const DEFAULT_GAME_DURATION_MS = getGameMode().durationMs;
 export const SCORE_UNIT = 100;
 
 const PHASES = Object.freeze({
@@ -54,6 +59,7 @@ export function calculateClearScore({
 function freezeSnapshot(session) {
   return Object.freeze({
     phase: session.phase,
+    modeId: session.modeId,
     durationMs: session.durationMs,
     elapsedMs: session.elapsedMs,
     remainingMs: Math.max(0, session.durationMs - session.elapsedMs),
@@ -67,9 +73,12 @@ function freezeSnapshot(session) {
 }
 
 export class GameSession {
-  constructor({ durationMs = DEFAULT_GAME_DURATION_MS } = {}) {
-    requirePositiveInteger(durationMs, 'durationMs');
-    this.durationMs = durationMs;
+  constructor({ modeId = DEFAULT_GAME_MODE_ID, durationMs } = {}) {
+    const mode = getGameMode(modeId);
+    const resolvedDuration = durationMs ?? mode.durationMs;
+    requirePositiveInteger(resolvedDuration, 'durationMs');
+    this.modeId = mode.id;
+    this.durationMs = resolvedDuration;
     this.startedAt = 0;
     this.lastNow = 0;
     this.phase = PHASES.IDLE;
