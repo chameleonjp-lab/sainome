@@ -7,6 +7,15 @@ const ORIENTATIONS = [
   { top: 6, bottom: 1, front: 5, back: 2, left: 3, right: 4 }
 ];
 
+export const BASE_ORIENTATION = Object.freeze({
+  top: 1,
+  bottom: 6,
+  front: 2,
+  back: 5,
+  left: 3,
+  right: 4
+});
+
 export class Dice {
   constructor(id, row, column, orientation = Dice.randomOrientation()) {
     this.id = id;
@@ -16,10 +25,10 @@ export class Dice {
     Object.assign(this, orientation);
   }
 
-  static randomOrientation() {
-    const base = ORIENTATIONS[Math.floor(Math.random() * ORIENTATIONS.length)];
+  static randomOrientation(random = Math.random) {
+    const base = ORIENTATIONS[Math.floor(random() * ORIENTATIONS.length)];
     const dice = { ...base };
-    const turns = Math.floor(Math.random() * 4);
+    const turns = Math.floor(random() * 4);
     for (let index = 0; index < turns; index += 1) {
       Dice.rotateValues(dice, 'right');
     }

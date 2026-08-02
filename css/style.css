@@ -33,7 +33,7 @@ button { font: inherit; -webkit-tap-highlight-color: transparent; }
   width: min(100%, 760px);
   margin: 0 auto;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 88px 92px;
+  grid-template-columns: minmax(0, 1fr) repeat(3, 68px) 88px;
   gap: 8px;
 }
 .brand, .hud-item, .reset-button {
@@ -48,6 +48,10 @@ button { font: inherit; -webkit-tap-highlight-color: transparent; }
 .brand strong { font-size: 1.28rem; letter-spacing: .08em; }
 .hud-item { display: grid; place-items: center; align-content: center; }
 .hud-item strong { color: var(--accent); font-size: 1.35rem; line-height: 1; }
+.hud-item.chain-active {
+  border-color: rgba(255, 167, 45, .72);
+  animation: chainPulse .48s ease-in-out infinite alternate;
+}
 .reset-button { border-color: rgba(255,255,255,.12); color: #ddd9cf; font-weight: 850; }
 .reset-button:active { transform: translateY(2px); background: #2c303a; }
 
@@ -88,6 +92,9 @@ button { font: inherit; -webkit-tap-highlight-color: transparent; }
   text-align: center;
   pointer-events: none;
 }
+
+.stage.impact { animation: stageImpact .18s ease-out; }
+.stage.chain-hit { animation: chainHit .38s ease-out; }
 
 .controls {
   width: min(100%, 340px);
@@ -133,12 +140,43 @@ button { font: inherit; -webkit-tap-highlight-color: transparent; }
 
 @media (max-height: 720px) {
   .app { gap: 6px; }
-  .hud { grid-template-columns: minmax(0, 1fr) 72px 80px; }
+  .hud { grid-template-columns: minmax(0, 1fr) repeat(3, 54px) 76px; }
   .brand, .hud-item, .reset-button { min-height: 48px; border-radius: 13px; }
   .brand strong { font-size: 1.05rem; }
   #game-canvas { min-height: 350px; }
   .controls { grid-template-columns: repeat(3, 62px); grid-template-rows: repeat(2, 44px); gap: 6px; }
   .prototype-note { display: none; }
+}
+
+@media (max-width: 520px) {
+  .hud { grid-template-columns: minmax(0, 1fr) repeat(3, 51px) 70px; gap: 5px; }
+  .brand, .hud-item, .reset-button { min-height: 52px; border-radius: 13px; }
+  .brand { padding-inline: 10px; }
+  .brand span { font-size: .47rem; letter-spacing: .13em; }
+  .brand strong { font-size: 1.05rem; }
+  .hud-item span { font-size: .48rem; letter-spacing: .1em; }
+  .hud-item strong { font-size: 1.08rem; }
+  .reset-button { font-size: .73rem; }
+}
+
+@media (max-width: 370px) {
+  .hud { grid-template-columns: minmax(0, 1fr) repeat(3, 46px) 62px; }
+  .brand span { display: none; }
+  .brand strong { font-size: .95rem; }
+  .reset-button { font-size: .66rem; }
+}
+
+@keyframes stageImpact {
+  45% { transform: translateY(2px) scale(.997); filter: brightness(1.13); }
+}
+
+@keyframes chainHit {
+  30% { transform: scale(1.006); filter: brightness(1.2) saturate(1.15); }
+  62% { transform: scale(.998); }
+}
+
+@keyframes chainPulse {
+  to { box-shadow: 0 0 18px rgba(255, 135, 22, .32), inset 0 1px rgba(255,255,255,.08); }
 }
 
 @media (prefers-reduced-motion: reduce) {

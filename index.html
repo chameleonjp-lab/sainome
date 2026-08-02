@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
   <meta name="theme-color" content="#0b1018">
-  <title>サイノメ 3D試作</title>
+  <title>サイノメ</title>
   <link rel="stylesheet" href="./css/style.css">
   <script type="importmap">
   {
@@ -18,12 +18,14 @@
 <body>
   <main class="app">
     <header class="hud">
-      <div class="brand"><span>3D PROTOTYPE</span><strong>サイノメ</strong></div>
+      <div class="brand"><span>ACTION PUZZLE</span><strong>サイノメ</strong></div>
       <div class="hud-item"><span>ROLL</span><strong id="roll-count">0</strong></div>
+      <div class="hud-item"><span>CHAIN</span><strong id="chain-count">0</strong></div>
+      <div class="hud-item"><span>CLEAR</span><strong id="clear-count">0</strong></div>
       <button id="reset-button" class="reset-button" type="button">やり直す</button>
     </header>
 
-    <section id="stage" class="stage" aria-label="サイノメ3D試作画面">
+    <section id="stage" class="stage" aria-label="サイノメの3Dゲーム画面">
       <canvas id="game-canvas"></canvas>
       <div id="loading" class="loading">3D盤面を準備中…</div>
       <div id="message" class="message">盤面をスワイプして移動</div>
@@ -37,8 +39,8 @@
     </nav>
 
     <aside class="prototype-note">
-      <strong>今回の確認範囲</strong>
-      <span>床・カメラ・光と影・キャラクター・サイコロの90度回転</span>
+      <strong>消し方</strong>
+      <span>同じ目を、目の数以上つなげる。沈んでいる間に足すと連鎖。</span>
     </aside>
   </main>
 
