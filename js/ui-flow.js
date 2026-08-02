@@ -18,6 +18,9 @@ function normalizeResult(result) {
   if (!result || !Number.isFinite(result.score) || result.score < 0) {
     throw new TypeError('result must include a non-negative finite score');
   }
+  if (typeof result.modeId !== 'string') {
+    throw new TypeError('result must include a game mode');
+  }
 
   const mode = getGameMode(result.modeId);
   return Object.freeze({

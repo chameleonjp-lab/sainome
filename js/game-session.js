@@ -77,6 +77,9 @@ export class GameSession {
     const mode = getGameMode(modeId);
     const resolvedDuration = durationMs ?? mode.durationMs;
     requirePositiveInteger(resolvedDuration, 'durationMs');
+    if (resolvedDuration !== mode.durationMs) {
+      throw new RangeError('durationMs must match the selected game mode');
+    }
     this.modeId = mode.id;
     this.durationMs = resolvedDuration;
     this.startedAt = 0;

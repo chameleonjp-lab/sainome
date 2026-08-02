@@ -164,7 +164,7 @@ function createPlayer() {
 }
 
 export class WebGLSainome {
-  constructor(canvas, callbacks = {}) {
+  constructor(canvas, callbacks = {}, initialModeId = DEFAULT_GAME_MODE_ID) {
     this.canvas = canvas;
     this.callbacks = callbacks;
     this.scene = new THREE.Scene();
@@ -201,7 +201,7 @@ export class WebGLSainome {
     this.contextLost = false;
     this.pauseStartedAt = 0;
     this.totalPausedDuration = 0;
-    this.mode = getGameMode(DEFAULT_GAME_MODE_ID);
+    this.mode = getGameMode(initialModeId);
     this.spawnBatchCompleted = false;
     this.pendingSpawnCount = 0;
     this.spawnBlockedNotified = false;
@@ -791,7 +791,11 @@ export class WebGLSainome {
     const cells = selectSpawnBatch(candidates, spawnCount);
     if (cells.length === 0) {
       if (!this.spawnBlockedNotified) {
-        this.callbacks.onMessage?.('生成できる安全な空きマスがありません');
+        this.callbacks.onMessage?.(
+          isOneEightySecondMode
+            ? '生成できる安全な空きマスがありません'
+            : '盤面がいっぱいです。サイコロを消してください'
+        );
         this.spawnBlockedNotified = true;
       }
       return;

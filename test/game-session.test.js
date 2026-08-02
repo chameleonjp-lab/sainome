@@ -33,6 +33,10 @@ test('180秒モードは180秒到達時まで入力を受け付ける', () => {
   const timeUp = session.tick(181_000);
   assert.equal(timeUp.phase, 'finishing');
   assert.equal(timeUp.remainingMs, 0);
+
+  const result = session.finishWhenSettled(false);
+  assert.equal(result.modeId, GAME_MODE_IDS.ONE_EIGHTY_SECONDS);
+  assert.equal(result.durationMs, 180_000);
 });
 
 test('60秒未満では進行中のまま残り時間を減らす', () => {
@@ -177,4 +181,11 @@ test('不正な得点条件と時間は拒否する', () => {
     /positive integer/
   );
   assert.throws(() => new GameSession({ durationMs: 0 }), /positive integer/);
+  assert.throws(
+    () => new GameSession({
+      modeId: GAME_MODE_IDS.ONE_EIGHTY_SECONDS,
+      durationMs: 60_000
+    }),
+    /must match/
+  );
 });

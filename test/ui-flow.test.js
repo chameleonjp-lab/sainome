@@ -78,6 +78,18 @@ test('プレイ中以外の終了通知は画面を変えない', () => {
   assert.equal(flow.getSnapshot().screen, SCREEN_PHASES.HOME);
 });
 
+test('結果にモードがない場合は60秒へ自動分類しない', () => {
+  const flow = new GameFlow({ countdownFrom: 1 });
+  flow.beginCountdown();
+  flow.advanceCountdown();
+
+  assert.throws(
+    () => flow.finish({ score: 100, clearedDice: 1, maxChain: 1 }),
+    /game mode/
+  );
+  assert.equal(flow.getSnapshot().screen, SCREEN_PHASES.PLAYING);
+});
+
 test('結果画面から再挑戦すると結果を消して3カウントへ戻る', () => {
   const flow = new GameFlow({ countdownFrom: 1 });
   flow.beginCountdown();

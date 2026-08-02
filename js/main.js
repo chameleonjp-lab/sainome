@@ -4,6 +4,10 @@ import {
   SCREEN_PHASES
 } from './ui-flow.js';
 import { directionFromDiagonalSwipe } from './input-direction.js';
+import {
+  DEFAULT_GAME_MODE_ID,
+  getGameMode
+} from './game-modes.js';
 
 const app = document.querySelector('#app');
 const canvas = document.querySelector('#game-canvas');
@@ -28,6 +32,12 @@ const startButton = document.querySelector('#start-button');
 const replayButton = document.querySelector('#replay-button');
 const resultHomeButton = document.querySelector('#result-home-button');
 const homeError = document.querySelector('#home-error');
+const modeBrand = document.querySelector('#mode-brand');
+const homeKicker = document.querySelector('#home-kicker');
+const modeInputs = [...document.querySelectorAll('input[name="game-mode"]')];
+const resultKicker = document.querySelector('#result-kicker');
+const playNoteTitle = document.querySelector('#play-note-title');
+const playNoteText = document.querySelector('#play-note-text');
 
 const flow = new GameFlow();
 const numberFormatter = new Intl.NumberFormat('ja-JP');
@@ -37,18 +47,39 @@ let pointerStart = null;
 let countdownTimerId = null;
 let countdownRunId = 0;
 let startPending = false;
+let selectedMode = getGameMode(DEFAULT_GAME_MODE_ID);
+let activeMode = selectedMode;
 
-function resetHudDisplay() {
-  updateSessionDisplay({ phase: 'idle', remainingMs: 60_000, score: 0 });
+function resetHudDisplay(mode = selectedMode) {
+  updateSessionDisplay({
+    phase: 'idle',
+    remainingMs: mode.durationMs,
+    score: 0
+  });
   chainCount.textContent = '0';
   chainCount.parentElement.classList.remove('chain-active');
   clearCount.textContent = '0';
+}
+
+function readSelectedMode() {
+  const checked = modeInputs.find((input) => input.checked);
+  return getGameMode(checked?.value ?? DEFAULT_GAME_MODE_ID);
+}
+
+function applyModeLabels(mode) {
+  modeBrand.textContent = mode.brand;
+  homeKicker.textContent = mode.kicker;
+  playNoteTitle.textContent = mode.label;
+  playNoteText.textContent = mode.id === DEFAULT_GAME_MODE_ID
+    ? '斜めフリックで移動。同じ目を、目の数以上つなげる。'
+    : '3個以上を一度に消すと、消去数に応じてサイコロが現れる。';
 }
 
 function setStartPending(pending) {
   startPending = pending;
   startButton.disabled = pending;
   replayButton.disabled = pending;
+  for (const input of modeInputs) input.disabled = pending;
   startButton.textContent = pending ? '3D盤面を準備中…' : 'ゲーム開始';
   replayButton.textContent = pending ? '準備中…' : 'もう一度';
   app.setAttribute('aria-busy', String(pending));
@@ -110,11 +141,11 @@ const gameCallbacks = {
   }
 };
 
-async function ensureGame() {
+async function ensureGame(initialModeId = DEFAULT_GAME_MODE_ID) {
   if (game) return true;
   if (!gameLoadPromise) {
     gameLoadPromise = import('./webgl-game.js').then(({ WebGLSainome }) => {
-      game = new WebGLSainome(canvas, gameCallbacks);
+      game = new WebGLSainome(canvas, gameCallbacks, initialModeId);
       loading.classList.add('hidden');
       return game;
     });
@@ -146,6 +177,8 @@ function renderFlow(snapshot = flow.getSnapshot()) {
   }
 
   if (snapshot.screen === SCREEN_PHASES.RESULT && snapshot.result) {
+    const resultMode = getGameMode(snapshot.result.modeId);
+    resultKicker.textContent = `${resultMode.label}モード · TIME UP`;
     resultScore.textContent = numberFormatter.format(snapshot.result.score);
     resultCleared.textContent = numberFormatter.format(snapshot.result.clearedDice);
     resultChain.textContent = numberFormatter.format(snapshot.result.maxChain);
@@ -165,7 +198,7 @@ function scheduleCountdown(runId) {
     renderFlow(transition.snapshot);
 
     if (transition.started) {
-      game.reset();
+      game.reset(activeMode.id);
       message.textContent = '盤面に沿って斜めにフリック';
       canvas.focus({ preventScroll: true });
       return;
@@ -177,16 +210,20 @@ function scheduleCountdown(runId) {
 
 async function startRound() {
   if (startPending || flow.getSnapshot().screen === SCREEN_PHASES.COUNTDOWN) return;
+  const roundMode = readSelectedMode();
   setStartPending(true);
   homeError.hidden = true;
 
-  const ready = await ensureGame();
+  const ready = await ensureGame(roundMode.id);
   setStartPending(false);
   if (!ready) return;
 
   const snapshot = flow.beginCountdown();
   if (!snapshot) return;
-  resetHudDisplay();
+  selectedMode = roundMode;
+  activeMode = roundMode;
+  applyModeLabels(activeMode);
+  resetHudDisplay(activeMode);
   cancelCountdown();
   renderFlow(snapshot);
   scheduleCountdown(countdownRunId);
@@ -235,13 +272,25 @@ startButton.addEventListener('click', startRound);
 replayButton.addEventListener('click', startRound);
 resultHomeButton.addEventListener('click', () => {
   cancelCountdown();
-  resetHudDisplay();
+  selectedMode = readSelectedMode();
+  applyModeLabels(selectedMode);
+  resetHudDisplay(selectedMode);
   renderFlow(flow.goHome());
   window.setTimeout(() => startButton.focus(), 0);
 });
 
+for (const input of modeInputs) {
+  input.addEventListener('change', () => {
+    if (!input.checked || flow.getSnapshot().screen !== SCREEN_PHASES.HOME) return;
+    selectedMode = readSelectedMode();
+    applyModeLabels(selectedMode);
+    resetHudDisplay(selectedMode);
+  });
+}
+
 document.addEventListener('contextmenu', (event) => event.preventDefault());
 document.addEventListener('gesturestart', (event) => event.preventDefault());
 
-resetHudDisplay();
+applyModeLabels(selectedMode);
+resetHudDisplay(selectedMode);
 renderFlow();
