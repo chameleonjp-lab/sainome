@@ -2,7 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { Dice, BASE_ORIENTATION } from '../js/dice.js';
-import { boardKey, findTriggeredGroups } from '../js/board-rules.js';
+import {
+  boardKey,
+  findSpecialOneClear,
+  findTriggeredGroups,
+  listSpawnCandidates,
+  planFloorPush,
+  selectBuriedRescue,
+  selectSpawnCandidate
+} from '../js/board-rules.js';
 
 function die(id, row, column, top, state = 'normal') {
   return {
@@ -116,4 +124,141 @@ test('1の目は通常の接続消去に含めない', () => {
   const map = diceMap(die('one', 0, 0, 1));
 
   assert.deepEqual(findTriggeredGroups(map, 7), []);
+});
+
+test('上昇中と床に沈んだサイコロは通常の接続消去に含めない', () => {
+  for (const state of ['rising', 'buried']) {
+    const map = diceMap(
+      die('a', 2, 2, 2),
+      die('b', 2, 3, 2, state)
+    );
+
+    assert.deepEqual(findTriggeredGroups(map, 7), []);
+  }
+});
+
+test('沈下中のサイコロへ1が隣接すると盤面上の1が特殊消去対象になる', () => {
+  const map = diceMap(
+    die('sink', 2, 2, 3, 'sinking'),
+    die('trigger', 2, 3, 1),
+    die('remote', 6, 6, 1),
+    die('other', 1, 1, 2)
+  );
+
+  const special = findSpecialOneClear(map, 7);
+
+  assert.equal(special.trigger.id, 'trigger');
+  assert.deepEqual(special.members.map((item) => item.id).sort(), ['remote', 'trigger']);
+});
+
+test('プレイヤーが乗っている1は特殊消去対象から保護する', () => {
+  const map = diceMap(
+    die('sink', 2, 2, 2, 'sinking'),
+    die('standing', 2, 3, 1),
+    die('remote', 5, 5, 1)
+  );
+
+  const special = findSpecialOneClear(map, 7, 'standing');
+
+  assert.equal(special.protected.id, 'standing');
+  assert.deepEqual(special.members.map((item) => item.id), ['remote']);
+});
+
+test('1が沈下中のサイコロと斜めに接するだけでは特殊消去しない', () => {
+  const map = diceMap(
+    die('sink', 2, 2, 2, 'sinking'),
+    die('one', 3, 3, 1)
+  );
+
+  assert.equal(findSpecialOneClear(map, 7), null);
+});
+
+test('再出現候補から既存サイコロとプレイヤーの床マスを除く', () => {
+  const map = diceMap(die('occupied', 0, 0, 4));
+  const candidates = listSpawnCandidates(map, 2, new Set([boardKey(1, 1)]));
+
+  assert.deepEqual(candidates, [
+    { row: 0, column: 1, key: '0,1' },
+    { row: 1, column: 0, key: '1,0' }
+  ]);
+});
+
+test('床から押す計画は1マス先が空いている通常サイコロだけ許可する', () => {
+  const pushed = die('push', 1, 1, 4);
+  const map = diceMap(pushed);
+
+  const plan = planFloorPush(map, 3, pushed, { row: 0, column: 1 });
+
+  assert.deepEqual(plan, {
+    allowed: true,
+    fromKey: '1,1',
+    fromRow: 1,
+    fromColumn: 1,
+    destinationKey: '1,2',
+    destinationRow: 1,
+    destinationColumn: 2
+  });
+  assert.deepEqual({ row: pushed.row, column: pushed.column, top: pushed.top }, {
+    row: 1,
+    column: 1,
+    top: 4
+  });
+});
+
+test('盤面外または他のサイコロがある方向へは押せない', () => {
+  const edgeDie = die('edge', 0, 0, 3);
+  const blockedDie = die('blocked', 1, 1, 5);
+  const obstacle = die('obstacle', 1, 2, 2);
+  const map = diceMap(edgeDie, blockedDie, obstacle);
+
+  assert.deepEqual(
+    planFloorPush(map, 3, edgeDie, { row: -1, column: 0 }),
+    { allowed: false, reason: 'edge' }
+  );
+  assert.deepEqual(
+    planFloorPush(map, 3, blockedDie, { row: 0, column: 1 }),
+    { allowed: false, reason: 'occupied' }
+  );
+});
+
+test('沈下中・上昇中・床に沈んだサイコロは床から押せない', () => {
+  for (const state of ['sinking', 'rising', 'buried']) {
+    const item = die(state, 1, 1, 2, state);
+    assert.deepEqual(
+      planFloorPush(diceMap(item), 3, item, { row: 0, column: 1 }),
+      { allowed: false, reason: 'not-pushable' }
+    );
+  }
+});
+
+test('再出現候補の乱数が範囲端でも有効なマスを選ぶ', () => {
+  const candidates = [
+    { row: 0, column: 0, key: '0,0' },
+    { row: 0, column: 1, key: '0,1' }
+  ];
+
+  assert.equal(selectSpawnCandidate(candidates, () => 0).key, '0,0');
+  assert.equal(selectSpawnCandidate(candidates, () => 1).key, '0,1');
+  assert.equal(selectSpawnCandidate([], () => 0), null);
+});
+
+test('消去完了時はプレイヤーが乗っているサイコロを床の戻り道として優先する', () => {
+  const first = die('first', 2, 2, 3, 'sinking');
+  const standing = die('standing', 5, 5, 3, 'sinking');
+
+  assert.equal(
+    selectBuriedRescue([first, standing], 2, 2, 'standing').id,
+    'standing'
+  );
+});
+
+test('足元の指定がなければプレイヤーに最も近い消去サイコロを床へ残す', () => {
+  const far = die('far', 0, 0, 4, 'sinking');
+  const near = die('near', 3, 4, 4, 'sinking');
+
+  assert.equal(
+    selectBuriedRescue([far, near], 3, 3).id,
+    'near'
+  );
+  assert.equal(selectBuriedRescue([], 3, 3), null);
 });
