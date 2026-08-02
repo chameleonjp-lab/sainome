@@ -239,6 +239,12 @@ button:disabled { opacity: .55; }
   color: #17120b;
   font-size: .78rem;
 }
+.home-actions {
+  width: min(100%, 460px);
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 9px;
+}
 .primary-button, .secondary-button {
   min-width: min(100%, 240px);
   min-height: 52px;
@@ -260,6 +266,10 @@ button:disabled { opacity: .55; }
   color: #eeeae0;
 }
 .secondary-button:active { background: rgba(255,255,255,.13); }
+.home-actions .primary-button,
+.home-actions .secondary-button,
+.tutorial-actions .primary-button,
+.tutorial-actions .secondary-button { min-width: 0; }
 .home-error {
   max-width: 460px;
   margin: 0;
@@ -270,6 +280,160 @@ button:disabled { opacity: .55; }
   color: #ffc4ba;
   font-size: .78rem;
   line-height: 1.55;
+}
+
+.tutorial-screen {
+  align-content: center;
+  gap: 11px;
+}
+.tutorial-topline {
+  width: min(100%, 500px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.tutorial-progress {
+  margin: 0;
+  color: #aaa494;
+  font-size: .72rem;
+  font-weight: 900;
+  letter-spacing: .12em;
+  font-variant-numeric: tabular-nums;
+}
+.tutorial-screen h2 {
+  width: min(100%, 500px);
+  font-size: clamp(1.65rem, 7vw, 2.6rem);
+  text-align: left;
+  outline: none;
+}
+.tutorial-deck {
+  width: min(100%, 500px);
+  min-height: 245px;
+  display: grid;
+}
+.tutorial-slide {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 13px;
+  padding: clamp(16px, 4vw, 24px);
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(245,196,81,.14), transparent 45%),
+    rgba(255,255,255,.04);
+}
+.tutorial-slide p {
+  max-width: 440px;
+  margin: 0;
+  color: #e0dcd1;
+  font-size: clamp(.82rem, 3.2vw, .98rem);
+  font-weight: 750;
+  line-height: 1.65;
+}
+.tutorial-slide .tutorial-tip {
+  color: #aaa596;
+  font-size: clamp(.7rem, 2.8vw, .82rem);
+  font-weight: 650;
+}
+.swipe-grid {
+  width: 152px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 34px);
+  place-items: center;
+}
+.swipe-grid span {
+  color: var(--accent);
+  font-size: 2rem;
+  font-weight: 950;
+  line-height: 1;
+  text-shadow: 0 0 20px rgba(245,196,81,.3);
+}
+.swipe-grid strong {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255,255,255,.24);
+  border-radius: 14px;
+  background: linear-gradient(145deg, #716ae0, #3f397d);
+  box-shadow: 0 8px 20px rgba(0,0,0,.34);
+  color: #fff;
+  font-size: .76rem;
+}
+.match-visual {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+.match-visual span {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255,255,255,.28);
+  border-radius: 12px;
+  background: linear-gradient(145deg, #f7f2e7, #bdb7aa);
+  box-shadow: 0 7px 0 #625f58, 0 12px 20px rgba(0,0,0,.3);
+  color: #17191e;
+  font-size: 1.45rem;
+  font-weight: 950;
+}
+.match-visual b {
+  margin-left: 5px;
+  color: var(--accent);
+  font-size: .82rem;
+  letter-spacing: .08em;
+}
+.mode-rule-grid {
+  width: min(100%, 370px);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+}
+.mode-rule-grid div {
+  display: grid;
+  gap: 6px;
+  align-content: center;
+  min-height: 96px;
+  padding: 12px;
+  border: 1px solid rgba(255,255,255,.13);
+  border-radius: 15px;
+  background: rgba(255,255,255,.045);
+}
+.mode-rule-grid strong { color: var(--accent); font-size: 1.24rem; }
+.mode-rule-grid span { color: #bcb7aa; font-size: .72rem; font-weight: 750; line-height: 1.5; }
+.tutorial-slide .tutorial-selected-mode {
+  padding: 7px 13px;
+  border-radius: 999px;
+  background: rgba(245,196,81,.13);
+  color: var(--accent);
+  font-size: .75rem;
+  font-weight: 900;
+}
+.tutorial-dots {
+  display: flex;
+  gap: 7px;
+}
+.tutorial-dots span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.2);
+  transition: width .16s ease, background .16s ease;
+}
+.tutorial-dots span.is-active {
+  width: 22px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+.tutorial-actions {
+  width: min(100%, 500px);
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.25fr;
+  gap: 8px;
 }
 
 .countdown-screen { overflow: hidden; }
@@ -342,6 +506,9 @@ button:disabled { opacity: .55; }
   .screen-panel h1 { font-size: clamp(2.2rem, 10vw, 3.6rem); }
   .quick-rules li { min-height: 60px; }
   .mode-choice span { min-height: 50px; }
+  .tutorial-screen { align-content: start; }
+  .tutorial-deck { min-height: 220px; }
+  .tutorial-slide { gap: 9px; padding-block: 13px; }
 }
 
 @media (max-width: 520px) {
@@ -364,6 +531,9 @@ button:disabled { opacity: .55; }
   .hud-score strong { font-size: .72rem; }
   .quick-rules { gap: 4px; }
   .quick-rules li { font-size: .62rem; }
+  .home-actions { grid-template-columns: 1fr; }
+  .tutorial-actions { grid-template-columns: 1fr 1fr; }
+  .tutorial-actions .primary-button { grid-column: 1 / -1; }
   .result-actions { grid-template-columns: 1fr; }
 }
 
