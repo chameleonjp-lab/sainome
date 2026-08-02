@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="utf-8">
@@ -16,29 +16,64 @@
   </script>
 </head>
 <body>
-  <main class="app">
-    <header class="hud">
-      <div class="brand"><span>ACTION PUZZLE</span><strong>サイノメ</strong></div>
-      <div class="hud-item"><span>ROLL</span><strong id="roll-count">0</strong></div>
+  <main id="app" class="app" data-screen="home">
+    <header class="hud" aria-label="ゲームの状況">
+      <div class="brand"><span>60 SECOND PUZZLE</span><strong>サイノメ</strong></div>
+      <div id="time-panel" class="hud-item"><span>TIME</span><strong id="remaining-time">60</strong></div>
+      <div id="score-panel" class="hud-item hud-score"><span>SCORE</span><strong id="score-count">0</strong></div>
       <div class="hud-item"><span>CHAIN</span><strong id="chain-count">0</strong></div>
       <div class="hud-item"><span>CLEAR</span><strong id="clear-count">0</strong></div>
-      <button id="reset-button" class="reset-button" type="button">やり直す</button>
     </header>
 
     <section id="stage" class="stage" aria-label="サイノメの3Dゲーム画面">
-      <canvas id="game-canvas"></canvas>
-      <div id="loading" class="loading">3D盤面を準備中…</div>
-      <div id="message" class="message">盤面をスワイプして移動</div>
+      <canvas id="game-canvas" tabindex="-1"></canvas>
+      <div id="loading" class="loading" role="status">3D盤面を準備中…</div>
+      <div id="message" class="message" aria-live="polite">盤面をスワイプして移動</div>
+
+      <section id="home-screen" class="screen-panel home-screen" aria-labelledby="game-title">
+        <p class="screen-kicker">60秒で、つないで、沈める</p>
+        <h1 id="game-title">サイノメ</h1>
+        <p class="screen-lead">サイコロを転がし、上面と同じ数以上を縦横につなげて得点を競います。</p>
+        <ol class="quick-rules" aria-label="遊び方">
+          <li><b>1</b> スワイプで移動</li>
+          <li><b>2</b> 同じ目をつなぐ</li>
+          <li><b>3</b> 連鎖で得点アップ</li>
+        </ol>
+        <p id="home-error" class="home-error" role="alert" hidden></p>
+        <button id="start-button" class="primary-button" type="button">ゲーム開始</button>
+      </section>
+
+      <section id="countdown-screen" class="screen-panel countdown-screen" aria-live="assertive" hidden>
+        <p>READY</p>
+        <strong id="countdown-value">3</strong>
+      </section>
+
+      <section id="result-screen" class="screen-panel result-screen" aria-labelledby="result-title" hidden>
+        <p class="screen-kicker">TIME UP</p>
+        <h2 id="result-title">結果</h2>
+        <div class="result-score">
+          <span>SCORE</span>
+          <strong id="result-score">0</strong>
+        </div>
+        <dl class="result-stats">
+          <div><dt>消した数</dt><dd id="result-cleared">0</dd></div>
+          <div><dt>最大連鎖</dt><dd id="result-chain">0</dd></div>
+        </dl>
+        <div class="result-actions">
+          <button id="replay-button" class="primary-button" type="button">もう一度</button>
+          <button id="result-home-button" class="secondary-button" type="button">ホームへ</button>
+        </div>
+      </section>
     </section>
 
-    <nav class="controls" aria-label="移動操作">
-      <button data-direction="up" class="up" aria-label="奥へ移動">▲</button>
-      <button data-direction="left" class="left" aria-label="左へ移動">◀</button>
-      <button data-direction="down" class="down" aria-label="手前へ移動">▼</button>
-      <button data-direction="right" class="right" aria-label="右へ移動">▶</button>
+    <nav id="controls" class="controls" aria-label="移動操作" hidden>
+      <button data-direction="up" class="up" type="button" aria-label="奥へ移動">▲</button>
+      <button data-direction="left" class="left" type="button" aria-label="左へ移動">◀</button>
+      <button data-direction="down" class="down" type="button" aria-label="手前へ移動">▼</button>
+      <button data-direction="right" class="right" type="button" aria-label="右へ移動">▶</button>
     </nav>
 
-    <aside class="prototype-note">
+    <aside id="play-note" class="prototype-note" hidden>
       <strong>消し方</strong>
       <span>同じ目を、目の数以上つなげる。沈んでいる間に足すと連鎖。</span>
     </aside>
