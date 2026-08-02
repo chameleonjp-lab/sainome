@@ -12,6 +12,7 @@ import {
   selectSpawnCandidate
 } from './board-rules.js';
 import { BASE_ORIENTATION, Dice } from './dice.js';
+import { GAME_PHASES, GameSession } from './game-session.js';
 
 const BOARD_SIZE = 7;
 const HALF_BOARD = (BOARD_SIZE - 1) / 2;
@@ -194,6 +195,8 @@ export class WebGLSainome {
     this.totalPausedDuration = 0;
     this.nextSpawnAt = 0;
     this.pendingMatchResolution = false;
+    this.session = new GameSession();
+    this.lastSessionSignature = '';
 
     this.createLights();
     this.createBoard();
@@ -310,6 +313,8 @@ export class WebGLSainome {
     this.queueTimerId = null;
     this.player.rotation.set(0, 0, 0);
     this.placePlayer();
+    this.lastSessionSignature = '';
+    this.emitSession(this.session.start(this.getGameTime()), true);
     this.callbacks.onRoll?.(this.rollCount, this.dice.get(this.activeKey)?.top);
     this.callbacks.onChain?.({ chain: 0, count: 0, value: 0, isChain: false });
     this.callbacks.onClear?.(this.clearedCount);
@@ -366,6 +371,15 @@ export class WebGLSainome {
 
   move(directionName) {
     if (!DIRECTIONS[directionName]) return;
+    this.emitSession(this.session.tick(this.getGameTime()));
+    if (!this.session.isAcceptingInput()) {
+      this.callbacks.onMessage?.(
+        this.session.getSnapshot().phase === GAME_PHASES.FINISHING
+          ? '60秒終了。消去が終わるまで待ちます'
+          : 'ゲーム終了。やり直すと再開します'
+      );
+      return;
+    }
     if (this.busy) {
       this.queuedDirection = directionName;
       return;
@@ -612,6 +626,7 @@ export class WebGLSainome {
   }
 
   resolveMatches() {
+    if (this.session.getSnapshot().phase === GAME_PHASES.FINISHED) return false;
     this.pendingMatchResolution = false;
     const groups = findTriggeredGroups(this.dice, BOARD_SIZE);
     const now = this.getGameTime();
@@ -630,6 +645,12 @@ export class WebGLSainome {
         count: group.additions.length,
         value: group.value,
         isChain: group.isChain
+      });
+      this.recordClearScore({
+        type: 'normal',
+        value: group.value,
+        count: group.additions.length,
+        chain: this.chainCount
       });
       this.callbacks.onMessage?.(
         group.isChain
@@ -659,6 +680,13 @@ export class WebGLSainome {
       material.emissive.setHex(0x6a1d7a);
       material.emissiveIntensity = 0.82;
     }
+
+    this.recordClearScore({
+      type: 'special-one',
+      value: 1,
+      count: special.members.length,
+      chain: Math.max(1, this.chainCount)
+    });
 
     this.callbacks.onMessage?.(
       special.protected
@@ -772,11 +800,13 @@ export class WebGLSainome {
       }
     }
 
-    if (completed) this.pendingMatchResolution = true;
+    if (completed && this.session.getSnapshot().phase !== GAME_PHASES.FINISHED) {
+      this.pendingMatchResolution = true;
+    }
   }
 
   updateSpawning(now) {
-    if (this.busy || now < this.nextSpawnAt) return;
+    if (!this.session.isAcceptingInput() || this.busy || now < this.nextSpawnAt) return;
     this.nextSpawnAt = now + SPAWN_INTERVAL;
 
     const excluded = this.activeKey
@@ -823,6 +853,41 @@ export class WebGLSainome {
     return now - this.totalPausedDuration - currentPause;
   }
 
+  recordClearScore(clear) {
+    const scoreEvent = this.session.recordClear(clear);
+    if (!scoreEvent) return null;
+    this.callbacks.onScore?.(scoreEvent);
+    this.emitSession(this.session.getSnapshot(), true);
+    return scoreEvent;
+  }
+
+  emitSession(snapshot, force = false) {
+    const signature = `${snapshot.phase}:${Math.ceil(snapshot.remainingMs / 1000)}:${snapshot.score}`;
+    if (!force && signature === this.lastSessionSignature) return;
+    this.lastSessionSignature = signature;
+    this.callbacks.onSessionChange?.(snapshot);
+  }
+
+  finishSessionIfSettled() {
+    const hasPendingWork = this.busy
+      || this.pendingMatchResolution
+      || [...this.dice.values()].some(
+        (die) => die.state === 'sinking'
+          || die.state === 'one-clearing'
+          || die.state === 'rising'
+      );
+    const result = this.session.finishWhenSettled(hasPendingWork);
+    if (!result) return;
+
+    this.pendingMatchResolution = false;
+    this.queuedDirection = null;
+    window.clearTimeout(this.queueTimerId);
+    this.queueTimerId = null;
+    this.emitSession(result, true);
+    this.callbacks.onFinish?.(result);
+    this.callbacks.onMessage?.(`60秒終了。得点は${result.score}点です`);
+  }
+
   resize() {
     const parent = this.canvas.parentElement;
     const width = Math.max(1, parent.clientWidth);
@@ -843,11 +908,14 @@ export class WebGLSainome {
 
   animate() {
     const now = this.getGameTime();
+    const sessionState = this.session.tick(now);
+    this.emitSession(sessionState);
     if (this.isVisible) {
       this.updateSinking(now);
       this.updateRising(now);
       this.updateSpawning(now);
       this.resolvePendingMatches();
+      this.finishSessionIfSettled();
     }
 
     const elapsed = this.clock.getElapsedTime();
