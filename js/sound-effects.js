@@ -46,6 +46,7 @@ export class SoundEffects {
     this.audioUnavailable = false;
     this.activeSounds = new Set();
     this.lastClearAt = -Infinity;
+    this.hidden = false;
   }
 
   getSnapshot() {
@@ -89,12 +90,16 @@ export class SoundEffects {
   }
 
   async unlock() {
-    if (!this.enabled) return false;
+    if (!this.enabled || this.hidden) return false;
     const context = this.ensureContext();
     if (!context) return false;
 
     try {
       if (context.state === 'suspended') await context.resume();
+      if (!this.enabled || this.hidden) {
+        await this.suspend();
+        return false;
+      }
       return context.state === 'running';
     } catch {
       return false;
@@ -111,7 +116,8 @@ export class SoundEffects {
   }
 
   handleVisibility(hidden) {
-    if (hidden) void this.suspend();
+    this.hidden = Boolean(hidden);
+    if (this.hidden) void this.suspend();
   }
 
   getPlayableContext() {

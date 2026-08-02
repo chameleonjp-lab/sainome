@@ -510,7 +510,7 @@ button:disabled { opacity: .55; }
 }
 .prototype-note strong { color: #c9c5bb; }
 .sound-toggle {
-  min-height: 38px;
+  min-height: 44px;
   flex: none;
   display: inline-flex;
   align-items: center;
@@ -578,7 +578,7 @@ button:disabled { opacity: .55; }
   .tutorial-actions { grid-template-columns: 1fr 1fr; }
   .tutorial-actions .primary-button { grid-column: 1 / -1; }
   .result-actions { grid-template-columns: 1fr; }
-  .sound-toggle { min-height: 36px; padding-inline: 10px; font-size: .62rem; }
+  .sound-toggle { padding-inline: 10px; font-size: .62rem; }
 }
 
 @keyframes stageImpact {

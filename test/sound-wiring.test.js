@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 
 const rootUrl = new URL('../', import.meta.url);
 const html = readFileSync(new URL('index.html', rootUrl), 'utf8');
+const css = readFileSync(new URL('css/style.css', rootUrl), 'utf8');
 const main = readFileSync(new URL('js/main.js', rootUrl), 'utf8');
 const webglGame = readFileSync(new URL('js/webgl-game.js', rootUrl), 'utf8');
 
@@ -12,6 +13,8 @@ test('効果音の切り替えは押下状態と読み上げ用表示を持つ',
   assert.match(html, /aria-pressed="false"/);
   assert.match(html, /id="sound-status"[^>]*aria-live="polite"/);
   assert.match(main, /renderSoundToggle/);
+  assert.match(main, /soundTogglePending/);
+  assert.match(css, /\.sound-toggle\s*\{[^}]*min-height:\s*44px/s);
 });
 
 test('ゲームの4種類の出来事を別々の効果音へ接続する', () => {

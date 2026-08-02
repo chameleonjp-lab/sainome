@@ -71,6 +71,7 @@ let pointerStart = null;
 let countdownTimerId = null;
 let countdownRunId = 0;
 let startPending = false;
+let soundTogglePending = false;
 let selectedMode = getGameMode(DEFAULT_GAME_MODE_ID);
 let activeMode = selectedMode;
 
@@ -354,20 +355,28 @@ document.addEventListener('keydown', (event) => {
 startButton.addEventListener('click', startRound);
 replayButton.addEventListener('click', startRound);
 soundToggle.addEventListener('click', async () => {
+  if (soundTogglePending) return;
+  soundTogglePending = true;
+  soundToggle.disabled = true;
   const targetEnabled = !soundEffects.getSnapshot().enabled;
-  let snapshot = await soundEffects.setEnabled(targetEnabled);
+  try {
+    let snapshot = await soundEffects.setEnabled(targetEnabled);
 
-  if (targetEnabled && !snapshot.running) {
-    snapshot = await soundEffects.setEnabled(false);
-    soundStatus.textContent = 'この環境では効果音を開始できませんでした';
-  } else {
-    soundStatus.textContent = targetEnabled
-      ? '効果音をオンにしました'
-      : '効果音をオフにしました';
+    if (targetEnabled && !snapshot.running) {
+      snapshot = await soundEffects.setEnabled(false);
+      soundStatus.textContent = 'この環境では効果音を開始できませんでした';
+    } else {
+      soundStatus.textContent = targetEnabled
+        ? '効果音をオンにしました'
+        : '効果音をオフにしました';
+    }
+
+    renderSoundToggle(snapshot);
+    if (snapshot.enabled) soundEffects.playFlick();
+  } finally {
+    soundTogglePending = false;
+    soundToggle.disabled = false;
   }
-
-  renderSoundToggle(snapshot);
-  if (snapshot.enabled) soundEffects.playFlick();
 });
 tutorialButton.addEventListener('click', () => {
   if (startPending) return;

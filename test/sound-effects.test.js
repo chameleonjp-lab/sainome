@@ -192,3 +192,26 @@ test('画面が隠れたら再生中の音声を停止する', async () => {
   assert.equal(context.stopped > 0, true);
   assert.equal(sounds.activeSounds.size, 0);
 });
+
+test('音声の開始中に画面が隠れた場合も再生状態を残さない', async () => {
+  let completeResume;
+  const context = new FakeAudioContext();
+  context.resume = () => new Promise((resolve) => {
+    completeResume = () => {
+      context.state = 'running';
+      resolve();
+    };
+  });
+  const sounds = new SoundEffects({
+    storage: memoryStorage(),
+    contextFactory: () => context
+  });
+
+  const enabling = sounds.setEnabled(true);
+  sounds.handleVisibility(true);
+  completeResume();
+  const snapshot = await enabling;
+
+  assert.equal(snapshot.running, false);
+  assert.equal(context.state, 'suspended');
+});
