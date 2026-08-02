@@ -11,8 +11,8 @@ export const BEST_OUTCOMES = Object.freeze({
 });
 
 function normalizeScore(value) {
-  if (!Number.isFinite(value) || value < 0) {
-    throw new TypeError('score must be a non-negative finite number');
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new TypeError('score must be a non-negative safe integer');
   }
   return value;
 }
@@ -88,11 +88,13 @@ export class BestRecords {
   }
 
   getBest(modeId) {
+    this.syncFromStorage();
     const normalizedModeId = resolveMode(modeId);
     return this.records.get(normalizedModeId)?.score ?? null;
   }
 
   recordResult({ modeId, score }) {
+    this.syncFromStorage();
     const normalizedModeId = resolveMode(modeId);
     const normalizedScore = normalizeScore(score);
     const previous = this.records.get(normalizedModeId) ?? null;
@@ -130,6 +132,18 @@ export class BestRecords {
       difference,
       persisted: best.persisted
     });
+  }
+
+  syncFromStorage() {
+    const storedRecords = readRecords(this.storage);
+    for (const [modeId, stored] of storedRecords) {
+      const current = this.records.get(modeId);
+      if (!current || stored.score > current.score) {
+        this.records.set(modeId, stored);
+      } else if (stored.score === current.score) {
+        current.persisted = true;
+      }
+    }
   }
 
   persist() {

@@ -105,6 +105,52 @@ test('壊れた項目だけを無視し、正しい別モードの記録を復�
   assert.equal(records.getBest(GAME_MODE_IDS.ONE_EIGHTY_SECONDS), 5000);
 });
 
+test('壊れたJSONと安全に扱えない数値を記録として使わない', () => {
+  const malformed = new BestRecords({
+    storage: memoryStorage({ [BEST_RECORDS_STORAGE_KEY]: '{broken' })
+  });
+  assert.equal(malformed.getBest(GAME_MODE_IDS.SIXTY_SECONDS), null);
+
+  const unsafe = new BestRecords({
+    storage: memoryStorage({
+      [BEST_RECORDS_STORAGE_KEY]: JSON.stringify({
+        version: 1,
+        records: {
+          [GAME_MODE_IDS.SIXTY_SECONDS]: { score: Number.MAX_VALUE },
+          [GAME_MODE_IDS.ONE_EIGHTY_SECONDS]: { score: 12.5 }
+        }
+      })
+    })
+  });
+  assert.equal(unsafe.getBest(GAME_MODE_IDS.SIXTY_SECONDS), null);
+  assert.equal(unsafe.getBest(GAME_MODE_IDS.ONE_EIGHTY_SECONDS), null);
+});
+
+test('複数タブ相当の古い状態から保存しても高い記録と別モードを失わない', () => {
+  const storage = memoryStorage();
+  const firstTab = new BestRecords({ storage });
+  const secondTab = new BestRecords({ storage });
+
+  firstTab.recordResult({
+    modeId: GAME_MODE_IDS.SIXTY_SECONDS,
+    score: 1600
+  });
+  const lowerFromSecondTab = secondTab.recordResult({
+    modeId: GAME_MODE_IDS.SIXTY_SECONDS,
+    score: 1200
+  });
+  secondTab.recordResult({
+    modeId: GAME_MODE_IDS.ONE_EIGHTY_SECONDS,
+    score: 4800
+  });
+
+  const restored = new BestRecords({ storage });
+  assert.equal(lowerFromSecondTab.status, BEST_OUTCOMES.LOWER);
+  assert.equal(lowerFromSecondTab.bestScore, 1600);
+  assert.equal(restored.getBest(GAME_MODE_IDS.SIXTY_SECONDS), 1600);
+  assert.equal(restored.getBest(GAME_MODE_IDS.ONE_EIGHTY_SECONDS), 4800);
+});
+
 test('保存を拒否されても現在のプレイ中は自己ベストを保持する', () => {
   const storage = {
     getItem: () => { throw new Error('blocked'); },
@@ -138,6 +184,13 @@ test('不正なモードと得点を記録しない', () => {
     () => records.recordResult({
       modeId: GAME_MODE_IDS.SIXTY_SECONDS,
       score: Number.NaN
+    }),
+    /score/
+  );
+  assert.throws(
+    () => records.recordResult({
+      modeId: GAME_MODE_IDS.SIXTY_SECONDS,
+      score: 1.5
     }),
     /score/
   );
