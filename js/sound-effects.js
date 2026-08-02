@@ -30,13 +30,6 @@ function createDefaultAudioContext() {
   return AudioContextClass ? new AudioContextClass() : null;
 }
 
-function disconnectWhenEnded(node, linkedNodes = []) {
-  node.addEventListener?.('ended', () => {
-    node.disconnect?.();
-    for (const linkedNode of linkedNodes) linkedNode.disconnect?.();
-  }, { once: true });
-}
-
 export class SoundEffects {
   constructor({
     storage = getDefaultStorage(),
@@ -50,13 +43,15 @@ export class SoundEffects {
     this.context = null;
     this.masterGain = null;
     this.noiseBuffer = null;
+    this.audioUnavailable = false;
+    this.activeSounds = new Set();
     this.lastClearAt = -Infinity;
   }
 
   getSnapshot() {
     return Object.freeze({
       enabled: this.enabled,
-      available: this.context !== null || this.contextFactory !== null,
+      available: !this.audioUnavailable,
       running: this.context?.state === 'running'
     });
   }
@@ -82,7 +77,10 @@ export class SoundEffects {
     } catch {
       this.context = null;
     }
-    if (!this.context) return null;
+    if (!this.context) {
+      this.audioUnavailable = true;
+      return null;
+    }
 
     this.masterGain = this.context.createGain();
     this.masterGain.gain.setValueAtTime(0.42, this.context.currentTime);
@@ -104,6 +102,7 @@ export class SoundEffects {
   }
 
   async suspend() {
+    this.stopActiveSounds();
     try {
       if (this.context?.state === 'running') await this.context.suspend();
     } catch {
@@ -121,6 +120,33 @@ export class SoundEffects {
     if (!context) return null;
     if (context.state === 'suspended') void this.unlock();
     return context.state === 'running' ? context : null;
+  }
+
+  trackSound(node, linkedNodes = []) {
+    const activeSound = {
+      node,
+      linkedNodes,
+      cleanup: null
+    };
+    const cleanup = () => {
+      if (!this.activeSounds.delete(activeSound)) return;
+      node.disconnect?.();
+      for (const linkedNode of linkedNodes) linkedNode.disconnect?.();
+    };
+    activeSound.cleanup = cleanup;
+    this.activeSounds.add(activeSound);
+    node.addEventListener?.('ended', cleanup, { once: true });
+  }
+
+  stopActiveSounds() {
+    for (const activeSound of [...this.activeSounds]) {
+      try {
+        activeSound.node.stop?.();
+      } catch {
+        // A source that already ended can reject a repeated stop.
+      }
+      activeSound.cleanup();
+    }
   }
 
   createNoiseBuffer(context) {
@@ -162,9 +188,9 @@ export class SoundEffects {
     envelope.gain.exponentialRampToValueAtTime(0.0001, when + duration);
     oscillator.connect(envelope);
     envelope.connect(this.masterGain);
+    this.trackSound(oscillator, [envelope]);
     oscillator.start(when);
     oscillator.stop(when + duration + 0.01);
-    disconnectWhenEnded(oscillator, [envelope]);
     return true;
   }
 
@@ -184,9 +210,9 @@ export class SoundEffects {
     source.connect(filter);
     filter.connect(envelope);
     envelope.connect(this.masterGain);
+    this.trackSound(source, [filter, envelope]);
     source.start(when);
     source.stop(when + duration + 0.01);
-    disconnectWhenEnded(source, [filter, envelope]);
     return true;
   }
 

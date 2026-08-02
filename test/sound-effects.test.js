@@ -30,7 +30,7 @@ class FakeSource extends FakeNode {
   }
 
   start() { this.context.started += 1; }
-  stop() {}
+  stop() { this.context.stopped += 1; }
 }
 
 class FakeGain extends FakeNode {
@@ -56,6 +56,7 @@ class FakeAudioContext {
     this.state = 'suspended';
     this.destination = new FakeNode(this);
     this.started = 0;
+    this.stopped = 0;
   }
 
   createGain() { return new FakeGain(this); }
@@ -124,11 +125,14 @@ test('音の切り替えを保存し、オフにすると停止する', async ()
   assert.equal(enabled.enabled, true);
   assert.equal(enabled.running, true);
   assert.equal(storage.read(SOUND_PREFERENCE_KEY), 'true');
+  sounds.playFlick();
 
   const disabled = await sounds.setEnabled(false);
   assert.equal(disabled.enabled, false);
   assert.equal(disabled.running, false);
   assert.equal(storage.read(SOUND_PREFERENCE_KEY), 'false');
+  assert.equal(context.stopped > 0, true);
+  assert.equal(sounds.activeSounds.size, 0);
 });
 
 test('フリック・転がり・消去・生成は別の音として再生できる', async () => {
@@ -179,9 +183,12 @@ test('画面が隠れたら再生中の音声を停止する', async () => {
     contextFactory: () => context
   });
   await sounds.setEnabled(true);
+  sounds.playRoll();
 
   sounds.handleVisibility(true);
   await new Promise((resolve) => setImmediate(resolve));
 
   assert.equal(context.state, 'suspended');
+  assert.equal(context.stopped > 0, true);
+  assert.equal(sounds.activeSounds.size, 0);
 });

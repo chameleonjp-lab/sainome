@@ -128,10 +128,23 @@
       </section>
     </section>
 
-    <aside id="play-note" class="prototype-note" hidden>
-      <strong id="play-note-title">60秒</strong>
-      <span id="play-note-text">斜めフリックで移動。同じ目を、目の数以上つなげる。</span>
-    </aside>
+    <footer class="app-footer">
+      <aside id="play-note" class="prototype-note" hidden>
+        <strong id="play-note-title">60秒</strong>
+        <span id="play-note-text">斜めフリックで移動。同じ目を、目の数以上つなげる。</span>
+      </aside>
+      <button
+        id="sound-toggle"
+        class="sound-toggle"
+        type="button"
+        aria-pressed="false"
+        aria-label="効果音をオンにする"
+      >
+        <span id="sound-toggle-icon" aria-hidden="true">🔇</span>
+        <span id="sound-toggle-label">効果音 オフ</span>
+      </button>
+      <p id="sound-status" class="visually-hidden" aria-live="polite"></p>
+    </footer>
   </main>
 
   <script type="module" src="./js/main.js"></script>

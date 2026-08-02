@@ -12,6 +12,7 @@ import {
   TUTORIAL_SLIDE_COUNT,
   TutorialSlides
 } from './tutorial-slides.js';
+import { SoundEffects } from './sound-effects.js';
 
 const app = document.querySelector('#app');
 const canvas = document.querySelector('#game-canvas');
@@ -52,12 +53,17 @@ const modeInputs = [...document.querySelectorAll('input[name="game-mode"]')];
 const resultKicker = document.querySelector('#result-kicker');
 const playNoteTitle = document.querySelector('#play-note-title');
 const playNoteText = document.querySelector('#play-note-text');
+const soundToggle = document.querySelector('#sound-toggle');
+const soundToggleIcon = document.querySelector('#sound-toggle-icon');
+const soundToggleLabel = document.querySelector('#sound-toggle-label');
+const soundStatus = document.querySelector('#sound-status');
 
 const flow = new GameFlow();
 if (tutorialSlideElements.length !== TUTORIAL_SLIDE_COUNT) {
   throw new Error('Tutorial slide markup does not match the configured count');
 }
 const tutorial = new TutorialSlides({ count: tutorialSlideElements.length });
+const soundEffects = new SoundEffects();
 const numberFormatter = new Intl.NumberFormat('ja-JP');
 let game = null;
 let gameLoadPromise = null;
@@ -125,8 +131,30 @@ function updateSessionDisplay(snapshot) {
   );
 }
 
+function renderSoundToggle(snapshot = soundEffects.getSnapshot()) {
+  soundToggle.setAttribute('aria-pressed', String(snapshot.enabled));
+  soundToggle.setAttribute(
+    'aria-label',
+    snapshot.enabled ? '効果音をオフにする' : '効果音をオンにする'
+  );
+  soundToggleIcon.textContent = snapshot.enabled ? '🔊' : '🔇';
+  soundToggleLabel.textContent = snapshot.enabled ? '効果音 オン' : '効果音 オフ';
+}
+
 const gameCallbacks = {
   onRoll: () => {},
+  onMove: () => {
+    soundEffects.playFlick();
+  },
+  onRollStart: () => {
+    soundEffects.playRoll();
+  },
+  onClearStart: ({ chain }) => {
+    soundEffects.playClear({ chain });
+  },
+  onSpawn: ({ count }) => {
+    soundEffects.playSpawn({ count });
+  },
   onChain: ({ chain, isChain }) => {
     chainCount.textContent = String(chain);
     chainCount.parentElement.classList.toggle('chain-active', chain > 0);
@@ -256,6 +284,7 @@ function scheduleCountdown(runId) {
 
 async function startRound() {
   if (startPending || flow.getSnapshot().screen === SCREEN_PHASES.COUNTDOWN) return;
+  void soundEffects.unlock();
   const roundMode = readSelectedMode();
   setStartPending(true);
   homeError.hidden = true;
@@ -288,6 +317,7 @@ function requestMove(direction) {
 
 stage.addEventListener('pointerdown', (event) => {
   if (!flow.canMove()) return;
+  void soundEffects.unlock();
   pointerStart = { x: event.clientX, y: event.clientY, id: event.pointerId };
   stage.setPointerCapture?.(event.pointerId);
 });
@@ -317,11 +347,28 @@ document.addEventListener('keydown', (event) => {
   const direction = keyMap[event.key];
   if (!direction || !flow.canMove()) return;
   event.preventDefault();
+  void soundEffects.unlock();
   requestMove(direction);
 });
 
 startButton.addEventListener('click', startRound);
 replayButton.addEventListener('click', startRound);
+soundToggle.addEventListener('click', async () => {
+  const targetEnabled = !soundEffects.getSnapshot().enabled;
+  let snapshot = await soundEffects.setEnabled(targetEnabled);
+
+  if (targetEnabled && !snapshot.running) {
+    snapshot = await soundEffects.setEnabled(false);
+    soundStatus.textContent = 'この環境では効果音を開始できませんでした';
+  } else {
+    soundStatus.textContent = targetEnabled
+      ? '効果音をオンにしました'
+      : '効果音をオフにしました';
+  }
+
+  renderSoundToggle(snapshot);
+  if (snapshot.enabled) soundEffects.playFlick();
+});
 tutorialButton.addEventListener('click', () => {
   if (startPending) return;
   const snapshot = flow.openTutorial();
@@ -370,7 +417,11 @@ for (const input of modeInputs) {
 
 document.addEventListener('contextmenu', (event) => event.preventDefault());
 document.addEventListener('gesturestart', (event) => event.preventDefault());
+document.addEventListener('visibilitychange', () => {
+  soundEffects.handleVisibility(document.hidden);
+});
 
 applyModeLabels(selectedMode);
 resetHudDisplay(selectedMode);
+renderSoundToggle();
 renderFlow();
