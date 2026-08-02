@@ -47,6 +47,10 @@
             </label>
           </div>
         </fieldset>
+        <p class="home-best-record">
+          <span>選択中モードの自己ベスト</span>
+          <strong id="home-best-score" aria-live="polite">記録なし</strong>
+        </p>
         <ol class="quick-rules" aria-label="遊び方">
           <li><b>1</b> 盤面に沿って斜めフリック</li>
           <li><b>2</b> 同じ目をつなぐ</li>
@@ -117,6 +121,13 @@
           <span>SCORE</span>
           <strong id="result-score">0</strong>
         </div>
+        <div class="result-record" aria-live="polite">
+          <strong id="result-record-message">初回記録</strong>
+          <span>自己ベスト <b id="result-best-score">0点</b></span>
+        </div>
+        <p id="result-record-warning" class="result-record-warning" role="status" hidden>
+          この端末へ自己ベストを保存できませんでした
+        </p>
         <dl class="result-stats">
           <div><dt>消した数</dt><dd id="result-cleared">0</dd></div>
           <div><dt>最大連鎖</dt><dd id="result-chain">0</dd></div>

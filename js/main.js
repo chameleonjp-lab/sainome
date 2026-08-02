@@ -13,6 +13,10 @@ import {
   TutorialSlides
 } from './tutorial-slides.js';
 import { SoundEffects } from './sound-effects.js';
+import {
+  BestRecords,
+  describeBestOutcome
+} from './best-records.js';
 
 const app = document.querySelector('#app');
 const canvas = document.querySelector('#game-canvas');
@@ -39,7 +43,11 @@ const tutorialHomeButton = document.querySelector('#tutorial-home-button');
 const tutorialPreviousButton = document.querySelector('#tutorial-previous-button');
 const tutorialNextButton = document.querySelector('#tutorial-next-button');
 const tutorialModeLabel = document.querySelector('#tutorial-mode-label');
+const homeBestScore = document.querySelector('#home-best-score');
 const resultScore = document.querySelector('#result-score');
+const resultRecordMessage = document.querySelector('#result-record-message');
+const resultBestScore = document.querySelector('#result-best-score');
+const resultRecordWarning = document.querySelector('#result-record-warning');
 const resultCleared = document.querySelector('#result-cleared');
 const resultChain = document.querySelector('#result-chain');
 const playNote = document.querySelector('#play-note');
@@ -64,6 +72,7 @@ if (tutorialSlideElements.length !== TUTORIAL_SLIDE_COUNT) {
 }
 const tutorial = new TutorialSlides({ count: tutorialSlideElements.length });
 const soundEffects = new SoundEffects();
+const bestRecords = new BestRecords();
 const numberFormatter = new Intl.NumberFormat('ja-JP');
 let game = null;
 let gameLoadPromise = null;
@@ -74,6 +83,7 @@ let startPending = false;
 let soundTogglePending = false;
 let selectedMode = getGameMode(DEFAULT_GAME_MODE_ID);
 let activeMode = selectedMode;
+let latestRecordOutcome = null;
 
 function resetHudDisplay(mode = selectedMode) {
   updateSessionDisplay({
@@ -99,6 +109,19 @@ function applyModeLabels(mode) {
     ? '斜めフリックで移動。同じ目を、目の数以上つなげる。'
     : '3個以上を一度に消すと、消去数に応じてサイコロが現れる。';
   tutorialModeLabel.textContent = `選択中：${mode.label}`;
+  const bestScore = bestRecords.getBest(mode.id);
+  homeBestScore.textContent = bestScore === null
+    ? '記録なし'
+    : `${numberFormatter.format(bestScore)}点`;
+}
+
+function renderResultRecord(outcome) {
+  resultRecordMessage.textContent = describeBestOutcome(
+    outcome,
+    (value) => numberFormatter.format(value)
+  );
+  resultBestScore.textContent = `${numberFormatter.format(outcome.bestScore)}点`;
+  resultRecordWarning.hidden = outcome.persisted;
 }
 
 function setStartPending(pending) {
@@ -188,6 +211,7 @@ const gameCallbacks = {
   onFinish: (result) => {
     const next = flow.finish(result);
     if (!next) return;
+    latestRecordOutcome = bestRecords.recordResult(next.result);
     renderFlow(next);
     window.setTimeout(() => replayButton.focus(), 0);
   }
@@ -237,6 +261,7 @@ function renderFlow(snapshot = flow.getSnapshot()) {
     resultScore.textContent = numberFormatter.format(snapshot.result.score);
     resultCleared.textContent = numberFormatter.format(snapshot.result.clearedDice);
     resultChain.textContent = numberFormatter.format(snapshot.result.maxChain);
+    if (latestRecordOutcome) renderResultRecord(latestRecordOutcome);
   }
 }
 

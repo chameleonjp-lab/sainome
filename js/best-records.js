@@ -75,9 +75,16 @@ export function describeBestOutcome(outcome, formatScore = String) {
 }
 
 export class BestRecords {
-  constructor({ storage = globalThis.localStorage } = {}) {
+  constructor({ storage } = {}) {
     this.storage = storage;
-    this.records = readRecords(storage);
+    if (storage === undefined) {
+      try {
+        this.storage = globalThis.localStorage;
+      } catch {
+        this.storage = null;
+      }
+    }
+    this.records = readRecords(this.storage);
   }
 
   getBest(modeId) {
