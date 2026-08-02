@@ -101,6 +101,23 @@ export function listSpawnCandidates(diceByKey, boardSize, excludedKeys = new Set
   return candidates;
 }
 
+export function listPlayerSafeSpawnCandidates(
+  diceByKey,
+  boardSize,
+  playerRow,
+  playerColumn
+) {
+  const protectedKeys = new Set([boardKey(playerRow, playerColumn)]);
+  for (const delta of CARDINAL_DIRECTIONS) {
+    const row = playerRow + delta.row;
+    const column = playerColumn + delta.column;
+    if (isInsideBoard(row, column, boardSize)) {
+      protectedKeys.add(boardKey(row, column));
+    }
+  }
+  return listSpawnCandidates(diceByKey, boardSize, protectedKeys);
+}
+
 export function selectSpawnCandidate(candidates, random = Math.random) {
   if (candidates.length === 0) return null;
   const raw = Number(random());
@@ -108,6 +125,21 @@ export function selectSpawnCandidate(candidates, random = Math.random) {
     ? Math.min(1 - Number.EPSILON, Math.max(0, raw))
     : 0;
   return candidates[Math.floor(normalized * candidates.length)];
+}
+
+export function selectSpawnBatch(candidates, count, random = Math.random) {
+  if (!Array.isArray(candidates) || !Number.isInteger(count) || count < 1) {
+    return [];
+  }
+
+  const remaining = [...candidates];
+  const selected = [];
+  while (remaining.length > 0 && selected.length < count) {
+    const candidate = selectSpawnCandidate(remaining, random);
+    selected.push(candidate);
+    remaining.splice(remaining.indexOf(candidate), 1);
+  }
+  return selected;
 }
 
 export function selectBuriedRescue(
@@ -132,29 +164,17 @@ export function selectBuriedRescue(
   });
 }
 
-export function planFloorPush(diceByKey, boardSize, die, direction) {
-  if (!die || die.state !== 'normal') {
-    return { allowed: false, reason: 'not-pushable' };
+export function getFloorApproachAction(targetDie, targetHeight = Infinity) {
+  if (!targetDie) return 'walk';
+  if (targetDie.state === 'normal' || targetDie.state === 'buried') {
+    return 'climb';
   }
-
-  const destinationRow = die.row + direction.row;
-  const destinationColumn = die.column + direction.column;
-  if (!isInsideBoard(destinationRow, destinationColumn, boardSize)) {
-    return { allowed: false, reason: 'edge' };
+  if (
+    (targetDie.state === 'sinking' || targetDie.state === 'rising')
+    && Number.isFinite(targetHeight)
+    && targetHeight <= 0.30
+  ) {
+    return 'climb';
   }
-
-  const destinationKey = boardKey(destinationRow, destinationColumn);
-  if (diceByKey.has(destinationKey)) {
-    return { allowed: false, reason: 'occupied' };
-  }
-
-  return {
-    allowed: true,
-    fromKey: boardKey(die.row, die.column),
-    fromRow: die.row,
-    fromColumn: die.column,
-    destinationKey,
-    destinationRow,
-    destinationColumn
-  };
+  return 'blocked';
 }

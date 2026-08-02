@@ -5,14 +5,15 @@ import {
   boardKey,
   findSpecialOneClear,
   findTriggeredGroups,
+  getFloorApproachAction,
   isInsideBoard,
-  listSpawnCandidates,
-  planFloorPush,
+  listPlayerSafeSpawnCandidates,
   selectBuriedRescue,
-  selectSpawnCandidate
+  selectSpawnBatch
 } from './board-rules.js';
 import { BASE_ORIENTATION, Dice } from './dice.js';
 import { GAME_PHASES, GameSession } from './game-session.js';
+import { getSixtySecondSpawnBatchCount } from './spawn-rules.js';
 
 const BOARD_SIZE = 7;
 const HALF_BOARD = (BOARD_SIZE - 1) / 2;
@@ -24,7 +25,6 @@ const GROUND_PLAYER_Y = 0.18;
 const SINK_DURATION = 2200;
 const SINK_DEPTH = 1.18;
 const SPECIAL_ONE_DURATION = 360;
-const SPAWN_INTERVAL = 5000;
 const RISE_DURATION = 720;
 const RISE_DEPTH = 1.18;
 const BURIED_DICE_Y = -0.24;
@@ -193,7 +193,7 @@ export class WebGLSainome {
     this.contextLost = false;
     this.pauseStartedAt = 0;
     this.totalPausedDuration = 0;
-    this.nextSpawnAt = 0;
+    this.spawnBatchCompleted = false;
     this.pendingMatchResolution = false;
     this.session = new GameSession();
     this.lastSessionSignature = '';
@@ -305,7 +305,7 @@ export class WebGLSainome {
     this.rollCount = 0;
     this.chainCount = 0;
     this.clearedCount = 0;
-    this.nextSpawnAt = this.getGameTime() + SPAWN_INTERVAL;
+    this.spawnBatchCompleted = false;
     this.pendingMatchResolution = false;
     this.busy = false;
     this.queuedDirection = null;
@@ -414,30 +414,22 @@ export class WebGLSainome {
       return;
     }
 
-    if (!targetDie) {
+    const floorAction = getFloorApproachAction(
+      targetDie,
+      targetDie?.mesh.position.y
+    );
+
+    if (floorAction === 'walk') {
       void this.moveOnFloor(nextRow, nextColumn, directionName, false);
       return;
     }
 
-    if (targetDie.state === 'normal') {
-      void this.pushDie(targetDie, directionName);
-      return;
-    }
-
-    if (targetDie.state === 'buried') {
+    if (floorAction === 'climb') {
       void this.hopTo(targetDie, nextKey, directionName);
       return;
     }
 
-    if (
-      (targetDie.state === 'sinking' || targetDie.state === 'rising')
-      && targetDie.mesh.position.y <= 0.30
-    ) {
-      void this.hopTo(targetDie, nextKey, directionName);
-      return;
-    }
-
-    this.callbacks.onMessage?.('床からは高いサイコロへ登れません');
+    this.callbacks.onMessage?.('サイコロが低くなるまで待ちます');
   }
 
   async hopTo(targetDie, nextKey, directionName) {
@@ -488,62 +480,8 @@ export class WebGLSainome {
     this.busy = false;
     const matched = this.resolvePendingMatches();
     if (!matched) {
-      this.callbacks.onMessage?.('床を移動中。沈んだサイコロから上へ戻れます');
+      this.callbacks.onMessage?.('床を移動中。近くのサイコロへ移動すると登れます');
     }
-    this.consumeQueue();
-  }
-
-  async pushDie(die, directionName) {
-    const direction = DIRECTIONS[directionName];
-    const plan = planFloorPush(this.dice, BOARD_SIZE, die, direction);
-    if (!plan.allowed) {
-      this.callbacks.onMessage?.(
-        plan.reason === 'edge'
-          ? '盤面の端へは押せません'
-          : 'その先にサイコロがあるため押せません'
-      );
-      return;
-    }
-
-    const epoch = this.epoch;
-    this.busy = true;
-    const startDiePosition = die.mesh.position.clone();
-    const endDiePosition = gridToWorld(plan.destinationRow, plan.destinationColumn);
-    const startPlayerPosition = this.player.position.clone();
-    const endPlayerPosition = gridToWorld(plan.fromRow, plan.fromColumn, GROUND_PLAYER_Y);
-    const startTime = this.getGameTime();
-    const duration = 230;
-
-    const completed = await new Promise((resolve) => {
-      const step = () => {
-        if (epoch !== this.epoch) {
-          resolve(false);
-          return;
-        }
-        const raw = Math.min(1, (this.getGameTime() - startTime) / duration);
-        const progress = easeInOutCubic(raw);
-        die.mesh.position.lerpVectors(startDiePosition, endDiePosition, progress);
-        this.player.position.lerpVectors(startPlayerPosition, endPlayerPosition, progress);
-        if (raw < 1) requestAnimationFrame(step);
-        else resolve(true);
-      };
-      requestAnimationFrame(step);
-    });
-
-    if (!completed || epoch !== this.epoch) return;
-    this.dice.delete(plan.fromKey);
-    die.row = plan.destinationRow;
-    die.column = plan.destinationColumn;
-    die.mesh.position.copy(endDiePosition);
-    this.dice.set(plan.destinationKey, die);
-    this.playerRow = plan.fromRow;
-    this.playerColumn = plan.fromColumn;
-    this.activeKey = null;
-    this.faceDirection(directionName);
-    this.callbacks.onImpact?.();
-    const matched = this.resolveMatches();
-    if (!matched) this.callbacks.onMessage?.(`上面${die.top}のサイコロを押しました`);
-    this.busy = false;
     this.consumeQueue();
   }
 
@@ -806,24 +744,34 @@ export class WebGLSainome {
   }
 
   updateSpawning(now) {
-    if (!this.session.isAcceptingInput() || this.busy || now < this.nextSpawnAt) return;
-    this.nextSpawnAt = now + SPAWN_INTERVAL;
+    if (!this.session.isAcceptingInput() || this.busy) return;
+    const sessionState = this.session.getSnapshot();
+    const spawnCount = getSixtySecondSpawnBatchCount(
+      sessionState.elapsedMs,
+      this.spawnBatchCompleted
+    );
+    if (spawnCount === 0) return;
 
-    const excluded = this.activeKey
-      ? new Set()
-      : new Set([boardKey(this.playerRow, this.playerColumn)]);
-    const candidates = listSpawnCandidates(this.dice, BOARD_SIZE, excluded);
-    if (candidates.length === 0) {
+    this.spawnBatchCompleted = true;
+    const candidates = listPlayerSafeSpawnCandidates(
+      this.dice,
+      BOARD_SIZE,
+      this.playerRow,
+      this.playerColumn
+    );
+    const cells = selectSpawnBatch(candidates, spawnCount);
+    if (cells.length === 0) {
       this.callbacks.onMessage?.('盤面がいっぱいです。サイコロを消してください');
       return;
     }
 
-    const cell = selectSpawnCandidate(candidates);
-    const die = this.addDie(cell.row, cell.column, 'rising');
-    die.riseStartedAt = now;
-    die.riseStartY = DICE_Y - RISE_DEPTH;
-    die.mesh.position.y = die.riseStartY;
-    this.callbacks.onMessage?.('新しいサイコロが下から現れます');
+    for (const cell of cells) {
+      const die = this.addDie(cell.row, cell.column, 'rising');
+      die.riseStartedAt = now;
+      die.riseStartY = DICE_Y - RISE_DEPTH;
+      die.mesh.position.y = die.riseStartY;
+    }
+    this.callbacks.onMessage?.(`新しいサイコロが${cells.length}個現れます`);
   }
 
   removeDie(die, disposeMaterial) {

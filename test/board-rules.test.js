@@ -6,9 +6,11 @@ import {
   boardKey,
   findSpecialOneClear,
   findTriggeredGroups,
+  getFloorApproachAction,
+  listPlayerSafeSpawnCandidates,
   listSpawnCandidates,
-  planFloorPush,
   selectBuriedRescue,
+  selectSpawnBatch,
   selectSpawnCandidate
 } from '../js/board-rules.js';
 
@@ -183,52 +185,46 @@ test('再出現候補から既存サイコロとプレイヤーの床マスを�
   ]);
 });
 
-test('床から押す計画は1マス先が空いている通常サイコロだけ許可する', () => {
-  const pushed = die('push', 1, 1, 4);
-  const map = diceMap(pushed);
+test('追加生成はプレイヤーの現在地と上下左右を避ける', () => {
+  const candidates = listPlayerSafeSpawnCandidates(new Map(), 3, 1, 1);
 
-  const plan = planFloorPush(map, 3, pushed, { row: 0, column: 1 });
-
-  assert.deepEqual(plan, {
-    allowed: true,
-    fromKey: '1,1',
-    fromRow: 1,
-    fromColumn: 1,
-    destinationKey: '1,2',
-    destinationRow: 1,
-    destinationColumn: 2
-  });
-  assert.deepEqual({ row: pushed.row, column: pushed.column, top: pushed.top }, {
-    row: 1,
-    column: 1,
-    top: 4
-  });
+  assert.deepEqual(candidates, [
+    { row: 0, column: 0, key: '0,0' },
+    { row: 0, column: 2, key: '0,2' },
+    { row: 2, column: 0, key: '2,0' },
+    { row: 2, column: 2, key: '2,2' }
+  ]);
 });
 
-test('盤面外または他のサイコロがある方向へは押せない', () => {
-  const edgeDie = die('edge', 0, 0, 3);
-  const blockedDie = die('blocked', 1, 1, 5);
-  const obstacle = die('obstacle', 1, 2, 2);
-  const map = diceMap(edgeDie, blockedDie, obstacle);
+test('1回の追加生成では異なる2マスを選ぶ', () => {
+  const candidates = [
+    { row: 0, column: 0, key: '0,0' },
+    { row: 0, column: 1, key: '0,1' },
+    { row: 1, column: 0, key: '1,0' }
+  ];
 
   assert.deepEqual(
-    planFloorPush(map, 3, edgeDie, { row: -1, column: 0 }),
-    { allowed: false, reason: 'edge' }
+    selectSpawnBatch(candidates, 2, () => 0).map((item) => item.key),
+    ['0,0', '0,1']
   );
-  assert.deepEqual(
-    planFloorPush(map, 3, blockedDie, { row: 0, column: 1 }),
-    { allowed: false, reason: 'occupied' }
+  assert.equal(candidates.length, 3);
+});
+
+test('床からは空きマスを歩き、近くの通常サイコロへ登る', () => {
+  assert.equal(getFloorApproachAction(null), 'walk');
+  assert.equal(getFloorApproachAction(die('normal', 1, 1, 2)), 'climb');
+  assert.equal(
+    getFloorApproachAction(die('buried', 1, 1, 2, 'buried'), -0.24),
+    'climb'
   );
 });
 
-test('沈下中・上昇中・床に沈んだサイコロは床から押せない', () => {
-  for (const state of ['sinking', 'rising', 'buried']) {
-    const item = die(state, 1, 1, 2, state);
-    assert.deepEqual(
-      planFloorPush(diceMap(item), 3, item, { row: 0, column: 1 }),
-      { allowed: false, reason: 'not-pushable' }
-    );
-  }
+test('沈下・上昇中のサイコロは床に近い高さだけ登れる', () => {
+  const sinking = die('sinking', 1, 1, 2, 'sinking');
+  const rising = die('rising', 1, 1, 2, 'rising');
+
+  assert.equal(getFloorApproachAction(sinking, 0.30), 'climb');
+  assert.equal(getFloorApproachAction(rising, 0.31), 'blocked');
 });
 
 test('再出現候補の乱数が範囲端でも有効なマスを選ぶ', () => {
