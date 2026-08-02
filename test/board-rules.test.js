@@ -8,6 +8,7 @@ import {
   findTriggeredGroups,
   listSpawnCandidates,
   planFloorPush,
+  selectBuriedRescue,
   selectSpawnCandidate
 } from '../js/board-rules.js';
 
@@ -125,13 +126,15 @@ test('1の目は通常の接続消去に含めない', () => {
   assert.deepEqual(findTriggeredGroups(map, 7), []);
 });
 
-test('上昇中のサイコロは通常の接続消去に含めない', () => {
-  const map = diceMap(
-    die('a', 2, 2, 2),
-    die('b', 2, 3, 2, 'rising')
-  );
+test('上昇中と床に沈んだサイコロは通常の接続消去に含めない', () => {
+  for (const state of ['rising', 'buried']) {
+    const map = diceMap(
+      die('a', 2, 2, 2),
+      die('b', 2, 3, 2, state)
+    );
 
-  assert.deepEqual(findTriggeredGroups(map, 7), []);
+    assert.deepEqual(findTriggeredGroups(map, 7), []);
+  }
 });
 
 test('沈下中のサイコロへ1が隣接すると盤面上の1が特殊消去対象になる', () => {
@@ -218,8 +221,8 @@ test('盤面外または他のサイコロがある方向へは押せない', ()
   );
 });
 
-test('沈下中と上昇中のサイコロは床から押せない', () => {
-  for (const state of ['sinking', 'rising']) {
+test('沈下中・上昇中・床に沈んだサイコロは床から押せない', () => {
+  for (const state of ['sinking', 'rising', 'buried']) {
     const item = die(state, 1, 1, 2, state);
     assert.deepEqual(
       planFloorPush(diceMap(item), 3, item, { row: 0, column: 1 }),
@@ -237,4 +240,25 @@ test('再出現候補の乱数が範囲端でも有効なマスを選ぶ', () =>
   assert.equal(selectSpawnCandidate(candidates, () => 0).key, '0,0');
   assert.equal(selectSpawnCandidate(candidates, () => 1).key, '0,1');
   assert.equal(selectSpawnCandidate([], () => 0), null);
+});
+
+test('消去完了時はプレイヤーが乗っているサイコロを床の戻り道として優先する', () => {
+  const first = die('first', 2, 2, 3, 'sinking');
+  const standing = die('standing', 5, 5, 3, 'sinking');
+
+  assert.equal(
+    selectBuriedRescue([first, standing], 2, 2, 'standing').id,
+    'standing'
+  );
+});
+
+test('足元の指定がなければプレイヤーに最も近い消去サイコロを床へ残す', () => {
+  const far = die('far', 0, 0, 4, 'sinking');
+  const near = die('near', 3, 4, 4, 'sinking');
+
+  assert.equal(
+    selectBuriedRescue([far, near], 3, 3).id,
+    'near'
+  );
+  assert.equal(selectBuriedRescue([], 3, 3), null);
 });

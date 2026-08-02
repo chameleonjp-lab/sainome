@@ -110,6 +110,28 @@ export function selectSpawnCandidate(candidates, random = Math.random) {
   return candidates[Math.floor(normalized * candidates.length)];
 }
 
+export function selectBuriedRescue(
+  completedDice,
+  playerRow,
+  playerColumn,
+  preferredDieId = null
+) {
+  if (!Array.isArray(completedDice) || completedDice.length === 0) return null;
+
+  const preferred = preferredDieId
+    ? completedDice.find((die) => die.id === preferredDieId)
+    : null;
+  if (preferred) return preferred;
+
+  return completedDice.reduce((nearest, die) => {
+    const nearestDistance = Math.abs(nearest.row - playerRow)
+      + Math.abs(nearest.column - playerColumn);
+    const dieDistance = Math.abs(die.row - playerRow)
+      + Math.abs(die.column - playerColumn);
+    return dieDistance < nearestDistance ? die : nearest;
+  });
+}
+
 export function planFloorPush(diceByKey, boardSize, die, direction) {
   if (!die || die.state !== 'normal') {
     return { allowed: false, reason: 'not-pushable' };

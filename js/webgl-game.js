@@ -8,6 +8,7 @@ import {
   isInsideBoard,
   listSpawnCandidates,
   planFloorPush,
+  selectBuriedRescue,
   selectSpawnCandidate
 } from './board-rules.js';
 import { BASE_ORIENTATION, Dice } from './dice.js';
@@ -25,6 +26,7 @@ const SPECIAL_ONE_DURATION = 360;
 const SPAWN_INTERVAL = 5000;
 const RISE_DURATION = 720;
 const RISE_DEPTH = 1.18;
+const BURIED_DICE_Y = -0.24;
 
 const DIRECTIONS = {
   up: { row: -1, column: 0, axis: new THREE.Vector3(1, 0, 0), angle: -Math.PI / 2 },
@@ -322,6 +324,7 @@ export class WebGLSainome {
     die.state = state;
     die.sinkStartedAt = 0;
     die.riseStartedAt = 0;
+    die.riseStartY = DICE_Y - RISE_DEPTH;
     this.randomizeOrientation(die);
     this.scene.add(die.mesh);
     this.dice.set(boardKey(row, column), die);
@@ -392,6 +395,11 @@ export class WebGLSainome {
       return;
     }
 
+    if (currentDie?.state === 'rising') {
+      this.callbacks.onMessage?.('サイコロが上がりきるまで待ちます');
+      return;
+    }
+
     if (!targetDie) {
       void this.moveOnFloor(nextRow, nextColumn, directionName, false);
       return;
@@ -399,6 +407,11 @@ export class WebGLSainome {
 
     if (targetDie.state === 'normal') {
       void this.pushDie(targetDie, directionName);
+      return;
+    }
+
+    if (targetDie.state === 'buried') {
+      void this.hopTo(targetDie, nextKey, directionName);
       return;
     }
 
@@ -414,6 +427,7 @@ export class WebGLSainome {
   }
 
   async hopTo(targetDie, nextKey, directionName) {
+    const wasBuried = targetDie.state === 'buried';
     const epoch = this.epoch;
     this.busy = true;
     const start = this.player.position.clone();
@@ -432,8 +446,14 @@ export class WebGLSainome {
     if (!this.activeKey) this.player.position.y = GROUND_PLAYER_Y;
     this.faceDirection(directionName);
     this.busy = false;
+    if (wasBuried && this.activeKey) {
+      targetDie.state = 'rising';
+      targetDie.riseStartedAt = this.getGameTime();
+      targetDie.riseStartY = targetDie.mesh.position.y;
+      this.callbacks.onMessage?.('沈んだサイコロに乗りました。上へ戻ります');
+    }
     const matched = this.resolvePendingMatches();
-    if (!matched) {
+    if (!matched && !wasBuried) {
       this.callbacks.onMessage?.(this.activeKey ? 'サイコロの上を移動' : '床へ着地');
     }
     this.consumeQueue();
@@ -665,16 +685,46 @@ export class WebGLSainome {
       if (raw >= 1) completed.push([key, die]);
     }
 
+    const hasBuriedRescue = [...this.dice.values()].some(
+      (die) => die.state === 'buried'
+    );
+    const rescueCandidates = completed
+      .map(([, die]) => die)
+      .filter((die) => die.state === 'sinking');
+    const preferredDieId = this.activeKey
+      ? this.dice.get(this.activeKey)?.id ?? null
+      : null;
+    const buriedRescue = hasBuriedRescue
+      ? null
+      : selectBuriedRescue(
+        rescueCandidates,
+        this.playerRow,
+        this.playerColumn,
+        preferredDieId
+      );
+
     for (const [key, die] of completed) {
       if (this.activeKey === key) {
         this.activeKey = null;
         this.player.position.y = GROUND_PLAYER_Y;
       }
+      this.clearedCount += 1;
+      this.callbacks.onClear?.(this.clearedCount);
+
+      if (die === buriedRescue) {
+        die.state = 'buried';
+        die.sinkStartedAt = 0;
+        die.mesh.position.y = BURIED_DICE_Y;
+        die.mesh.scale.setScalar(1);
+        this.randomizeOrientation(die);
+        die.mesh.userData.bodyMaterial.emissive.setHex(0x12304a);
+        die.mesh.userData.bodyMaterial.emissiveIntensity = 0.28;
+        continue;
+      }
+
       this.dice.delete(key);
       die.state = 'cleared';
       this.removeDie(die, true);
-      this.clearedCount += 1;
-      this.callbacks.onClear?.(this.clearedCount);
     }
 
     if (
@@ -685,7 +735,11 @@ export class WebGLSainome {
     ) {
       this.chainCount = 0;
       this.callbacks.onChain?.({ chain: 0, count: 0, value: 0, isChain: false });
-      this.callbacks.onMessage?.('消去完了。空きマスを使って次の目をそろえます');
+      this.callbacks.onMessage?.(
+        buriedRescue && !this.activeKey
+          ? '床に沈んだサイコロへ乗ると上へ戻れます'
+          : '消去完了。空きマスを使って次の目をそろえます'
+      );
     }
   }
 
@@ -695,7 +749,10 @@ export class WebGLSainome {
       if (die.state !== 'rising') continue;
       const raw = Math.min(1, Math.max(0, (now - die.riseStartedAt) / RISE_DURATION));
       const progress = easeInOutCubic(raw);
-      die.mesh.position.y = DICE_Y - RISE_DEPTH + progress * RISE_DEPTH;
+      const startY = Number.isFinite(die.riseStartY)
+        ? die.riseStartY
+        : DICE_Y - RISE_DEPTH;
+      die.mesh.position.y = startY + progress * (DICE_Y - startY);
 
       if (!this.busy && this.activeKey === key) {
         this.player.position.y = die.mesh.position.y + (PLAYER_Y - DICE_Y);
@@ -705,6 +762,12 @@ export class WebGLSainome {
         die.mesh.position.y = DICE_Y;
         die.state = 'normal';
         die.riseStartedAt = 0;
+        die.riseStartY = DICE_Y - RISE_DEPTH;
+        die.mesh.userData.bodyMaterial.emissive.setHex(0x000000);
+        die.mesh.userData.bodyMaterial.emissiveIntensity = 0;
+        if (this.activeKey === key) {
+          this.callbacks.onMessage?.('サイコロの上へ戻りました');
+        }
         completed = true;
       }
     }
@@ -728,7 +791,8 @@ export class WebGLSainome {
     const cell = selectSpawnCandidate(candidates);
     const die = this.addDie(cell.row, cell.column, 'rising');
     die.riseStartedAt = now;
-    die.mesh.position.y = DICE_Y - RISE_DEPTH;
+    die.riseStartY = DICE_Y - RISE_DEPTH;
+    die.mesh.position.y = die.riseStartY;
     this.callbacks.onMessage?.('新しいサイコロが下から現れます');
   }
 
