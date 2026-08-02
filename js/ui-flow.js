@@ -2,6 +2,7 @@ import { getGameMode } from './game-modes.js';
 
 export const SCREEN_PHASES = Object.freeze({
   HOME: 'home',
+  TUTORIAL: 'tutorial',
   COUNTDOWN: 'countdown',
   PLAYING: 'playing',
   RESULT: 'result'
@@ -57,11 +58,21 @@ export class GameFlow {
   beginCountdown() {
     if (
       this.screen !== SCREEN_PHASES.HOME
+      && this.screen !== SCREEN_PHASES.TUTORIAL
       && this.screen !== SCREEN_PHASES.RESULT
     ) return null;
 
     this.screen = SCREEN_PHASES.COUNTDOWN;
     this.countdown = this.countdownFrom;
+    this.result = null;
+    return this.getSnapshot();
+  }
+
+  openTutorial() {
+    if (this.screen !== SCREEN_PHASES.HOME) return null;
+
+    this.screen = SCREEN_PHASES.TUTORIAL;
+    this.countdown = 0;
     this.result = null;
     return this.getSnapshot();
   }
