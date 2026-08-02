@@ -3,6 +3,7 @@ import {
   GameFlow,
   SCREEN_PHASES
 } from './ui-flow.js';
+import { directionFromDiagonalSwipe } from './input-direction.js';
 
 const app = document.querySelector('#app');
 const canvas = document.querySelector('#game-canvas');
@@ -22,7 +23,6 @@ const resultScreen = document.querySelector('#result-screen');
 const resultScore = document.querySelector('#result-score');
 const resultCleared = document.querySelector('#result-cleared');
 const resultChain = document.querySelector('#result-chain');
-const controls = document.querySelector('#controls');
 const playNote = document.querySelector('#play-note');
 const startButton = document.querySelector('#start-button');
 const replayButton = document.querySelector('#replay-button');
@@ -139,12 +139,7 @@ function renderFlow(snapshot = flow.getSnapshot()) {
   homeScreen.hidden = snapshot.screen !== SCREEN_PHASES.HOME;
   countdownScreen.hidden = snapshot.screen !== SCREEN_PHASES.COUNTDOWN;
   resultScreen.hidden = snapshot.screen !== SCREEN_PHASES.RESULT;
-  controls.hidden = snapshot.screen !== SCREEN_PHASES.PLAYING;
   playNote.hidden = snapshot.screen !== SCREEN_PHASES.PLAYING;
-
-  for (const button of controls.querySelectorAll('button')) {
-    button.disabled = !snapshot.canMove;
-  }
 
   if (snapshot.screen === SCREEN_PHASES.COUNTDOWN) {
     countdownValue.textContent = String(snapshot.countdown);
@@ -171,7 +166,7 @@ function scheduleCountdown(runId) {
 
     if (transition.started) {
       game.reset();
-      message.textContent = '盤面をスワイプして移動';
+      message.textContent = '盤面に沿って斜めにフリック';
       canvas.focus({ preventScroll: true });
       return;
     }
@@ -202,12 +197,6 @@ function requestMove(direction) {
   game.move(direction);
 }
 
-function directionFromSwipe(deltaX, deltaY) {
-  if (Math.max(Math.abs(deltaX), Math.abs(deltaY)) < 24) return null;
-  if (Math.abs(deltaX) > Math.abs(deltaY)) return deltaX > 0 ? 'right' : 'left';
-  return deltaY > 0 ? 'down' : 'up';
-}
-
 stage.addEventListener('pointerdown', (event) => {
   if (!flow.canMove()) return;
   pointerStart = { x: event.clientX, y: event.clientY, id: event.pointerId };
@@ -216,7 +205,7 @@ stage.addEventListener('pointerdown', (event) => {
 
 stage.addEventListener('pointerup', (event) => {
   if (!pointerStart || pointerStart.id !== event.pointerId) return;
-  const direction = directionFromSwipe(
+  const direction = directionFromDiagonalSwipe(
     event.clientX - pointerStart.x,
     event.clientY - pointerStart.y
   );
@@ -227,13 +216,6 @@ stage.addEventListener('pointerup', (event) => {
 stage.addEventListener('pointercancel', () => {
   pointerStart = null;
 });
-
-for (const button of document.querySelectorAll('[data-direction]')) {
-  button.addEventListener('pointerdown', (event) => {
-    event.preventDefault();
-    requestMove(button.dataset.direction);
-  });
-}
 
 const keyMap = {
   ArrowUp: 'up', w: 'up', W: 'up',

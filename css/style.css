@@ -27,7 +27,7 @@ button:disabled { opacity: .55; }
   width: 100%;
   min-height: 100svh;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 10px;
   padding: max(12px, env(safe-area-inset-top)) 12px max(10px, env(safe-area-inset-bottom));
 }
@@ -262,31 +262,6 @@ button:disabled { opacity: .55; }
 .stage.impact { animation: stageImpact .18s ease-out; }
 .stage.chain-hit { animation: chainHit .38s ease-out; }
 
-.controls {
-  width: min(100%, 340px);
-  margin: 0 auto;
-  display: grid;
-  grid-template-columns: repeat(3, 72px);
-  grid-template-rows: repeat(2, 54px);
-  gap: 8px;
-  justify-content: center;
-}
-.controls button {
-  border: 1px solid #454b59;
-  border-radius: 15px;
-  background: linear-gradient(180deg, #2b303a, #171b23);
-  color: #eeeae0;
-  font-size: 1.2rem;
-  font-weight: 950;
-  box-shadow: 0 5px 0 #080a0f, 0 10px 18px rgba(0,0,0,.28);
-  touch-action: manipulation;
-}
-.controls button:active { transform: translateY(4px); box-shadow: 0 1px 0 #080a0f; }
-.up { grid-column: 2; grid-row: 1; }
-.left { grid-column: 1; grid-row: 2; }
-.down { grid-column: 2; grid-row: 2; }
-.right { grid-column: 3; grid-row: 2; }
-
 .prototype-note {
   width: min(100%, 760px);
   margin: 0 auto;
@@ -310,7 +285,6 @@ button:disabled { opacity: .55; }
   .brand, .hud-item { min-height: 48px; border-radius: 13px; }
   .brand strong { font-size: 1.05rem; }
   #game-canvas { min-height: 350px; }
-  .controls { grid-template-columns: repeat(3, 62px); grid-template-rows: repeat(2, 44px); gap: 6px; }
   .prototype-note { display: none; }
   .screen-panel { gap: 9px; padding-block: 16px; }
   .screen-panel h1 { font-size: clamp(2.2rem, 10vw, 3.6rem); }
