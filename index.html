@@ -18,7 +18,7 @@
 <body>
   <main id="app" class="app" data-screen="home">
     <header class="hud" aria-label="ゲームの状況">
-      <div class="brand"><span>60 SECOND PUZZLE</span><strong>サイノメ</strong></div>
+      <div class="brand"><span id="mode-brand">60 SECOND PUZZLE</span><strong>サイノメ</strong></div>
       <div id="time-panel" class="hud-item"><span>TIME</span><strong id="remaining-time">60</strong></div>
       <div id="score-panel" class="hud-item hud-score"><span>SCORE</span><strong id="score-count">0</strong></div>
       <div class="hud-item"><span>CHAIN</span><strong id="chain-count">0</strong></div>
@@ -28,12 +28,25 @@
     <section id="stage" class="stage" aria-label="サイノメの3Dゲーム画面">
       <canvas id="game-canvas" tabindex="-1"></canvas>
       <div id="loading" class="loading" role="status">3D盤面を準備中…</div>
-      <div id="message" class="message" aria-live="polite">盤面をスワイプして移動</div>
+      <div id="message" class="message" aria-live="polite">盤面に沿って斜めにフリック</div>
 
       <section id="home-screen" class="screen-panel home-screen" aria-labelledby="game-title">
-        <p class="screen-kicker">60秒で、つないで、沈める</p>
+        <p id="home-kicker" class="screen-kicker">60秒で、つないで、沈める</p>
         <h1 id="game-title">サイノメ</h1>
         <p class="screen-lead">サイコロを転がし、上面と同じ数以上を縦横につなげて得点を競います。</p>
+        <fieldset id="mode-picker" class="mode-picker">
+          <legend>プレイ時間を選ぶ</legend>
+          <div class="mode-options">
+            <label class="mode-choice">
+              <input type="radio" name="game-mode" value="60-seconds" checked>
+              <span><strong>60秒</strong><small>30秒後に2個追加</small></span>
+            </label>
+            <label class="mode-choice">
+              <input type="radio" name="game-mode" value="180-seconds">
+              <span><strong>180秒</strong><small>3個以上消すと生成</small></span>
+            </label>
+          </div>
+        </fieldset>
         <ol class="quick-rules" aria-label="遊び方">
           <li><b>1</b> 盤面に沿って斜めフリック</li>
           <li><b>2</b> 同じ目をつなぐ</li>
@@ -49,7 +62,7 @@
       </section>
 
       <section id="result-screen" class="screen-panel result-screen" aria-labelledby="result-title" hidden>
-        <p class="screen-kicker">TIME UP</p>
+        <p id="result-kicker" class="screen-kicker">60秒モード · TIME UP</p>
         <h2 id="result-title">結果</h2>
         <div class="result-score">
           <span>SCORE</span>
@@ -67,8 +80,8 @@
     </section>
 
     <aside id="play-note" class="prototype-note" hidden>
-      <strong>消し方</strong>
-      <span>斜めフリックで移動。同じ目を、目の数以上つなげる。沈んでいる間に足すと連鎖。</span>
+      <strong id="play-note-title">60秒</strong>
+      <span id="play-note-text">斜めフリックで移動。同じ目を、目の数以上つなげる。</span>
     </aside>
   </main>
 

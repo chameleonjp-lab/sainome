@@ -13,7 +13,15 @@ import {
 } from './board-rules.js';
 import { BASE_ORIENTATION, Dice } from './dice.js';
 import { GAME_PHASES, GameSession } from './game-session.js';
-import { getSixtySecondSpawnBatchCount } from './spawn-rules.js';
+import {
+  DEFAULT_GAME_MODE_ID,
+  GAME_MODE_IDS,
+  getGameMode
+} from './game-modes.js';
+import {
+  getClearTriggeredSpawnCount,
+  getSixtySecondSpawnBatchCount
+} from './spawn-rules.js';
 
 const BOARD_SIZE = 7;
 const HALF_BOARD = (BOARD_SIZE - 1) / 2;
@@ -156,7 +164,7 @@ function createPlayer() {
 }
 
 export class WebGLSainome {
-  constructor(canvas, callbacks = {}) {
+  constructor(canvas, callbacks = {}, initialModeId = DEFAULT_GAME_MODE_ID) {
     this.canvas = canvas;
     this.callbacks = callbacks;
     this.scene = new THREE.Scene();
@@ -193,9 +201,12 @@ export class WebGLSainome {
     this.contextLost = false;
     this.pauseStartedAt = 0;
     this.totalPausedDuration = 0;
+    this.mode = getGameMode(initialModeId);
     this.spawnBatchCompleted = false;
+    this.pendingSpawnCount = 0;
+    this.spawnBlockedNotified = false;
     this.pendingMatchResolution = false;
-    this.session = new GameSession();
+    this.session = new GameSession({ modeId: this.mode.id });
     this.lastSessionSignature = '';
 
     this.createLights();
@@ -289,7 +300,9 @@ export class WebGLSainome {
     this.scene.add(grid);
   }
 
-  reset() {
+  reset(modeId = this.mode.id) {
+    this.mode = getGameMode(modeId);
+    this.session = new GameSession({ modeId: this.mode.id });
     this.epoch += 1;
     for (const die of this.dice.values()) this.removeDie(die, true);
     this.dice.clear();
@@ -306,6 +319,8 @@ export class WebGLSainome {
     this.chainCount = 0;
     this.clearedCount = 0;
     this.spawnBatchCompleted = false;
+    this.pendingSpawnCount = 0;
+    this.spawnBlockedNotified = false;
     this.pendingMatchResolution = false;
     this.busy = false;
     this.queuedDirection = null;
@@ -375,7 +390,7 @@ export class WebGLSainome {
     if (!this.session.isAcceptingInput()) {
       this.callbacks.onMessage?.(
         this.session.getSnapshot().phase === GAME_PHASES.FINISHING
-          ? '60秒終了。消去が終わるまで待ちます'
+          ? `${this.mode.label}終了。消去が終わるまで待ちます`
           : 'ゲーム終了。やり直すと再開します'
       );
       return;
@@ -746,13 +761,27 @@ export class WebGLSainome {
   updateSpawning(now) {
     if (!this.session.isAcceptingInput() || this.busy) return;
     const sessionState = this.session.getSnapshot();
-    const spawnCount = getSixtySecondSpawnBatchCount(
-      sessionState.elapsedMs,
-      this.spawnBatchCompleted
+    const isOneEightySecondMode = this.mode.id
+      === GAME_MODE_IDS.ONE_EIGHTY_SECONDS;
+    const hasAnimatingDice = [...this.dice.values()].some(
+      (die) => die.state === 'sinking'
+        || die.state === 'one-clearing'
+        || die.state === 'rising'
     );
+    if (
+      isOneEightySecondMode
+      && (hasAnimatingDice || this.pendingMatchResolution)
+    ) return;
+
+    const spawnCount = isOneEightySecondMode
+      ? this.pendingSpawnCount
+      : getSixtySecondSpawnBatchCount(
+        sessionState.elapsedMs,
+        this.spawnBatchCompleted
+      );
     if (spawnCount === 0) return;
 
-    this.spawnBatchCompleted = true;
+    if (!isOneEightySecondMode) this.spawnBatchCompleted = true;
     const candidates = listPlayerSafeSpawnCandidates(
       this.dice,
       BOARD_SIZE,
@@ -761,8 +790,23 @@ export class WebGLSainome {
     );
     const cells = selectSpawnBatch(candidates, spawnCount);
     if (cells.length === 0) {
-      this.callbacks.onMessage?.('盤面がいっぱいです。サイコロを消してください');
+      if (!this.spawnBlockedNotified) {
+        this.callbacks.onMessage?.(
+          isOneEightySecondMode
+            ? '生成できる安全な空きマスがありません'
+            : '盤面がいっぱいです。サイコロを消してください'
+        );
+        this.spawnBlockedNotified = true;
+      }
       return;
+    }
+
+    this.spawnBlockedNotified = false;
+    if (isOneEightySecondMode) {
+      this.pendingSpawnCount = Math.max(
+        0,
+        this.pendingSpawnCount - cells.length
+      );
     }
 
     for (const cell of cells) {
@@ -802,21 +846,31 @@ export class WebGLSainome {
   }
 
   recordClearScore(clear) {
+    const wasAcceptingInput = this.session.isAcceptingInput();
     const scoreEvent = this.session.recordClear(clear);
     if (!scoreEvent) return null;
+    if (wasAcceptingInput) {
+      this.pendingSpawnCount += getClearTriggeredSpawnCount(
+        this.mode.id,
+        scoreEvent.count
+      );
+    }
     this.callbacks.onScore?.(scoreEvent);
     this.emitSession(this.session.getSnapshot(), true);
     return scoreEvent;
   }
 
   emitSession(snapshot, force = false) {
-    const signature = `${snapshot.phase}:${Math.ceil(snapshot.remainingMs / 1000)}:${snapshot.score}`;
+    const signature = `${snapshot.modeId}:${snapshot.phase}:${Math.ceil(snapshot.remainingMs / 1000)}:${snapshot.score}`;
     if (!force && signature === this.lastSessionSignature) return;
     this.lastSessionSignature = signature;
     this.callbacks.onSessionChange?.(snapshot);
   }
 
   finishSessionIfSettled() {
+    if (this.session.getSnapshot().phase === GAME_PHASES.FINISHING) {
+      this.pendingSpawnCount = 0;
+    }
     const hasPendingWork = this.busy
       || this.pendingMatchResolution
       || [...this.dice.values()].some(
@@ -833,7 +887,7 @@ export class WebGLSainome {
     this.queueTimerId = null;
     this.emitSession(result, true);
     this.callbacks.onFinish?.(result);
-    this.callbacks.onMessage?.(`60秒終了。得点は${result.score}点です`);
+    this.callbacks.onMessage?.(`${this.mode.label}終了。得点は${result.score}点です`);
   }
 
   resize() {

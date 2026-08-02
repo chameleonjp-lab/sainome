@@ -154,6 +154,58 @@ button:disabled { opacity: .55; }
   font-size: clamp(.88rem, 3.3vw, 1.04rem);
   line-height: 1.75;
 }
+.mode-picker {
+  width: min(100%, 460px);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.mode-picker legend {
+  width: 100%;
+  margin-bottom: 7px;
+  color: #a8a294;
+  font-size: .68rem;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+.mode-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.mode-choice {
+  position: relative;
+  display: block;
+  touch-action: manipulation;
+}
+.mode-choice input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+.mode-choice span {
+  display: grid;
+  gap: 3px;
+  min-height: 58px;
+  align-content: center;
+  padding: 8px 10px;
+  border: 1px solid rgba(255,255,255,.13);
+  border-radius: 14px;
+  background: rgba(255,255,255,.045);
+  color: #d6d1c5;
+  transition: border-color .16s ease, background .16s ease, transform .16s ease;
+}
+.mode-choice strong { color: #f2eee4; font-size: 1rem; }
+.mode-choice small { color: #999487; font-size: .64rem; font-weight: 750; }
+.mode-choice input:checked + span {
+  border-color: rgba(245,196,81,.76);
+  background: rgba(245,196,81,.13);
+  box-shadow: inset 0 0 0 1px rgba(245,196,81,.16);
+}
+.mode-choice input:checked + span strong { color: var(--accent); }
+.mode-choice input:focus-visible + span { outline: 3px solid #fff3b5; outline-offset: 3px; }
+.mode-choice input:disabled + span { opacity: .56; }
 .quick-rules {
   width: min(100%, 460px);
   display: grid;
@@ -289,6 +341,7 @@ button:disabled { opacity: .55; }
   .screen-panel { gap: 9px; padding-block: 16px; }
   .screen-panel h1 { font-size: clamp(2.2rem, 10vw, 3.6rem); }
   .quick-rules li { min-height: 60px; }
+  .mode-choice span { min-height: 50px; }
 }
 
 @media (max-width: 520px) {
