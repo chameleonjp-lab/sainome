@@ -22,6 +22,18 @@ body {
 button { font: inherit; -webkit-tap-highlight-color: transparent; }
 button:focus-visible { outline: 3px solid #fff3b5; outline-offset: 3px; }
 button:disabled { opacity: .55; }
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  clip-path: inset(50%) !important;
+  border: 0 !important;
+  white-space: nowrap !important;
+}
 
 .app {
   width: 100%;
@@ -478,9 +490,17 @@ button:disabled { opacity: .55; }
 .stage.impact { animation: stageImpact .18s ease-out; }
 .stage.chain-hit { animation: chainHit .38s ease-out; }
 
-.prototype-note {
+.app-footer {
   width: min(100%, 760px);
   margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.prototype-note {
+  min-width: 0;
+  flex: 1;
   display: flex;
   justify-content: center;
   gap: 8px;
@@ -489,6 +509,28 @@ button:disabled { opacity: .55; }
   text-align: center;
 }
 .prototype-note strong { color: #c9c5bb; }
+.sound-toggle {
+  min-height: 44px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 11px;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 999px;
+  background: rgba(255,255,255,.055);
+  color: #aaa596;
+  font-size: .68rem;
+  font-weight: 850;
+  touch-action: manipulation;
+}
+.sound-toggle[aria-pressed="true"] {
+  border-color: rgba(245,196,81,.54);
+  background: rgba(245,196,81,.11);
+  color: var(--accent);
+}
+.sound-toggle:active { background: rgba(255,255,255,.12); }
 
 @media (min-width: 760px) {
   .app { padding-inline: 20px; }
@@ -502,6 +544,7 @@ button:disabled { opacity: .55; }
   .brand strong { font-size: 1.05rem; }
   #game-canvas { min-height: 350px; }
   .prototype-note { display: none; }
+  .app-footer { justify-content: flex-end; }
   .screen-panel { gap: 9px; padding-block: 16px; }
   .screen-panel h1 { font-size: clamp(2.2rem, 10vw, 3.6rem); }
   .quick-rules li { min-height: 60px; }
@@ -535,6 +578,7 @@ button:disabled { opacity: .55; }
   .tutorial-actions { grid-template-columns: 1fr 1fr; }
   .tutorial-actions .primary-button { grid-column: 1 / -1; }
   .result-actions { grid-template-columns: 1fr; }
+  .sound-toggle { padding-inline: 10px; font-size: .62rem; }
 }
 
 @keyframes stageImpact {

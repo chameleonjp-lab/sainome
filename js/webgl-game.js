@@ -413,12 +413,14 @@ export class WebGLSainome {
     const currentDie = this.activeKey ? this.dice.get(this.activeKey) : null;
 
     if (currentDie?.state === 'normal') {
+      this.callbacks.onMove?.();
       if (targetDie) void this.hopTo(targetDie, nextKey, directionName);
       else void this.rollDie(currentDie, nextRow, nextColumn, nextKey, directionName);
       return;
     }
 
     if (currentDie?.state === 'sinking') {
+      this.callbacks.onMove?.();
       if (targetDie) void this.hopTo(targetDie, nextKey, directionName);
       else void this.moveOnFloor(nextRow, nextColumn, directionName, true);
       return;
@@ -435,11 +437,13 @@ export class WebGLSainome {
     );
 
     if (floorAction === 'walk') {
+      this.callbacks.onMove?.();
       void this.moveOnFloor(nextRow, nextColumn, directionName, false);
       return;
     }
 
     if (floorAction === 'climb') {
+      this.callbacks.onMove?.();
       void this.hopTo(targetDie, nextKey, directionName);
       return;
     }
@@ -522,6 +526,7 @@ export class WebGLSainome {
   async rollDie(die, nextRow, nextColumn, nextKey, directionName) {
     const epoch = this.epoch;
     this.busy = true;
+    this.callbacks.onRollStart?.();
     const direction = DIRECTIONS[directionName];
     const oldKey = boardKey(die.row, die.column);
     const startPosition = die.mesh.position.clone();
@@ -593,6 +598,13 @@ export class WebGLSainome {
         material.emissiveIntensity = group.isChain ? 0.72 : 0.46;
       }
 
+      this.callbacks.onClearStart?.({
+        type: 'normal',
+        value: group.value,
+        count: group.additions.length,
+        chain: this.chainCount
+      });
+
       this.callbacks.onChain?.({
         chain: this.chainCount,
         count: group.additions.length,
@@ -633,6 +645,13 @@ export class WebGLSainome {
       material.emissive.setHex(0x6a1d7a);
       material.emissiveIntensity = 0.82;
     }
+
+    this.callbacks.onClearStart?.({
+      type: 'special-one',
+      value: 1,
+      count: special.members.length,
+      chain: Math.max(1, this.chainCount)
+    });
 
     this.recordClearScore({
       type: 'special-one',
@@ -815,6 +834,7 @@ export class WebGLSainome {
       die.riseStartY = DICE_Y - RISE_DEPTH;
       die.mesh.position.y = die.riseStartY;
     }
+    this.callbacks.onSpawn?.({ count: cells.length });
     this.callbacks.onMessage?.(`新しいサイコロが${cells.length}個現れます`);
   }
 
