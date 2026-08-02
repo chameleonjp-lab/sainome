@@ -17,6 +17,7 @@
 - 180秒モードの消去数に応じたサイコロ生成
 - ホーム、3カウント、プレイ中表示、結果、再挑戦の画面遷移
 - 操作、消去、モードの違いを説明する3枚のチュートリアル
+- 初期状態オフで、設定を保存できる4種類の効果音
 - iPhone向けの盤面に沿った斜め4方向フリック
 - パソコン向け矢印キー、WASD操作
 
@@ -30,6 +31,8 @@
 6. 沈んでいる間に同じ目を隣接させると、消去を連鎖できます。
 7. 1の目を沈下中のサイコロへ隣接させると、盤面上の1がまとめて消えます。
 8. 床へ降りたときは、隣の通常サイコロまたは半分沈んだサイコロへ移動すると上へ戻れます。
+
+画面下の「効果音 オフ」を押すと、フリック、サイコロの転がり、消去、生成の音を有効にできます。選択は端末へ保存されます。音声機能を開始できない環境でも、ゲームは無音のまま続けられます。
 
 ## ゲームモードと得点
 
@@ -70,6 +73,7 @@ js/game-modes.js
 js/game-session.js
 js/input-direction.js
 js/spawn-rules.js
+js/sound-effects.js
 js/tutorial-slides.js
 js/ui-flow.js
 js/main.js
@@ -79,8 +83,10 @@ test/game-modes.test.js
 test/game-session.test.js
 test/input-direction.test.js
 test/spawn-rules.test.js
+test/sound-effects.test.js
+test/sound-wiring.test.js
 test/tutorial-slides.test.js
 test/ui-flow.test.js
 ```
 
-描画にはCDNからThree.jsを読み込みます。公開用のビルド作業はなく、静的ファイルをそのまま公開できます。`npm test`でサイコロの面、接続判定、60秒・180秒モード、生成数、得点、終了確定、チュートリアル、画面遷移を確認できます。
+描画にはCDNからThree.jsを読み込みます。効果音はブラウザの音声機能で生成するため、外部の音声ファイルは読み込みません。公開用のビルド作業はなく、静的ファイルをそのまま公開できます。`npm test`でサイコロの面、接続判定、60秒・180秒モード、生成数、得点、終了確定、効果音、チュートリアル、画面遷移を確認できます。
