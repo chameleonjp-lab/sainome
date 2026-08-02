@@ -5,6 +5,8 @@ const stage = document.querySelector('#stage');
 const loading = document.querySelector('#loading');
 const message = document.querySelector('#message');
 const rollCount = document.querySelector('#roll-count');
+const chainCount = document.querySelector('#chain-count');
+const clearCount = document.querySelector('#clear-count');
 const resetButton = document.querySelector('#reset-button');
 
 let pointerStart = null;
@@ -12,6 +14,19 @@ let pointerStart = null;
 const game = new WebGLSainome(canvas, {
   onRoll: (count) => {
     rollCount.textContent = String(count);
+  },
+  onChain: ({ chain, isChain }) => {
+    chainCount.textContent = String(chain);
+    chainCount.parentElement.classList.toggle('chain-active', chain > 0);
+    if (chain > 0) {
+      stage.classList.remove('chain-hit');
+      void stage.offsetWidth;
+      stage.classList.add('chain-hit');
+      window.setTimeout(() => stage.classList.remove('chain-hit'), isChain ? 430 : 300);
+    }
+  },
+  onClear: (count) => {
+    clearCount.textContent = String(count);
   },
   onMessage: (text) => {
     message.textContent = text;

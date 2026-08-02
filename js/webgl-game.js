@@ -1,12 +1,18 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
+import { boardKey, findTriggeredGroups, isInsideBoard } from './board-rules.js';
+import { BASE_ORIENTATION, Dice } from './dice.js';
+
 const BOARD_SIZE = 7;
 const HALF_BOARD = (BOARD_SIZE - 1) / 2;
 const DICE_SIZE = 0.92;
 const FLOOR_Y = 0;
 const DICE_Y = 0.52;
 const PLAYER_Y = 1.18;
+const GROUND_PLAYER_Y = 0.18;
+const SINK_DURATION = 2200;
+const SINK_DEPTH = 1.18;
 
 const DIRECTIONS = {
   up: { row: -1, column: 0, axis: new THREE.Vector3(1, 0, 0), angle: -Math.PI / 2 },
@@ -25,8 +31,12 @@ const INITIAL_DICE = [
   [6, 1], [6, 3], [6, 6]
 ];
 
-function gridToWorld(row, column) {
-  return new THREE.Vector3(column - HALF_BOARD, DICE_Y, row - HALF_BOARD);
+const DIE_BODY_GEOMETRY = new RoundedBoxGeometry(DICE_SIZE, DICE_SIZE, DICE_SIZE, 5, 0.12);
+const PIP_GEOMETRY = new THREE.SphereGeometry(0.064, 10, 7);
+const PIP_MATERIAL = new THREE.MeshStandardMaterial({ color: 0x17130f, roughness: 0.72 });
+
+function gridToWorld(row, column, y = DICE_Y) {
+  return new THREE.Vector3(column - HALF_BOARD, y, row - HALF_BOARD);
 }
 
 function easeInOutCubic(value) {
@@ -48,9 +58,9 @@ function createPipPositions(value) {
   return positions[value];
 }
 
-function addFacePips(group, value, face, geometry, material) {
+function addFacePips(group, value, face) {
   for (const [u, v] of createPipPositions(value)) {
-    const pip = new THREE.Mesh(geometry, material);
+    const pip = new THREE.Mesh(PIP_GEOMETRY, PIP_MATERIAL);
     const edge = DICE_SIZE / 2 + 0.012;
 
     if (face === 'top') pip.position.set(u, edge, v);
@@ -60,37 +70,32 @@ function addFacePips(group, value, face, geometry, material) {
     if (face === 'left') pip.position.set(-edge, v, u);
     if (face === 'right') pip.position.set(edge, v, -u);
 
-    pip.castShadow = true;
     group.add(pip);
   }
 }
 
 function createDieMesh() {
   const group = new THREE.Group();
-  const bodyGeometry = new RoundedBoxGeometry(DICE_SIZE, DICE_SIZE, DICE_SIZE, 5, 0.12);
   const bodyMaterial = new THREE.MeshStandardMaterial({
     color: 0xf2ead6,
     roughness: 0.48,
-    metalness: 0.02
+    metalness: 0.02,
+    emissive: 0x000000,
+    emissiveIntensity: 0
   });
-  const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+  const body = new THREE.Mesh(DIE_BODY_GEOMETRY, bodyMaterial);
   body.castShadow = true;
   body.receiveShadow = true;
   group.add(body);
 
-  const pipGeometry = new THREE.SphereGeometry(0.064, 12, 8);
-  const pipMaterial = new THREE.MeshStandardMaterial({
-    color: 0x17130f,
-    roughness: 0.72
-  });
+  addFacePips(group, 1, 'top');
+  addFacePips(group, 6, 'bottom');
+  addFacePips(group, 2, 'front');
+  addFacePips(group, 5, 'back');
+  addFacePips(group, 3, 'left');
+  addFacePips(group, 4, 'right');
 
-  addFacePips(group, 1, 'top', pipGeometry, pipMaterial);
-  addFacePips(group, 6, 'bottom', pipGeometry, pipMaterial);
-  addFacePips(group, 2, 'front', pipGeometry, pipMaterial);
-  addFacePips(group, 5, 'back', pipGeometry, pipMaterial);
-  addFacePips(group, 3, 'left', pipGeometry, pipMaterial);
-  addFacePips(group, 4, 'right', pipGeometry, pipMaterial);
-
+  group.userData.bodyMaterial = bodyMaterial;
   return group;
 }
 
@@ -156,22 +161,61 @@ export class WebGLSainome {
 
     this.clock = new THREE.Clock();
     this.dice = new Map();
-    this.activeKey = '3,3';
     this.player = createPlayer();
     this.scene.add(this.player);
+    this.activeKey = null;
+    this.playerRow = 3;
+    this.playerColumn = 3;
     this.busy = false;
     this.queuedDirection = null;
+    this.queueTimerId = null;
     this.rollCount = 0;
-    this.animationFrame = 0;
+    this.chainCount = 0;
+    this.clearedCount = 0;
+    this.diceSequence = 0;
+    this.epoch = 0;
+    this.isVisible = !document.hidden;
+    this.contextLost = false;
+    this.pauseStartedAt = 0;
+    this.totalPausedDuration = 0;
 
     this.createLights();
     this.createBoard();
     this.reset();
     this.resize();
-    this.animate();
 
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(this.canvas.parentElement);
+    this.bindLifecycleEvents();
+    this.animate();
+  }
+
+  bindLifecycleEvents() {
+    this.canvas.addEventListener('webglcontextlost', (event) => {
+      event.preventDefault();
+      this.contextLost = true;
+      this.callbacks.onMessage?.('3D表示を復帰しています…');
+    });
+
+    this.canvas.addEventListener('webglcontextrestored', () => {
+      this.contextLost = false;
+      this.callbacks.onMessage?.('3D表示が復帰しました');
+      this.resize();
+    });
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        this.isVisible = false;
+        this.pauseStartedAt = performance.now();
+        return;
+      }
+
+      const pausedFor = this.pauseStartedAt > 0 ? performance.now() - this.pauseStartedAt : 0;
+      this.totalPausedDuration += pausedFor;
+      this.pauseStartedAt = 0;
+      this.isVisible = true;
+      this.clock.getDelta();
+    });
   }
 
   createLights() {
@@ -181,7 +225,7 @@ export class WebGLSainome {
     const key = new THREE.DirectionalLight(0xffe0a0, 3.2);
     key.position.set(-4, 10, 6);
     key.castShadow = true;
-    key.shadow.mapSize.set(1536, 1536);
+    key.shadow.mapSize.set(1024, 1024);
     key.shadow.camera.left = -7;
     key.shadow.camera.right = 7;
     key.shadow.camera.top = 7;
@@ -227,42 +271,77 @@ export class WebGLSainome {
   }
 
   reset() {
-    for (const die of this.dice.values()) this.scene.remove(die.mesh);
+    this.epoch += 1;
+    for (const die of this.dice.values()) this.removeDie(die, true);
     this.dice.clear();
+    this.diceSequence = 0;
 
-    for (const [row, column] of INITIAL_DICE) {
-      const key = `${row},${column}`;
-      const mesh = createDieMesh();
-      mesh.position.copy(gridToWorld(row, column));
-      const turnsX = (row * 2 + column) % 4;
-      const turnsZ = (row + column * 3) % 4;
-      mesh.rotation.set(turnsX * Math.PI / 2, 0, turnsZ * Math.PI / 2);
-      this.scene.add(mesh);
-      this.dice.set(key, { row, column, mesh });
-    }
+    for (const [row, column] of INITIAL_DICE) this.addDie(row, column);
+    this.removeOpeningMatches();
 
-    this.activeKey = '3,3';
-    if (!this.dice.has(this.activeKey)) {
-      const mesh = createDieMesh();
-      mesh.position.copy(gridToWorld(3, 3));
-      this.scene.add(mesh);
-      this.dice.set(this.activeKey, { row: 3, column: 3, mesh });
-    }
-
+    this.activeKey = boardKey(3, 3);
+    if (!this.dice.has(this.activeKey)) this.addDie(3, 3);
+    this.playerRow = 3;
+    this.playerColumn = 3;
     this.rollCount = 0;
+    this.chainCount = 0;
+    this.clearedCount = 0;
     this.busy = false;
     this.queuedDirection = null;
-    this.placePlayer(false);
-    this.callbacks.onRoll?.(this.rollCount);
-    this.callbacks.onMessage?.('空いているマスへ進むとサイコロが転がります');
+    window.clearTimeout(this.queueTimerId);
+    this.queueTimerId = null;
+    this.player.rotation.set(0, 0, 0);
+    this.placePlayer();
+    this.callbacks.onRoll?.(this.rollCount, this.dice.get(this.activeKey)?.top);
+    this.callbacks.onChain?.({ chain: 0, count: 0, value: 0, isChain: false });
+    this.callbacks.onClear?.(this.clearedCount);
+    this.callbacks.onMessage?.('同じ目を、目の数以上つなげます');
   }
 
-  placePlayer(animate = true) {
-    const die = this.dice.get(this.activeKey);
-    if (!die) return;
-    const target = gridToWorld(die.row, die.column);
-    target.y = PLAYER_Y;
-    if (!animate) this.player.position.copy(target);
+  addDie(row, column) {
+    this.diceSequence += 1;
+    const die = new Dice(`die-${this.diceSequence}`, row, column, { ...BASE_ORIENTATION });
+    die.mesh = createDieMesh();
+    die.mesh.position.copy(gridToWorld(row, column));
+    die.state = 'normal';
+    die.sinkStartedAt = 0;
+    this.randomizeOrientation(die);
+    this.scene.add(die.mesh);
+    this.dice.set(boardKey(row, column), die);
+    return die;
+  }
+
+  randomizeOrientation(die) {
+    Object.assign(die, BASE_ORIENTATION);
+    die.mesh.quaternion.identity();
+    const directions = Object.keys(DIRECTIONS);
+    const turns = 3 + Math.floor(Math.random() * 6);
+    for (let index = 0; index < turns; index += 1) {
+      this.applyQuarterTurn(die, directions[Math.floor(Math.random() * directions.length)]);
+    }
+  }
+
+  removeOpeningMatches() {
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+      const groups = findTriggeredGroups(this.dice, BOARD_SIZE);
+      if (groups.length === 0) return;
+      for (const group of groups) {
+        for (const die of group.additions) this.randomizeOrientation(die);
+      }
+    }
+  }
+
+  applyQuarterTurn(die, directionName) {
+    const direction = DIRECTIONS[directionName];
+    Dice.rotateValues(die, directionName);
+    const turn = new THREE.Quaternion().setFromAxisAngle(direction.axis, direction.angle);
+    die.mesh.quaternion.premultiply(turn).normalize();
+  }
+
+  placePlayer() {
+    const die = this.activeKey ? this.dice.get(this.activeKey) : null;
+    const y = die ? die.mesh.position.y + (PLAYER_Y - DICE_Y) : GROUND_PLAYER_Y;
+    this.player.position.copy(gridToWorld(this.playerRow, this.playerColumn, y));
   }
 
   move(directionName) {
@@ -272,98 +351,229 @@ export class WebGLSainome {
       return;
     }
 
-    const current = this.dice.get(this.activeKey);
-    if (!current) return;
     const direction = DIRECTIONS[directionName];
-    const nextRow = current.row + direction.row;
-    const nextColumn = current.column + direction.column;
-
-    if (nextRow < 0 || nextRow >= BOARD_SIZE || nextColumn < 0 || nextColumn >= BOARD_SIZE) {
+    const nextRow = this.playerRow + direction.row;
+    const nextColumn = this.playerColumn + direction.column;
+    if (!isInsideBoard(nextRow, nextColumn, BOARD_SIZE)) {
       this.callbacks.onMessage?.('盤面の端です');
       return;
     }
 
-    const nextKey = `${nextRow},${nextColumn}`;
+    const nextKey = boardKey(nextRow, nextColumn);
     const targetDie = this.dice.get(nextKey);
-    if (targetDie) {
-      this.hopTo(targetDie, nextKey, directionName);
+    const currentDie = this.activeKey ? this.dice.get(this.activeKey) : null;
+
+    if (currentDie?.state === 'normal') {
+      if (targetDie) void this.hopTo(targetDie, nextKey, directionName);
+      else void this.rollDie(currentDie, nextRow, nextColumn, nextKey, directionName);
       return;
     }
 
-    this.rollDie(current, nextRow, nextColumn, nextKey, directionName);
+    if (currentDie?.state === 'sinking') {
+      if (targetDie) void this.hopTo(targetDie, nextKey, directionName);
+      else void this.moveOnFloor(nextRow, nextColumn, directionName, true);
+      return;
+    }
+
+    if (!targetDie) {
+      void this.moveOnFloor(nextRow, nextColumn, directionName, false);
+      return;
+    }
+
+    if (targetDie.state === 'sinking' && targetDie.mesh.position.y <= 0.30) {
+      void this.hopTo(targetDie, nextKey, directionName);
+      return;
+    }
+
+    this.callbacks.onMessage?.('床からは高いサイコロへ登れません');
   }
 
   async hopTo(targetDie, nextKey, directionName) {
+    const epoch = this.epoch;
     this.busy = true;
     const start = this.player.position.clone();
-    const end = gridToWorld(targetDie.row, targetDie.column);
-    end.y = PLAYER_Y;
-    const startTime = performance.now();
-    const duration = 210;
+    const end = gridToWorld(
+      targetDie.row,
+      targetDie.column,
+      targetDie.mesh.position.y + (PLAYER_Y - DICE_Y)
+    );
+    const completed = await this.animatePlayerMove(start, end, 210, 0.34, epoch);
+    if (!completed || epoch !== this.epoch) return;
 
-    await new Promise((resolve) => {
-      const step = (now) => {
-        const raw = Math.min(1, (now - startTime) / duration);
-        const t = easeInOutCubic(raw);
-        this.player.position.lerpVectors(start, end, t);
-        this.player.position.y += Math.sin(Math.PI * raw) * 0.34;
-        if (raw < 1) requestAnimationFrame(step);
-        else resolve();
-      };
-      requestAnimationFrame(step);
-    });
-
-    this.activeKey = nextKey;
+    const currentTarget = this.dice.get(nextKey);
+    this.playerRow = targetDie.row;
+    this.playerColumn = targetDie.column;
+    this.activeKey = currentTarget === targetDie ? nextKey : null;
+    if (!this.activeKey) this.player.position.y = GROUND_PLAYER_Y;
     this.faceDirection(directionName);
     this.busy = false;
-    this.callbacks.onMessage?.('サイコロの上を移動');
+    this.callbacks.onMessage?.(this.activeKey ? 'サイコロの上を移動' : '床へ着地');
     this.consumeQueue();
   }
 
+  async moveOnFloor(nextRow, nextColumn, directionName, steppingDown) {
+    const epoch = this.epoch;
+    this.busy = true;
+    const start = this.player.position.clone();
+    const end = gridToWorld(nextRow, nextColumn, GROUND_PLAYER_Y);
+    const completed = await this.animatePlayerMove(start, end, steppingDown ? 230 : 170, steppingDown ? 0.12 : 0.04, epoch);
+    if (!completed || epoch !== this.epoch) return;
+
+    this.playerRow = nextRow;
+    this.playerColumn = nextColumn;
+    this.activeKey = null;
+    this.faceDirection(directionName);
+    this.busy = false;
+    this.callbacks.onMessage?.('床を移動中。沈んだサイコロから上へ戻れます');
+    this.consumeQueue();
+  }
+
+  animatePlayerMove(start, end, duration, jumpHeight, epoch) {
+    const startTime = this.getGameTime();
+    return new Promise((resolve) => {
+      const step = () => {
+        if (epoch !== this.epoch) {
+          resolve(false);
+          return;
+        }
+        const raw = Math.min(1, (this.getGameTime() - startTime) / duration);
+        const t = easeInOutCubic(raw);
+        this.player.position.lerpVectors(start, end, t);
+        this.player.position.y += Math.sin(Math.PI * raw) * jumpHeight;
+        if (raw < 1) requestAnimationFrame(step);
+        else resolve(true);
+      };
+      requestAnimationFrame(step);
+    });
+  }
+
   async rollDie(die, nextRow, nextColumn, nextKey, directionName) {
+    const epoch = this.epoch;
     this.busy = true;
     const direction = DIRECTIONS[directionName];
-    const oldKey = `${die.row},${die.column}`;
+    const oldKey = boardKey(die.row, die.column);
     const startPosition = die.mesh.position.clone();
     const endPosition = gridToWorld(nextRow, nextColumn);
     const startQuaternion = die.mesh.quaternion.clone();
     const turn = new THREE.Quaternion().setFromAxisAngle(direction.axis, direction.angle);
     const endQuaternion = turn.clone().multiply(startQuaternion);
-    const startTime = performance.now();
+    const startTime = this.getGameTime();
     const duration = 280;
 
-    await new Promise((resolve) => {
-      const step = (now) => {
-        const raw = Math.min(1, (now - startTime) / duration);
+    const completed = await new Promise((resolve) => {
+      const step = () => {
+        if (epoch !== this.epoch) {
+          resolve(false);
+          return;
+        }
+        const raw = Math.min(1, (this.getGameTime() - startTime) / duration);
         const t = easeInOutCubic(raw);
         die.mesh.position.lerpVectors(startPosition, endPosition, t);
         die.mesh.position.y = DICE_Y + Math.sin(Math.PI * raw) * 0.26;
         die.mesh.quaternion.slerpQuaternions(startQuaternion, endQuaternion, t);
-        this.player.position.set(die.mesh.position.x, PLAYER_Y + Math.sin(Math.PI * raw) * 0.18, die.mesh.position.z);
-        this.player.rotation.z = Math.sin(Math.PI * raw) * (directionName === 'left' ? 0.12 : directionName === 'right' ? -0.12 : 0);
+        this.player.position.set(
+          die.mesh.position.x,
+          PLAYER_Y + Math.sin(Math.PI * raw) * 0.18,
+          die.mesh.position.z
+        );
+        this.player.rotation.z = Math.sin(Math.PI * raw)
+          * (directionName === 'left' ? 0.12 : directionName === 'right' ? -0.12 : 0);
         if (raw < 1) requestAnimationFrame(step);
-        else resolve();
+        else resolve(true);
       };
       requestAnimationFrame(step);
     });
 
+    if (!completed || epoch !== this.epoch) return;
     die.mesh.position.copy(endPosition);
     die.mesh.quaternion.copy(endQuaternion).normalize();
-    die.row = nextRow;
-    die.column = nextColumn;
+    die.roll(directionName, nextRow, nextColumn);
     this.dice.delete(oldKey);
     this.dice.set(nextKey, die);
     this.activeKey = nextKey;
+    this.playerRow = nextRow;
+    this.playerColumn = nextColumn;
     this.player.position.set(endPosition.x, PLAYER_Y, endPosition.z);
     this.player.rotation.z = 0;
     this.faceDirection(directionName);
 
     this.rollCount += 1;
-    this.callbacks.onRoll?.(this.rollCount);
+    this.callbacks.onRoll?.(this.rollCount, die.top);
     this.callbacks.onImpact?.();
-    this.callbacks.onMessage?.('サイコロが隣のマスへ転がりました');
+    const matched = this.resolveMatches();
+    if (!matched) this.callbacks.onMessage?.(`上面は${die.top}。同じ目を${die.top}個以上つなげます`);
     this.busy = false;
     this.consumeQueue();
+  }
+
+  resolveMatches() {
+    const groups = findTriggeredGroups(this.dice, BOARD_SIZE);
+    if (groups.length === 0) return false;
+
+    const now = this.getGameTime();
+    for (const group of groups) {
+      this.chainCount = group.isChain ? this.chainCount + 1 : 1;
+      for (const die of group.additions) {
+        die.state = 'sinking';
+        die.sinkStartedAt = now;
+        const material = die.mesh.userData.bodyMaterial;
+        material.emissive.setHex(group.isChain ? 0x8a2700 : 0x694000);
+        material.emissiveIntensity = group.isChain ? 0.72 : 0.46;
+      }
+
+      this.callbacks.onChain?.({
+        chain: this.chainCount,
+        count: group.additions.length,
+        value: group.value,
+        isChain: group.isChain
+      });
+      this.callbacks.onMessage?.(
+        group.isChain
+          ? `${this.chainCount}連鎖！ ${group.value}の目を追加`
+          : `${group.value}の目が${group.members.length}個つながりました`
+      );
+    }
+    return true;
+  }
+
+  updateSinking(now) {
+    const completed = [];
+    for (const [key, die] of this.dice) {
+      if (die.state !== 'sinking') continue;
+      const raw = Math.min(1, Math.max(0, (now - die.sinkStartedAt) / SINK_DURATION));
+      const progress = easeInOutCubic(raw);
+      die.mesh.position.y = DICE_Y - progress * SINK_DEPTH;
+      die.mesh.scale.setScalar(1 - progress * 0.08);
+      die.mesh.userData.bodyMaterial.emissiveIntensity = 0.34 + Math.sin(raw * Math.PI * 7) * 0.16;
+
+      if (!this.busy && this.activeKey === key) {
+        this.player.position.y = die.mesh.position.y + (PLAYER_Y - DICE_Y);
+      }
+      if (raw >= 1) completed.push([key, die]);
+    }
+
+    for (const [key, die] of completed) {
+      if (this.activeKey === key) {
+        this.activeKey = null;
+        this.player.position.y = GROUND_PLAYER_Y;
+      }
+      this.dice.delete(key);
+      die.state = 'cleared';
+      this.removeDie(die, true);
+      this.clearedCount += 1;
+      this.callbacks.onClear?.(this.clearedCount);
+    }
+
+    if (completed.length > 0 && ![...this.dice.values()].some((die) => die.state === 'sinking')) {
+      this.chainCount = 0;
+      this.callbacks.onChain?.({ chain: 0, count: 0, value: 0, isChain: false });
+      this.callbacks.onMessage?.('消去完了。空きマスを使って次の目をそろえます');
+    }
+  }
+
+  removeDie(die, disposeMaterial) {
+    this.scene.remove(die.mesh);
+    if (disposeMaterial) die.mesh.userData.bodyMaterial?.dispose();
   }
 
   faceDirection(directionName) {
@@ -375,7 +585,17 @@ export class WebGLSainome {
     if (!this.queuedDirection) return;
     const queued = this.queuedDirection;
     this.queuedDirection = null;
-    window.setTimeout(() => this.move(queued), 30);
+    window.clearTimeout(this.queueTimerId);
+    this.queueTimerId = window.setTimeout(() => {
+      this.queueTimerId = null;
+      this.move(queued);
+    }, 30);
+  }
+
+  getGameTime() {
+    const now = performance.now();
+    const currentPause = this.pauseStartedAt > 0 ? now - this.pauseStartedAt : 0;
+    return now - this.totalPausedDuration - currentPause;
   }
 
   resize() {
@@ -397,12 +617,20 @@ export class WebGLSainome {
   }
 
   animate() {
+    const now = this.getGameTime();
+    if (this.isVisible) this.updateSinking(now);
+
     const elapsed = this.clock.getElapsedTime();
     if (!this.busy) {
-      this.player.position.y = PLAYER_Y + Math.sin(elapsed * 4.2) * 0.025;
+      const activeDie = this.activeKey ? this.dice.get(this.activeKey) : null;
+      if (!activeDie || activeDie.state === 'normal') {
+        const baseY = activeDie ? activeDie.mesh.position.y + (PLAYER_Y - DICE_Y) : GROUND_PLAYER_Y;
+        this.player.position.y = baseY + Math.sin(elapsed * 4.2) * 0.025;
+      }
       this.player.rotation.x = Math.sin(elapsed * 3.2) * 0.018;
     }
-    this.renderer.render(this.scene, this.camera);
-    this.animationFrame = requestAnimationFrame(() => this.animate());
+
+    if (this.isVisible && !this.contextLost) this.renderer.render(this.scene, this.camera);
+    requestAnimationFrame(() => this.animate());
   }
 }
