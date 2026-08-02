@@ -15,6 +15,27 @@ test('初期画面ではゲーム操作を受け付けない', () => {
   assert.equal(flow.canMove(), false);
 });
 
+test('ホームから説明を開き、説明中はゲーム操作を受け付けない', () => {
+  const flow = new GameFlow();
+
+  const tutorial = flow.openTutorial();
+
+  assert.equal(tutorial.screen, SCREEN_PHASES.TUTORIAL);
+  assert.equal(tutorial.canMove, false);
+  assert.equal(flow.canMove(), false);
+  assert.equal(flow.openTutorial(), null);
+});
+
+test('説明から3カウントへ進める', () => {
+  const flow = new GameFlow();
+  flow.openTutorial();
+
+  const countdown = flow.beginCountdown();
+
+  assert.equal(countdown.screen, SCREEN_PHASES.COUNTDOWN);
+  assert.equal(countdown.countdown, 3);
+});
+
 test('3カウントの完了後だけゲーム操作を受け付ける', () => {
   const flow = new GameFlow();
 
