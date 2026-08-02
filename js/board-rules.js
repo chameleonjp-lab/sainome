@@ -14,7 +14,9 @@ export function isInsideBoard(row, column, boardSize) {
 }
 
 function isMatchable(die) {
-  return die && die.state !== 'cleared' && die.top >= 2;
+  return die
+    && (die.state === 'normal' || die.state === 'sinking')
+    && die.top >= 2;
 }
 
 export function findTriggeredGroups(diceByKey, boardSize) {
@@ -62,4 +64,75 @@ export function findTriggeredGroups(diceByKey, boardSize) {
   }
 
   return triggered;
+}
+
+export function findSpecialOneClear(diceByKey, boardSize, protectedDieId = null) {
+  const ones = [...diceByKey.values()].filter(
+    (die) => die.state === 'normal' && die.top === 1
+  );
+
+  const trigger = ones.find((die) => CARDINAL_DIRECTIONS.some((delta) => {
+    const row = die.row + delta.row;
+    const column = die.column + delta.column;
+    if (!isInsideBoard(row, column, boardSize)) return false;
+    return diceByKey.get(boardKey(row, column))?.state === 'sinking';
+  }));
+
+  if (!trigger) return null;
+
+  return {
+    trigger,
+    members: ones.filter((die) => die.id !== protectedDieId),
+    protected: ones.find((die) => die.id === protectedDieId) ?? null
+  };
+}
+
+export function listSpawnCandidates(diceByKey, boardSize, excludedKeys = new Set()) {
+  const candidates = [];
+
+  for (let row = 0; row < boardSize; row += 1) {
+    for (let column = 0; column < boardSize; column += 1) {
+      const key = boardKey(row, column);
+      if (diceByKey.has(key) || excludedKeys.has(key)) continue;
+      candidates.push({ row, column, key });
+    }
+  }
+
+  return candidates;
+}
+
+export function selectSpawnCandidate(candidates, random = Math.random) {
+  if (candidates.length === 0) return null;
+  const raw = Number(random());
+  const normalized = Number.isFinite(raw)
+    ? Math.min(1 - Number.EPSILON, Math.max(0, raw))
+    : 0;
+  return candidates[Math.floor(normalized * candidates.length)];
+}
+
+export function planFloorPush(diceByKey, boardSize, die, direction) {
+  if (!die || die.state !== 'normal') {
+    return { allowed: false, reason: 'not-pushable' };
+  }
+
+  const destinationRow = die.row + direction.row;
+  const destinationColumn = die.column + direction.column;
+  if (!isInsideBoard(destinationRow, destinationColumn, boardSize)) {
+    return { allowed: false, reason: 'edge' };
+  }
+
+  const destinationKey = boardKey(destinationRow, destinationColumn);
+  if (diceByKey.has(destinationKey)) {
+    return { allowed: false, reason: 'occupied' };
+  }
+
+  return {
+    allowed: true,
+    fromKey: boardKey(die.row, die.column),
+    fromRow: die.row,
+    fromColumn: die.column,
+    destinationKey,
+    destinationRow,
+    destinationColumn
+  };
 }

@@ -1,7 +1,15 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
-import { boardKey, findTriggeredGroups, isInsideBoard } from './board-rules.js';
+import {
+  boardKey,
+  findSpecialOneClear,
+  findTriggeredGroups,
+  isInsideBoard,
+  listSpawnCandidates,
+  planFloorPush,
+  selectSpawnCandidate
+} from './board-rules.js';
 import { BASE_ORIENTATION, Dice } from './dice.js';
 
 const BOARD_SIZE = 7;
@@ -13,6 +21,10 @@ const PLAYER_Y = 1.18;
 const GROUND_PLAYER_Y = 0.18;
 const SINK_DURATION = 2200;
 const SINK_DEPTH = 1.18;
+const SPECIAL_ONE_DURATION = 360;
+const SPAWN_INTERVAL = 5000;
+const RISE_DURATION = 720;
+const RISE_DEPTH = 1.18;
 
 const DIRECTIONS = {
   up: { row: -1, column: 0, axis: new THREE.Vector3(1, 0, 0), angle: -Math.PI / 2 },
@@ -178,6 +190,8 @@ export class WebGLSainome {
     this.contextLost = false;
     this.pauseStartedAt = 0;
     this.totalPausedDuration = 0;
+    this.nextSpawnAt = 0;
+    this.pendingMatchResolution = false;
 
     this.createLights();
     this.createBoard();
@@ -286,6 +300,8 @@ export class WebGLSainome {
     this.rollCount = 0;
     this.chainCount = 0;
     this.clearedCount = 0;
+    this.nextSpawnAt = this.getGameTime() + SPAWN_INTERVAL;
+    this.pendingMatchResolution = false;
     this.busy = false;
     this.queuedDirection = null;
     window.clearTimeout(this.queueTimerId);
@@ -298,13 +314,14 @@ export class WebGLSainome {
     this.callbacks.onMessage?.('同じ目を、目の数以上つなげます');
   }
 
-  addDie(row, column) {
+  addDie(row, column, state = 'normal') {
     this.diceSequence += 1;
     const die = new Dice(`die-${this.diceSequence}`, row, column, { ...BASE_ORIENTATION });
     die.mesh = createDieMesh();
     die.mesh.position.copy(gridToWorld(row, column));
-    die.state = 'normal';
+    die.state = state;
     die.sinkStartedAt = 0;
+    die.riseStartedAt = 0;
     this.randomizeOrientation(die);
     this.scene.add(die.mesh);
     this.dice.set(boardKey(row, column), die);
@@ -380,7 +397,15 @@ export class WebGLSainome {
       return;
     }
 
-    if (targetDie.state === 'sinking' && targetDie.mesh.position.y <= 0.30) {
+    if (targetDie.state === 'normal') {
+      void this.pushDie(targetDie, directionName);
+      return;
+    }
+
+    if (
+      (targetDie.state === 'sinking' || targetDie.state === 'rising')
+      && targetDie.mesh.position.y <= 0.30
+    ) {
       void this.hopTo(targetDie, nextKey, directionName);
       return;
     }
@@ -407,7 +432,10 @@ export class WebGLSainome {
     if (!this.activeKey) this.player.position.y = GROUND_PLAYER_Y;
     this.faceDirection(directionName);
     this.busy = false;
-    this.callbacks.onMessage?.(this.activeKey ? 'サイコロの上を移動' : '床へ着地');
+    const matched = this.resolvePendingMatches();
+    if (!matched) {
+      this.callbacks.onMessage?.(this.activeKey ? 'サイコロの上を移動' : '床へ着地');
+    }
     this.consumeQueue();
   }
 
@@ -424,7 +452,64 @@ export class WebGLSainome {
     this.activeKey = null;
     this.faceDirection(directionName);
     this.busy = false;
-    this.callbacks.onMessage?.('床を移動中。沈んだサイコロから上へ戻れます');
+    const matched = this.resolvePendingMatches();
+    if (!matched) {
+      this.callbacks.onMessage?.('床を移動中。沈んだサイコロから上へ戻れます');
+    }
+    this.consumeQueue();
+  }
+
+  async pushDie(die, directionName) {
+    const direction = DIRECTIONS[directionName];
+    const plan = planFloorPush(this.dice, BOARD_SIZE, die, direction);
+    if (!plan.allowed) {
+      this.callbacks.onMessage?.(
+        plan.reason === 'edge'
+          ? '盤面の端へは押せません'
+          : 'その先にサイコロがあるため押せません'
+      );
+      return;
+    }
+
+    const epoch = this.epoch;
+    this.busy = true;
+    const startDiePosition = die.mesh.position.clone();
+    const endDiePosition = gridToWorld(plan.destinationRow, plan.destinationColumn);
+    const startPlayerPosition = this.player.position.clone();
+    const endPlayerPosition = gridToWorld(plan.fromRow, plan.fromColumn, GROUND_PLAYER_Y);
+    const startTime = this.getGameTime();
+    const duration = 230;
+
+    const completed = await new Promise((resolve) => {
+      const step = () => {
+        if (epoch !== this.epoch) {
+          resolve(false);
+          return;
+        }
+        const raw = Math.min(1, (this.getGameTime() - startTime) / duration);
+        const progress = easeInOutCubic(raw);
+        die.mesh.position.lerpVectors(startDiePosition, endDiePosition, progress);
+        this.player.position.lerpVectors(startPlayerPosition, endPlayerPosition, progress);
+        if (raw < 1) requestAnimationFrame(step);
+        else resolve(true);
+      };
+      requestAnimationFrame(step);
+    });
+
+    if (!completed || epoch !== this.epoch) return;
+    this.dice.delete(plan.fromKey);
+    die.row = plan.destinationRow;
+    die.column = plan.destinationColumn;
+    die.mesh.position.copy(endDiePosition);
+    this.dice.set(plan.destinationKey, die);
+    this.playerRow = plan.fromRow;
+    this.playerColumn = plan.fromColumn;
+    this.activeKey = null;
+    this.faceDirection(directionName);
+    this.callbacks.onImpact?.();
+    const matched = this.resolveMatches();
+    if (!matched) this.callbacks.onMessage?.(`上面${die.top}のサイコロを押しました`);
+    this.busy = false;
     this.consumeQueue();
   }
 
@@ -507,9 +592,8 @@ export class WebGLSainome {
   }
 
   resolveMatches() {
+    this.pendingMatchResolution = false;
     const groups = findTriggeredGroups(this.dice, BOARD_SIZE);
-    if (groups.length === 0) return false;
-
     const now = this.getGameTime();
     for (const group of groups) {
       this.chainCount = group.isChain ? this.chainCount + 1 : 1;
@@ -533,14 +617,43 @@ export class WebGLSainome {
           : `${group.value}の目が${group.members.length}個つながりました`
       );
     }
+
+    const specialOne = this.resolveSpecialOnes(now);
+    return groups.length > 0 || specialOne;
+  }
+
+  resolvePendingMatches() {
+    if (this.busy || !this.pendingMatchResolution) return false;
+    return this.resolveMatches();
+  }
+
+  resolveSpecialOnes(now = this.getGameTime()) {
+    const protectedDieId = this.activeKey ? this.dice.get(this.activeKey)?.id : null;
+    const special = findSpecialOneClear(this.dice, BOARD_SIZE, protectedDieId);
+    if (!special || special.members.length === 0) return false;
+
+    for (const die of special.members) {
+      die.state = 'one-clearing';
+      die.sinkStartedAt = now;
+      const material = die.mesh.userData.bodyMaterial;
+      material.emissive.setHex(0x6a1d7a);
+      material.emissiveIntensity = 0.82;
+    }
+
+    this.callbacks.onMessage?.(
+      special.protected
+        ? `1の特殊消去！ 足元以外の${special.members.length}個が消えます`
+        : `1の特殊消去！ ${special.members.length}個が消えます`
+    );
     return true;
   }
 
   updateSinking(now) {
     const completed = [];
     for (const [key, die] of this.dice) {
-      if (die.state !== 'sinking') continue;
-      const raw = Math.min(1, Math.max(0, (now - die.sinkStartedAt) / SINK_DURATION));
+      if (die.state !== 'sinking' && die.state !== 'one-clearing') continue;
+      const duration = die.state === 'one-clearing' ? SPECIAL_ONE_DURATION : SINK_DURATION;
+      const raw = Math.min(1, Math.max(0, (now - die.sinkStartedAt) / duration));
       const progress = easeInOutCubic(raw);
       die.mesh.position.y = DICE_Y - progress * SINK_DEPTH;
       die.mesh.scale.setScalar(1 - progress * 0.08);
@@ -564,11 +677,59 @@ export class WebGLSainome {
       this.callbacks.onClear?.(this.clearedCount);
     }
 
-    if (completed.length > 0 && ![...this.dice.values()].some((die) => die.state === 'sinking')) {
+    if (
+      completed.length > 0
+      && ![...this.dice.values()].some(
+        (die) => die.state === 'sinking' || die.state === 'one-clearing'
+      )
+    ) {
       this.chainCount = 0;
       this.callbacks.onChain?.({ chain: 0, count: 0, value: 0, isChain: false });
       this.callbacks.onMessage?.('消去完了。空きマスを使って次の目をそろえます');
     }
+  }
+
+  updateRising(now) {
+    let completed = false;
+    for (const [key, die] of this.dice) {
+      if (die.state !== 'rising') continue;
+      const raw = Math.min(1, Math.max(0, (now - die.riseStartedAt) / RISE_DURATION));
+      const progress = easeInOutCubic(raw);
+      die.mesh.position.y = DICE_Y - RISE_DEPTH + progress * RISE_DEPTH;
+
+      if (!this.busy && this.activeKey === key) {
+        this.player.position.y = die.mesh.position.y + (PLAYER_Y - DICE_Y);
+      }
+
+      if (raw >= 1) {
+        die.mesh.position.y = DICE_Y;
+        die.state = 'normal';
+        die.riseStartedAt = 0;
+        completed = true;
+      }
+    }
+
+    if (completed) this.pendingMatchResolution = true;
+  }
+
+  updateSpawning(now) {
+    if (this.busy || now < this.nextSpawnAt) return;
+    this.nextSpawnAt = now + SPAWN_INTERVAL;
+
+    const excluded = this.activeKey
+      ? new Set()
+      : new Set([boardKey(this.playerRow, this.playerColumn)]);
+    const candidates = listSpawnCandidates(this.dice, BOARD_SIZE, excluded);
+    if (candidates.length === 0) {
+      this.callbacks.onMessage?.('盤面がいっぱいです。サイコロを消してください');
+      return;
+    }
+
+    const cell = selectSpawnCandidate(candidates);
+    const die = this.addDie(cell.row, cell.column, 'rising');
+    die.riseStartedAt = now;
+    die.mesh.position.y = DICE_Y - RISE_DEPTH;
+    this.callbacks.onMessage?.('新しいサイコロが下から現れます');
   }
 
   removeDie(die, disposeMaterial) {
@@ -618,7 +779,12 @@ export class WebGLSainome {
 
   animate() {
     const now = this.getGameTime();
-    if (this.isVisible) this.updateSinking(now);
+    if (this.isVisible) {
+      this.updateSinking(now);
+      this.updateRising(now);
+      this.updateSpawning(now);
+      this.resolvePendingMatches();
+    }
 
     const elapsed = this.clock.getElapsedTime();
     if (!this.busy) {
