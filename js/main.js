@@ -8,6 +8,10 @@ import {
   DEFAULT_GAME_MODE_ID,
   getGameMode
 } from './game-modes.js';
+import {
+  TUTORIAL_SLIDE_COUNT,
+  TutorialSlides
+} from './tutorial-slides.js';
 
 const app = document.querySelector('#app');
 const canvas = document.querySelector('#game-canvas');
@@ -24,6 +28,16 @@ const homeScreen = document.querySelector('#home-screen');
 const countdownScreen = document.querySelector('#countdown-screen');
 const countdownValue = document.querySelector('#countdown-value');
 const resultScreen = document.querySelector('#result-screen');
+const tutorialScreen = document.querySelector('#tutorial-screen');
+const tutorialTitle = document.querySelector('#tutorial-title');
+const tutorialProgress = document.querySelector('#tutorial-progress');
+const tutorialSlideElements = [...document.querySelectorAll('[data-tutorial-slide]')];
+const tutorialDots = [...document.querySelectorAll('#tutorial-dots span')];
+const tutorialButton = document.querySelector('#tutorial-button');
+const tutorialHomeButton = document.querySelector('#tutorial-home-button');
+const tutorialPreviousButton = document.querySelector('#tutorial-previous-button');
+const tutorialNextButton = document.querySelector('#tutorial-next-button');
+const tutorialModeLabel = document.querySelector('#tutorial-mode-label');
 const resultScore = document.querySelector('#result-score');
 const resultCleared = document.querySelector('#result-cleared');
 const resultChain = document.querySelector('#result-chain');
@@ -40,6 +54,10 @@ const playNoteTitle = document.querySelector('#play-note-title');
 const playNoteText = document.querySelector('#play-note-text');
 
 const flow = new GameFlow();
+if (tutorialSlideElements.length !== TUTORIAL_SLIDE_COUNT) {
+  throw new Error('Tutorial slide markup does not match the configured count');
+}
+const tutorial = new TutorialSlides({ count: tutorialSlideElements.length });
 const numberFormatter = new Intl.NumberFormat('ja-JP');
 let game = null;
 let gameLoadPromise = null;
@@ -73,16 +91,21 @@ function applyModeLabels(mode) {
   playNoteText.textContent = mode.id === DEFAULT_GAME_MODE_ID
     ? '斜めフリックで移動。同じ目を、目の数以上つなげる。'
     : '3個以上を一度に消すと、消去数に応じてサイコロが現れる。';
+  tutorialModeLabel.textContent = `選択中：${mode.label}`;
 }
 
 function setStartPending(pending) {
   startPending = pending;
   startButton.disabled = pending;
   replayButton.disabled = pending;
+  tutorialButton.disabled = pending;
+  tutorialHomeButton.disabled = pending;
+  tutorialNextButton.disabled = pending;
   for (const input of modeInputs) input.disabled = pending;
   startButton.textContent = pending ? '3D盤面を準備中…' : 'ゲーム開始';
   replayButton.textContent = pending ? '準備中…' : 'もう一度';
   app.setAttribute('aria-busy', String(pending));
+  renderTutorial();
 }
 
 function pulse(element, className) {
@@ -168,9 +191,12 @@ async function ensureGame(initialModeId = DEFAULT_GAME_MODE_ID) {
 function renderFlow(snapshot = flow.getSnapshot()) {
   app.dataset.screen = snapshot.screen;
   homeScreen.hidden = snapshot.screen !== SCREEN_PHASES.HOME;
+  tutorialScreen.hidden = snapshot.screen !== SCREEN_PHASES.TUTORIAL;
   countdownScreen.hidden = snapshot.screen !== SCREEN_PHASES.COUNTDOWN;
   resultScreen.hidden = snapshot.screen !== SCREEN_PHASES.RESULT;
   playNote.hidden = snapshot.screen !== SCREEN_PHASES.PLAYING;
+
+  if (snapshot.screen === SCREEN_PHASES.TUTORIAL) renderTutorial();
 
   if (snapshot.screen === SCREEN_PHASES.COUNTDOWN) {
     countdownValue.textContent = String(snapshot.countdown);
@@ -183,6 +209,26 @@ function renderFlow(snapshot = flow.getSnapshot()) {
     resultCleared.textContent = numberFormatter.format(snapshot.result.clearedDice);
     resultChain.textContent = numberFormatter.format(snapshot.result.maxChain);
   }
+}
+
+function renderTutorial(snapshot = tutorial.getSnapshot()) {
+  tutorialSlideElements.forEach((slide, index) => {
+    slide.hidden = index !== snapshot.index;
+  });
+  tutorialDots.forEach((dot, index) => {
+    dot.classList.toggle('is-active', index === snapshot.index);
+  });
+
+  const currentSlide = tutorialSlideElements[snapshot.index];
+  tutorialTitle.textContent = currentSlide.dataset.title;
+  tutorialProgress.textContent = `${snapshot.number} / ${snapshot.count}`;
+  tutorialPreviousButton.disabled = startPending || snapshot.isFirst;
+  tutorialNextButton.disabled = startPending;
+  let nextLabel = snapshot.isLast
+    ? `${selectedMode.label}で始める`
+    : '次へ';
+  if (startPending) nextLabel = '3D盤面を準備中…';
+  tutorialNextButton.textContent = nextLabel;
 }
 
 function cancelCountdown() {
@@ -216,7 +262,13 @@ async function startRound() {
 
   const ready = await ensureGame(roundMode.id);
   setStartPending(false);
-  if (!ready) return;
+  if (!ready) {
+    if (flow.getSnapshot().screen !== SCREEN_PHASES.HOME) {
+      renderFlow(flow.goHome());
+      window.setTimeout(() => startButton.focus(), 0);
+    }
+    return;
+  }
 
   const snapshot = flow.beginCountdown();
   if (!snapshot) return;
@@ -270,6 +322,34 @@ document.addEventListener('keydown', (event) => {
 
 startButton.addEventListener('click', startRound);
 replayButton.addEventListener('click', startRound);
+tutorialButton.addEventListener('click', () => {
+  if (startPending) return;
+  const snapshot = flow.openTutorial();
+  if (!snapshot) return;
+  selectedMode = readSelectedMode();
+  applyModeLabels(selectedMode);
+  tutorial.reset();
+  renderFlow(snapshot);
+  window.setTimeout(() => tutorialTitle.focus(), 0);
+});
+tutorialHomeButton.addEventListener('click', () => {
+  if (startPending) return;
+  renderFlow(flow.goHome());
+  window.setTimeout(() => tutorialButton.focus(), 0);
+});
+tutorialPreviousButton.addEventListener('click', () => {
+  if (startPending) return;
+  renderTutorial(tutorial.previous());
+});
+tutorialNextButton.addEventListener('click', () => {
+  if (startPending) return;
+  const snapshot = tutorial.getSnapshot();
+  if (snapshot.isLast) {
+    startRound();
+    return;
+  }
+  renderTutorial(tutorial.next());
+});
 resultHomeButton.addEventListener('click', () => {
   cancelCountdown();
   selectedMode = readSelectedMode();
