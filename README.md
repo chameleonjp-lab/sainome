@@ -18,6 +18,7 @@
 - ホーム、3カウント、プレイ中表示、結果、再挑戦の画面遷移
 - 操作、消去、モードの違いを説明する3枚のチュートリアル
 - 初期状態オフで、設定を保存できる4種類の効果音
+- 60秒・180秒を分けて端末へ保存する自己ベスト記録
 - iPhone向けの盤面に沿った斜め4方向フリック
 - パソコン向け矢印キー、WASD操作
 
@@ -52,6 +53,8 @@
 - 制限時間に達すると新しい操作とサイコロの出現を止めます。
 - 時間切れ前から始まっていた移動と消去が終わった後、結果を1回だけ確定します。
 - 結果画面にはモード、得点、消した数、最大連鎖を表示します。
+- 初回、自己ベスト更新、同点、自己ベストまでの差を結果画面へ表示します。
+- 自己ベストは60秒と180秒を分けて端末へ保存します。保存できない場合もゲームは続けられます。
 
 モード設定は`js/game-modes.js`、時間・得点・結果の処理は`js/game-session.js`、画面の状態は`js/ui-flow.js`に分けています。いずれもHTMLやThree.jsに依存せず、自動テストで確認できます。
 
@@ -74,6 +77,7 @@ js/game-session.js
 js/input-direction.js
 js/spawn-rules.js
 js/sound-effects.js
+js/best-records.js
 js/tutorial-slides.js
 js/ui-flow.js
 js/main.js
@@ -85,6 +89,8 @@ test/input-direction.test.js
 test/spawn-rules.test.js
 test/sound-effects.test.js
 test/sound-wiring.test.js
+test/best-records.test.js
+test/best-record-wiring.test.js
 test/tutorial-slides.test.js
 test/ui-flow.test.js
 ```
