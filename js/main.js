@@ -17,6 +17,11 @@ import {
   BestRecords,
   describeBestOutcome
 } from './best-records.js';
+import {
+  createResultShareContent,
+  RESULT_SHARE_STATUSES,
+  shareResult
+} from './result-share.js';
 
 const app = document.querySelector('#app');
 const canvas = document.querySelector('#game-canvas');
@@ -54,6 +59,8 @@ const playNote = document.querySelector('#play-note');
 const startButton = document.querySelector('#start-button');
 const replayButton = document.querySelector('#replay-button');
 const resultHomeButton = document.querySelector('#result-home-button');
+const resultShareButton = document.querySelector('#result-share-button');
+const resultShareStatus = document.querySelector('#result-share-status');
 const homeError = document.querySelector('#home-error');
 const modeBrand = document.querySelector('#mode-brand');
 const homeKicker = document.querySelector('#home-kicker');
@@ -81,6 +88,7 @@ let countdownTimerId = null;
 let countdownRunId = 0;
 let startPending = false;
 let soundTogglePending = false;
+let resultSharePending = false;
 let selectedMode = getGameMode(DEFAULT_GAME_MODE_ID);
 let activeMode = selectedMode;
 let latestRecordOutcome = null;
@@ -115,13 +123,25 @@ function applyModeLabels(mode) {
     : `${numberFormatter.format(bestScore)}点`;
 }
 
-function renderResultRecord(outcome) {
-  resultRecordMessage.textContent = describeBestOutcome(
+function formatRecordMessage(outcome) {
+  return describeBestOutcome(
     outcome,
     (value) => numberFormatter.format(value)
   );
+}
+
+function renderResultRecord(outcome) {
+  resultRecordMessage.textContent = formatRecordMessage(outcome);
   resultBestScore.textContent = `${numberFormatter.format(outcome.bestScore)}点`;
   resultRecordWarning.hidden = outcome.persisted;
+}
+
+function setResultSharePending(pending) {
+  resultSharePending = pending;
+  resultShareButton.disabled = pending;
+  replayButton.disabled = pending;
+  resultHomeButton.disabled = pending;
+  resultShareButton.textContent = pending ? '共有中…' : '結果をシェア';
 }
 
 function setStartPending(pending) {
@@ -257,11 +277,47 @@ function renderFlow(snapshot = flow.getSnapshot()) {
 
   if (snapshot.screen === SCREEN_PHASES.RESULT && snapshot.result) {
     const resultMode = getGameMode(snapshot.result.modeId);
+    resultShareStatus.textContent = '';
     resultKicker.textContent = `${resultMode.label}モード · TIME UP`;
     resultScore.textContent = numberFormatter.format(snapshot.result.score);
     resultCleared.textContent = numberFormatter.format(snapshot.result.clearedDice);
     resultChain.textContent = numberFormatter.format(snapshot.result.maxChain);
     if (latestRecordOutcome) renderResultRecord(latestRecordOutcome);
+  }
+}
+
+async function handleResultShare() {
+  const snapshot = flow.getSnapshot();
+  if (
+    resultSharePending
+    || snapshot.screen !== SCREEN_PHASES.RESULT
+    || !snapshot.result
+    || !latestRecordOutcome
+  ) return;
+
+  setResultSharePending(true);
+  resultShareStatus.textContent = '';
+
+  try {
+    const content = createResultShareContent({
+      result: snapshot.result,
+      recordMessage: formatRecordMessage(latestRecordOutcome),
+      pageUrl: window.location.href,
+      formatNumber: (value) => numberFormatter.format(value)
+    });
+    const status = await shareResult(content);
+    const messages = {
+      [RESULT_SHARE_STATUSES.SHARED]: 'ゲーム結果を共有しました',
+      [RESULT_SHARE_STATUSES.COPIED]: 'シェア文をコピーしました',
+      [RESULT_SHARE_STATUSES.CANCELLED]: '共有をキャンセルしました',
+      [RESULT_SHARE_STATUSES.FAILED]: 'コピーできませんでした'
+    };
+    resultShareStatus.textContent = messages[status];
+  } catch (error) {
+    console.error(error);
+    resultShareStatus.textContent = 'コピーできませんでした';
+  } finally {
+    setResultSharePending(false);
   }
 }
 
@@ -379,6 +435,7 @@ document.addEventListener('keydown', (event) => {
 
 startButton.addEventListener('click', startRound);
 replayButton.addEventListener('click', startRound);
+resultShareButton.addEventListener('click', handleResultShare);
 soundToggle.addEventListener('click', async () => {
   if (soundTogglePending) return;
   soundTogglePending = true;

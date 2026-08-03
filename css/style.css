@@ -520,7 +520,28 @@ button:disabled { opacity: .55; }
 .result-stats dt { color: #969184; font-size: .68rem; font-weight: 850; }
 .result-stats dd { margin: 3px 0 0; color: #f2eee4; font-size: 1.35rem; font-weight: 950; }
 .result-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; width: min(100%, 420px); }
-.result-actions .primary-button, .result-actions .secondary-button { min-width: 0; }
+.result-actions .primary-button,
+.result-actions .secondary-button,
+.result-actions .share-button { min-width: 0; }
+.share-button {
+  min-height: 52px;
+  grid-column: 1 / -1;
+  padding: 12px 24px;
+  border: 1px solid rgba(245,196,81,.62);
+  border-radius: 15px;
+  background: rgba(245,196,81,.11);
+  color: #ffe8a3;
+  font-weight: 950;
+  touch-action: manipulation;
+}
+.share-button:active { background: rgba(245,196,81,.2); }
+.result-share-status {
+  min-height: 1.2em;
+  margin: -4px 0 0;
+  color: #b8b2a4;
+  font-size: .7rem;
+  font-weight: 750;
+}
 
 .stage.impact { animation: stageImpact .18s ease-out; }
 .stage.chain-hit { animation: chainHit .38s ease-out; }
