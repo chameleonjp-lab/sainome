@@ -22,6 +22,12 @@ import {
   getClearTriggeredSpawnCount,
   getSixtySecondSpawnBatchCount
 } from './spawn-rules.js';
+import {
+  BOARD_BASE_SIZE,
+  CAMERA_POSITION,
+  CAMERA_TARGET,
+  calculateCameraFrustum
+} from './camera-framing.js';
 
 const BOARD_SIZE = 7;
 const HALF_BOARD = (BOARD_SIZE - 1) / 2;
@@ -179,8 +185,8 @@ export class WebGLSainome {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     this.camera = new THREE.OrthographicCamera(-5, 5, 5, -5, 0.1, 50);
-    this.camera.position.set(7.8, 9.2, 8.8);
-    this.camera.lookAt(0, 0.5, 0);
+    this.camera.position.set(CAMERA_POSITION.x, CAMERA_POSITION.y, CAMERA_POSITION.z);
+    this.camera.lookAt(CAMERA_TARGET.x, CAMERA_TARGET.y, CAMERA_TARGET.z);
 
     this.clock = new THREE.Clock();
     this.dice = new Map();
@@ -270,7 +276,7 @@ export class WebGLSainome {
 
   createBoard() {
     const base = new THREE.Mesh(
-      new RoundedBoxGeometry(8.2, 0.48, 8.2, 5, 0.24),
+      new RoundedBoxGeometry(BOARD_BASE_SIZE, 0.48, BOARD_BASE_SIZE, 5, 0.24),
       new THREE.MeshStandardMaterial({ color: 0x171a20, roughness: 0.78, metalness: 0.08 })
     );
     base.position.y = -0.28;
@@ -918,13 +924,11 @@ export class WebGLSainome {
     this.renderer.setPixelRatio(pixelRatio);
     this.renderer.setSize(width, height, false);
 
-    const aspect = width / height;
-    const viewHeight = aspect < 0.9 ? 9.2 : 8.2;
-    const viewWidth = viewHeight * aspect;
-    this.camera.left = -viewWidth / 2;
-    this.camera.right = viewWidth / 2;
-    this.camera.top = viewHeight / 2;
-    this.camera.bottom = -viewHeight / 2;
+    const frustum = calculateCameraFrustum(width, height);
+    this.camera.left = frustum.left;
+    this.camera.right = frustum.right;
+    this.camera.top = frustum.top;
+    this.camera.bottom = frustum.bottom;
     this.camera.updateProjectionMatrix();
   }
 
