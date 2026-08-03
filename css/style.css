@@ -20,6 +20,7 @@ body {
   touch-action: none;
 }
 button { font: inherit; -webkit-tap-highlight-color: transparent; }
+input { font: inherit; }
 button:focus-visible { outline: 3px solid #fff3b5; outline-offset: 3px; }
 button:disabled { opacity: .55; }
 .visually-hidden {
@@ -165,6 +166,57 @@ button:disabled { opacity: .55; }
   color: #d4d0c6;
   font-size: clamp(.88rem, 3.3vw, 1.04rem);
   line-height: 1.75;
+}
+.player-name-field {
+  width: min(100%, 460px);
+  display: grid;
+  gap: 6px;
+  text-align: left;
+}
+.player-name-field > span {
+  color: #d4d0c6;
+  font-size: .72rem;
+  font-weight: 900;
+}
+.player-name-field > span b {
+  margin-left: 5px;
+  color: var(--accent);
+  font-size: .62rem;
+}
+.player-name-field input {
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 13px;
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 13px;
+  background: rgba(6,8,13,.72);
+  color: #f5f1e7;
+  font-size: 16px;
+  font-weight: 800;
+  -webkit-user-select: text;
+  user-select: text;
+  touch-action: manipulation;
+}
+.player-name-field input::placeholder { color: #77746c; }
+.player-name-field input:focus {
+  border-color: rgba(245,196,81,.75);
+  outline: 3px solid rgba(245,196,81,.18);
+}
+.player-name-field input[aria-invalid="true"] {
+  border-color: rgba(255,111,95,.72);
+}
+.player-name-field small {
+  color: #8f8a7e;
+  font-size: .64rem;
+  font-weight: 700;
+}
+.player-name-error {
+  width: min(100%, 460px);
+  margin: -7px 0 0;
+  color: #ffb0a4;
+  font-size: .7rem;
+  font-weight: 800;
+  text-align: left;
 }
 .mode-picker {
   width: min(100%, 460px);
@@ -497,6 +549,13 @@ button:disabled { opacity: .55; }
 .result-record > strong { color: #fff0bf; font-size: .88rem; }
 .result-record span { color: #989286; font-size: .7rem; font-weight: 800; }
 .result-record b { color: var(--accent); font-size: .78rem; }
+.result-player {
+  margin: -6px 0 0;
+  color: #8f8a7e;
+  font-size: .68rem;
+  font-weight: 800;
+}
+.result-player strong { color: #ddd7ca; }
 .result-record-warning {
   max-width: 330px;
   margin: -7px 0 0;
@@ -541,6 +600,96 @@ button:disabled { opacity: .55; }
   color: #b8b2a4;
   font-size: .7rem;
   font-weight: 750;
+}
+.result-screen {
+  align-content: start;
+  padding-block: clamp(24px, 6vw, 48px);
+}
+.result-ranking {
+  width: min(100%, 520px);
+  display: grid;
+  gap: 9px;
+  padding: 14px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 17px;
+  background: rgba(6,8,13,.6);
+  text-align: left;
+}
+.result-ranking header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.result-ranking h3 {
+  margin: 0;
+  color: #f1ede3;
+  font-size: .96rem;
+}
+.result-ranking header span {
+  color: #8f8a7e;
+  font-size: .62rem;
+  font-weight: 850;
+}
+.result-ranking-status {
+  min-height: 1.3em;
+  margin: 0;
+  color: #aaa496;
+  font-size: .7rem;
+  font-weight: 750;
+}
+.result-ranking-list {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.result-ranking-list li {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 6px 9px;
+  border-radius: 10px;
+  background: rgba(255,255,255,.045);
+}
+.result-ranking-list li.is-current-player {
+  outline: 1px solid rgba(245,196,81,.48);
+  background: rgba(245,196,81,.1);
+}
+.ranking-position {
+  color: var(--accent);
+  font-size: .72rem;
+  font-weight: 950;
+  font-variant-numeric: tabular-nums;
+}
+.ranking-name {
+  min-width: 0;
+  overflow: hidden;
+  color: #d8d3c8;
+  font-size: .76rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ranking-score {
+  color: #f5f1e7;
+  font-size: .78rem;
+  font-weight: 950;
+  font-variant-numeric: tabular-nums;
+}
+.ranking-retry-button {
+  min-height: 44px;
+  padding: 9px 14px;
+  border: 1px solid rgba(245,196,81,.55);
+  border-radius: 12px;
+  background: rgba(245,196,81,.1);
+  color: #ffe6a0;
+  font-weight: 900;
+  touch-action: manipulation;
 }
 
 .stage.impact { animation: stageImpact .18s ease-out; }
@@ -605,7 +754,7 @@ button:disabled { opacity: .55; }
   .screen-panel h1 { font-size: clamp(2.2rem, 10vw, 3.6rem); }
   .quick-rules li { min-height: 60px; }
   .mode-choice span { min-height: 50px; }
-  .tutorial-screen { align-content: start; }
+  .home-screen, .tutorial-screen, .result-screen { align-content: start; }
   .tutorial-deck { min-height: 220px; }
   .tutorial-slide { gap: 9px; padding-block: 13px; }
 }

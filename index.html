@@ -34,6 +34,23 @@
         <p id="home-kicker" class="screen-kicker">60秒で、つないで、沈める</p>
         <h1 id="game-title">サイノメ</h1>
         <p class="screen-lead">サイコロを転がし、上面と同じ数以上を縦横につなげて得点を競います。</p>
+        <label class="player-name-field" for="player-name-input">
+          <span>ランキング名 <b>必須</b></span>
+          <input
+            id="player-name-input"
+            name="player-name"
+            type="text"
+            autocomplete="nickname"
+            autocapitalize="off"
+            enterkeyhint="done"
+            maxlength="80"
+            spellcheck="false"
+            aria-describedby="player-name-help player-name-error"
+            placeholder="名前を入力"
+          >
+          <small id="player-name-help">1〜20文字。ランキングに公開され、次回も同じ名前を使います</small>
+        </label>
+        <p id="player-name-error" class="player-name-error" role="alert" hidden></p>
         <fieldset id="mode-picker" class="mode-picker">
           <legend>プレイ時間を選ぶ</legend>
           <div class="mode-options">
@@ -125,6 +142,7 @@
           <strong id="result-record-message">初回記録</strong>
           <span>自己ベスト <b id="result-best-score">0点</b></span>
         </div>
+        <p class="result-player">ランキング名 <strong id="result-player-name">―</strong></p>
         <p id="result-record-warning" class="result-record-warning" role="status" hidden>
           この端末へ自己ベストを保存できませんでした
         </p>
@@ -138,6 +156,19 @@
           <button id="result-home-button" class="secondary-button" type="button">ホームへ</button>
         </div>
         <p id="result-share-status" class="result-share-status" role="status" aria-live="polite"></p>
+        <section class="result-ranking" aria-labelledby="result-ranking-title">
+          <header>
+            <h3 id="result-ranking-title">60秒ランキング</h3>
+            <span>上位10名</span>
+          </header>
+          <p id="result-ranking-status" class="result-ranking-status" role="status" aria-live="polite">
+            ランキングを読み込んでいます…
+          </p>
+          <ol id="result-ranking-list" class="result-ranking-list"></ol>
+          <button id="result-ranking-retry" class="ranking-retry-button" type="button" hidden>
+            記録を再送する
+          </button>
+        </section>
       </section>
     </section>
 

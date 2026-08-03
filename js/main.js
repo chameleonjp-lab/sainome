@@ -22,6 +22,15 @@ import {
   RESULT_SHARE_STATUSES,
   shareResult
 } from './result-share.js';
+import { PlayerProfile } from './player-profile.js';
+import {
+  createSubmissionId,
+  RankingClient
+} from './ranking-client.js';
+import {
+  SUPABASE_PUBLISHABLE_KEY,
+  SUPABASE_URL
+} from './supabase-config.js';
 
 const app = document.querySelector('#app');
 const canvas = document.querySelector('#game-canvas');
@@ -48,11 +57,14 @@ const tutorialHomeButton = document.querySelector('#tutorial-home-button');
 const tutorialPreviousButton = document.querySelector('#tutorial-previous-button');
 const tutorialNextButton = document.querySelector('#tutorial-next-button');
 const tutorialModeLabel = document.querySelector('#tutorial-mode-label');
+const playerNameInput = document.querySelector('#player-name-input');
+const playerNameError = document.querySelector('#player-name-error');
 const homeBestScore = document.querySelector('#home-best-score');
 const resultScore = document.querySelector('#result-score');
 const resultRecordMessage = document.querySelector('#result-record-message');
 const resultBestScore = document.querySelector('#result-best-score');
 const resultRecordWarning = document.querySelector('#result-record-warning');
+const resultPlayerName = document.querySelector('#result-player-name');
 const resultCleared = document.querySelector('#result-cleared');
 const resultChain = document.querySelector('#result-chain');
 const playNote = document.querySelector('#play-note');
@@ -61,6 +73,10 @@ const replayButton = document.querySelector('#replay-button');
 const resultHomeButton = document.querySelector('#result-home-button');
 const resultShareButton = document.querySelector('#result-share-button');
 const resultShareStatus = document.querySelector('#result-share-status');
+const resultRankingTitle = document.querySelector('#result-ranking-title');
+const resultRankingStatus = document.querySelector('#result-ranking-status');
+const resultRankingList = document.querySelector('#result-ranking-list');
+const resultRankingRetry = document.querySelector('#result-ranking-retry');
 const homeError = document.querySelector('#home-error');
 const modeBrand = document.querySelector('#mode-brand');
 const homeKicker = document.querySelector('#home-kicker');
@@ -80,6 +96,16 @@ if (tutorialSlideElements.length !== TUTORIAL_SLIDE_COUNT) {
 const tutorial = new TutorialSlides({ count: tutorialSlideElements.length });
 const soundEffects = new SoundEffects();
 const bestRecords = new BestRecords();
+const playerProfile = new PlayerProfile();
+let rankingClient = null;
+try {
+  rankingClient = new RankingClient({
+    url: SUPABASE_URL,
+    publishableKey: SUPABASE_PUBLISHABLE_KEY
+  });
+} catch (error) {
+  console.error(error);
+}
 const numberFormatter = new Intl.NumberFormat('ja-JP');
 let game = null;
 let gameLoadPromise = null;
@@ -89,9 +115,15 @@ let countdownRunId = 0;
 let startPending = false;
 let soundTogglePending = false;
 let resultSharePending = false;
+const rankingPendingRunIds = new Set();
 let selectedMode = getGameMode(DEFAULT_GAME_MODE_ID);
 let activeMode = selectedMode;
+let activePlayerName = playerProfile.getName();
 let latestRecordOutcome = null;
+let latestRankingSubmission = null;
+let rankingRunId = 0;
+
+playerNameInput.value = activePlayerName;
 
 function resetHudDisplay(mode = selectedMode) {
   updateSessionDisplay({
@@ -136,6 +168,141 @@ function renderResultRecord(outcome) {
   resultRecordWarning.hidden = outcome.persisted;
 }
 
+function showPlayerNameError(message = '', { invalid = message.length > 0 } = {}) {
+  playerNameError.textContent = message;
+  playerNameError.hidden = message.length === 0;
+  playerNameInput.setAttribute('aria-invalid', String(invalid));
+}
+
+function capturePlayerName() {
+  const saved = playerProfile.saveName(playerNameInput.value);
+  if (!saved.ok) {
+    showPlayerNameError(saved.message);
+    return null;
+  }
+
+  activePlayerName = saved.name;
+  playerNameInput.value = saved.name;
+  showPlayerNameError(saved.persisted
+    ? ''
+    : 'この端末へ名前を保存できませんが、今回のランキングには使えます', {
+    invalid: false
+  });
+  return saved.name;
+}
+
+function clearRankingRows() {
+  resultRankingList.replaceChildren();
+}
+
+function renderRankingRows(rows, displayName) {
+  clearRankingRows();
+  for (const row of rows) {
+    const item = document.createElement('li');
+    item.classList.toggle('is-current-player', row.displayName === displayName);
+
+    const position = document.createElement('span');
+    position.className = 'ranking-position';
+    position.textContent = `${row.rank}位`;
+
+    const name = document.createElement('span');
+    name.className = 'ranking-name';
+    name.textContent = row.displayName;
+
+    const score = document.createElement('span');
+    score.className = 'ranking-score';
+    score.textContent = `${numberFormatter.format(row.score)}点`;
+
+    item.append(position, name, score);
+    resultRankingList.append(item);
+  }
+}
+
+function isCurrentRankingSubmission(submission) {
+  if (!submission) return false;
+  const snapshot = flow.getSnapshot();
+  return latestRankingSubmission?.runId === submission.runId
+    && snapshot.screen === SCREEN_PHASES.RESULT
+    && snapshot.result === submission.result;
+}
+
+function setRankingPending(submission, pending) {
+  if (pending) rankingPendingRunIds.add(submission.runId);
+  else rankingPendingRunIds.delete(submission.runId);
+
+  if (!isCurrentRankingSubmission(submission)) return;
+  resultRankingRetry.disabled = pending;
+  if (pending) resultRankingRetry.textContent = '通信中…';
+}
+
+async function syncResultRanking(submission) {
+  if (!submission || rankingPendingRunIds.has(submission.runId)) return;
+  setRankingPending(submission, true);
+  resultRankingRetry.hidden = true;
+  resultRankingStatus.textContent = '記録を送信しています…';
+
+  let submitOutcome = null;
+  let submitError = null;
+  let rankingRows = null;
+  let rankingError = null;
+
+  try {
+    if (!rankingClient) throw new Error('Ranking client is unavailable');
+    submitOutcome = await rankingClient.submitScore({
+      displayName: submission.displayName,
+      modeId: submission.result.modeId,
+      score: submission.result.score,
+      submissionId: submission.submissionId
+    });
+  } catch (error) {
+    console.error(error);
+    submitError = error;
+  }
+
+  try {
+    if (!rankingClient) throw new Error('Ranking client is unavailable');
+    rankingRows = await rankingClient.getTopRanking(submission.result.modeId);
+  } catch (error) {
+    console.error(error);
+    rankingError = error;
+  }
+
+  if (!isCurrentRankingSubmission(submission)) {
+    setRankingPending(submission, false);
+    return;
+  }
+
+  setRankingPending(submission, false);
+
+  if (rankingRows) {
+    renderRankingRows(rankingRows, submission.displayName);
+  } else {
+    clearRankingRows();
+  }
+
+  if (submitError) {
+    resultRankingStatus.textContent = rankingRows
+      ? '順位は表示できましたが、今回の記録を送信できませんでした'
+      : '記録を送信できませんでした。通信状態を確認してください';
+    resultRankingRetry.hidden = false;
+    resultRankingRetry.textContent = '記録を再送する';
+  } else if (rankingError) {
+    resultRankingStatus.textContent = '記録は登録しましたが、ランキングを読み込めませんでした';
+    resultRankingRetry.hidden = false;
+    resultRankingRetry.textContent = 'ランキングを再読込';
+  } else if (rankingRows.length === 0) {
+    resultRankingStatus.textContent = '記録を登録しました。ランキングは集計中です';
+  } else if (submitOutcome.wasDuplicate) {
+    resultRankingStatus.textContent = '登録済みの記録とランキングを確認しました';
+  } else if (submitOutcome.isFirstPlay) {
+    resultRankingStatus.textContent = '初回記録を登録しました';
+  } else if (submitOutcome.isNewBest) {
+    resultRankingStatus.textContent = 'ランキングの自己ベストを更新しました';
+  } else {
+    resultRankingStatus.textContent = '記録を登録しました';
+  }
+}
+
 function setResultSharePending(pending) {
   resultSharePending = pending;
   resultShareButton.disabled = pending;
@@ -151,6 +318,7 @@ function setStartPending(pending) {
   tutorialButton.disabled = pending;
   tutorialHomeButton.disabled = pending;
   tutorialNextButton.disabled = pending;
+  playerNameInput.disabled = pending;
   for (const input of modeInputs) input.disabled = pending;
   startButton.textContent = pending ? '3D盤面を準備中…' : 'ゲーム開始';
   replayButton.textContent = pending ? '準備中…' : 'もう一度';
@@ -232,7 +400,17 @@ const gameCallbacks = {
     const next = flow.finish(result);
     if (!next) return;
     latestRecordOutcome = bestRecords.recordResult(next.result);
+    latestRankingSubmission = Object.freeze({
+      runId: ++rankingRunId,
+      submissionId: createSubmissionId(),
+      displayName: activePlayerName,
+      result: next.result
+    });
+    clearRankingRows();
+    resultRankingStatus.textContent = 'ランキングを読み込んでいます…';
+    resultRankingRetry.hidden = true;
     renderFlow(next);
+    void syncResultRanking(latestRankingSubmission);
     window.setTimeout(() => replayButton.focus(), 0);
   }
 };
@@ -279,6 +457,8 @@ function renderFlow(snapshot = flow.getSnapshot()) {
     const resultMode = getGameMode(snapshot.result.modeId);
     resultShareStatus.textContent = '';
     resultKicker.textContent = `${resultMode.label}モード · TIME UP`;
+    resultRankingTitle.textContent = `${resultMode.label}ランキング`;
+    resultPlayerName.textContent = latestRankingSubmission?.displayName ?? activePlayerName;
     resultScore.textContent = numberFormatter.format(snapshot.result.score);
     resultCleared.textContent = numberFormatter.format(snapshot.result.clearedDice);
     resultChain.textContent = numberFormatter.format(snapshot.result.maxChain);
@@ -366,6 +546,12 @@ function scheduleCountdown(runId) {
 
 async function startRound() {
   if (startPending || flow.getSnapshot().screen === SCREEN_PHASES.COUNTDOWN) return;
+  const roundPlayerName = capturePlayerName();
+  if (!roundPlayerName) {
+    if (flow.getSnapshot().screen !== SCREEN_PHASES.HOME) renderFlow(flow.goHome());
+    window.setTimeout(() => playerNameInput.focus(), 0);
+    return;
+  }
   void soundEffects.unlock();
   const roundMode = readSelectedMode();
   setStartPending(true);
@@ -385,6 +571,7 @@ async function startRound() {
   if (!snapshot) return;
   selectedMode = roundMode;
   activeMode = roundMode;
+  activePlayerName = roundPlayerName;
   applyModeLabels(activeMode);
   resetHudDisplay(activeMode);
   cancelCountdown();
@@ -436,6 +623,10 @@ document.addEventListener('keydown', (event) => {
 startButton.addEventListener('click', startRound);
 replayButton.addEventListener('click', startRound);
 resultShareButton.addEventListener('click', handleResultShare);
+resultRankingRetry.addEventListener('click', () => {
+  if (!isCurrentRankingSubmission(latestRankingSubmission)) return;
+  void syncResultRanking(latestRankingSubmission);
+});
 soundToggle.addEventListener('click', async () => {
   if (soundTogglePending) return;
   soundTogglePending = true;
@@ -506,7 +697,27 @@ for (const input of modeInputs) {
   });
 }
 
-document.addEventListener('contextmenu', (event) => event.preventDefault());
+playerNameInput.addEventListener('input', () => {
+  if (!playerNameError.hidden) showPlayerNameError();
+});
+playerNameInput.addEventListener('change', () => {
+  const saved = playerProfile.saveName(playerNameInput.value);
+  if (!saved.ok) {
+    showPlayerNameError(saved.message);
+    return;
+  }
+  playerNameInput.value = saved.name;
+  showPlayerNameError(saved.persisted
+    ? ''
+    : 'この端末へ名前を保存できませんが、今回のランキングには使えます', {
+    invalid: false
+  });
+});
+
+document.addEventListener('contextmenu', (event) => {
+  if (event.target.closest('input, textarea, a')) return;
+  event.preventDefault();
+});
 document.addEventListener('gesturestart', (event) => event.preventDefault());
 document.addEventListener('visibilitychange', () => {
   soundEffects.handleVisibility(document.hidden);
