@@ -19,6 +19,7 @@
 - 操作、消去、モードの違いを説明する3枚のチュートリアル
 - 初期状態オフで、設定を保存できる4種類の効果音
 - 60秒・180秒を分けて端末へ保存する自己ベスト記録
+- 端末の共有画面とコピーに対応した結果シェア
 - iPhone向けの盤面に沿った斜め4方向フリック
 - パソコン向け矢印キー、WASD操作
 
@@ -55,6 +56,7 @@
 - 結果画面にはモード、得点、消した数、最大連鎖を表示します。
 - 初回、自己ベスト更新、同点、自己ベストまでの差を結果画面へ表示します。
 - 自己ベストは60秒と180秒を分けて端末へ保存します。保存できない場合もゲームは続けられます。
+- 「結果をシェア」では、モード、得点、消した数、最大連鎖、自己ベスト判定、ゲームURLを共有します。端末の共有画面が使えない場合は同じ内容をコピーします。
 
 モード設定は`js/game-modes.js`、時間・得点・結果の処理は`js/game-session.js`、画面の状態は`js/ui-flow.js`に分けています。いずれもHTMLやThree.jsに依存せず、自動テストで確認できます。
 
@@ -78,6 +80,7 @@ js/input-direction.js
 js/spawn-rules.js
 js/sound-effects.js
 js/best-records.js
+js/result-share.js
 js/tutorial-slides.js
 js/ui-flow.js
 js/main.js
@@ -91,6 +94,8 @@ test/sound-effects.test.js
 test/sound-wiring.test.js
 test/best-records.test.js
 test/best-record-wiring.test.js
+test/result-share.test.js
+test/result-share-wiring.test.js
 test/tutorial-slides.test.js
 test/ui-flow.test.js
 ```
