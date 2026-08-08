@@ -7,6 +7,7 @@ import { TUTORIAL_SLIDE_COUNT } from '../js/tutorial-slides.js';
 
 const rootUrl = new URL('../', import.meta.url);
 const html = readFileSync(new URL('index.html', rootUrl), 'utf8');
+const css = readFileSync(new URL('css/style.css', rootUrl), 'utf8');
 const main = readFileSync(new URL('js/main.js', rootUrl), 'utf8');
 
 test('HTMLの要素識別子は重複しない', () => {
@@ -37,6 +38,22 @@ test('3枚の説明と3個の位置表示がそろっている', () => {
 
   assert.equal(slides.length, TUTORIAL_SLIDE_COUNT);
   assert.equal(dots.length, TUTORIAL_SLIDE_COUNT);
+});
+
+test('ホームと結果画面から実験場へ戻れる', () => {
+  const labUrl = 'https://chameleonjp.codeberg.page/chameleonjp_lab/';
+  const escapedLabUrl = labUrl.replaceAll('.', '\\.');
+
+  for (const id of ['home-lab-link', 'result-lab-link']) {
+    assert.match(
+      html,
+      new RegExp(`id="${id}"[\\s\\S]*?href="${escapedLabUrl}"`)
+    );
+  }
+  assert.match(html, /id="home-lab-link"[^>]*class="lab-link home-lab-link"/);
+  assert.match(html, /id="result-lab-link"[^>]*class="lab-link result-lab-link"/);
+  assert.match(css, /\.lab-link\s*\{[^}]*min-height:\s*44px/s);
+  assert.match(css, /\.result-lab-link\s*\{[^}]*grid-column:\s*1\s*\/\s*-1/s);
 });
 
 test('HTMLから読むローカルファイルはすべて存在する', () => {
