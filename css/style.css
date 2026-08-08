@@ -346,6 +346,23 @@ button:disabled { opacity: .55; }
   color: #eeeae0;
 }
 .secondary-button:active { background: rgba(255,255,255,.13); }
+.lab-link {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 9px 18px;
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 13px;
+  background: rgba(255,255,255,.045);
+  color: #cfc9bc;
+  font-size: .74rem;
+  font-weight: 850;
+  text-decoration: none;
+  touch-action: manipulation;
+}
+.lab-link:active { background: rgba(255,255,255,.12); }
+.home-lab-link { width: min(100%, 460px); }
 .home-actions .primary-button,
 .home-actions .secondary-button,
 .tutorial-actions .primary-button,
@@ -581,7 +598,9 @@ button:disabled { opacity: .55; }
 .result-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; width: min(100%, 420px); }
 .result-actions .primary-button,
 .result-actions .secondary-button,
-.result-actions .share-button { min-width: 0; }
+.result-actions .share-button,
+.result-actions .lab-link { min-width: 0; }
+.result-lab-link { grid-column: 1 / -1; }
 .share-button {
   min-height: 52px;
   grid-column: 1 / -1;
