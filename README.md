@@ -26,6 +26,7 @@
 - 通信失敗時の再送と、同じプレイを二重登録しないSupabase処理
 - iPhone向けの盤面に沿った斜め4方向フリック
 - パソコン向け矢印キー、WASD操作
+- 画面離脱やWebGL描画停止中のゲーム時間・操作の一時停止と復帰
 
 ## 遊び方
 
@@ -82,6 +83,7 @@ js/dice.js
 js/board-rules.js
 js/game-modes.js
 js/game-session.js
+js/simulation-pause.js
 js/input-direction.js
 js/spawn-rules.js
 js/sound-effects.js
@@ -97,7 +99,9 @@ js/webgl-game.js
 test/board-rules.test.js
 test/game-modes.test.js
 test/game-session.test.js
+test/simulation-pause.test.js
 test/input-direction.test.js
+test/webgl-lifecycle.test.js
 test/spawn-rules.test.js
 test/sound-effects.test.js
 test/sound-wiring.test.js

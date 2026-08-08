@@ -28,6 +28,7 @@ import {
   CAMERA_TARGET,
   calculateCameraFrustum
 } from './camera-framing.js';
+import { SimulationPause } from './simulation-pause.js';
 
 const BOARD_SIZE = 7;
 const HALF_BOARD = (BOARD_SIZE - 1) / 2;
@@ -205,8 +206,7 @@ export class WebGLSainome {
     this.epoch = 0;
     this.isVisible = !document.hidden;
     this.contextLost = false;
-    this.pauseStartedAt = 0;
-    this.totalPausedDuration = 0;
+    this.simulationPause = new SimulationPause();
     this.mode = getGameMode(initialModeId);
     this.spawnBatchCompleted = false;
     this.pendingSpawnCount = 0;
@@ -214,6 +214,7 @@ export class WebGLSainome {
     this.pendingMatchResolution = false;
     this.session = new GameSession({ modeId: this.mode.id });
     this.lastSessionSignature = '';
+    this.syncSimulationPause();
 
     this.createLights();
     this.createBoard();
@@ -230,28 +231,27 @@ export class WebGLSainome {
     this.canvas.addEventListener('webglcontextlost', (event) => {
       event.preventDefault();
       this.contextLost = true;
-      this.callbacks.onMessage?.('3D表示を復帰しています…');
+      this.syncSimulationPause();
+      this.callbacks.onMessage?.('3D表示を復帰しています…操作を一時停止します');
     });
 
     this.canvas.addEventListener('webglcontextrestored', () => {
       this.contextLost = false;
+      this.syncSimulationPause();
       this.callbacks.onMessage?.('3D表示が復帰しました');
       this.resize();
+      this.clock.getDelta();
     });
 
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden) {
-        this.isVisible = false;
-        this.pauseStartedAt = performance.now();
-        return;
-      }
-
-      const pausedFor = this.pauseStartedAt > 0 ? performance.now() - this.pauseStartedAt : 0;
-      this.totalPausedDuration += pausedFor;
-      this.pauseStartedAt = 0;
-      this.isVisible = true;
-      this.clock.getDelta();
+      this.isVisible = !document.hidden;
+      this.syncSimulationPause();
+      if (this.isVisible) this.clock.getDelta();
     });
+  }
+
+  syncSimulationPause(now = performance.now()) {
+    this.simulationPause.sync(!this.isVisible || this.contextLost, now);
   }
 
   createLights() {
@@ -392,6 +392,10 @@ export class WebGLSainome {
 
   move(directionName) {
     if (!DIRECTIONS[directionName]) return;
+    if (this.contextLost) {
+      this.callbacks.onMessage?.('3D表示を復帰するまで操作できません');
+      return;
+    }
     this.emitSession(this.session.tick(this.getGameTime()));
     if (!this.session.isAcceptingInput()) {
       this.callbacks.onMessage?.(
@@ -867,8 +871,7 @@ export class WebGLSainome {
 
   getGameTime() {
     const now = performance.now();
-    const currentPause = this.pauseStartedAt > 0 ? now - this.pauseStartedAt : 0;
-    return now - this.totalPausedDuration - currentPause;
+    return now - this.simulationPause.getPausedDuration(now);
   }
 
   recordClearScore(clear) {
@@ -934,27 +937,25 @@ export class WebGLSainome {
 
   animate() {
     const now = this.getGameTime();
-    const sessionState = this.session.tick(now);
-    this.emitSession(sessionState);
-    if (this.isVisible) {
+    if (this.isVisible && !this.contextLost) {
+      const sessionState = this.session.tick(now);
+      this.emitSession(sessionState);
       this.updateSinking(now);
       this.updateRising(now);
       this.updateSpawning(now);
       this.resolvePendingMatches();
       this.finishSessionIfSettled();
-    }
-
-    const elapsed = this.clock.getElapsedTime();
-    if (!this.busy) {
-      const activeDie = this.activeKey ? this.dice.get(this.activeKey) : null;
-      if (!activeDie || activeDie.state === 'normal') {
-        const baseY = activeDie ? activeDie.mesh.position.y + (PLAYER_Y - DICE_Y) : GROUND_PLAYER_Y;
-        this.player.position.y = baseY + Math.sin(elapsed * 4.2) * 0.025;
+      const elapsed = this.clock.getElapsedTime();
+      if (!this.busy) {
+        const activeDie = this.activeKey ? this.dice.get(this.activeKey) : null;
+        if (!activeDie || activeDie.state === 'normal') {
+          const baseY = activeDie ? activeDie.mesh.position.y + (PLAYER_Y - DICE_Y) : GROUND_PLAYER_Y;
+          this.player.position.y = baseY + Math.sin(elapsed * 4.2) * 0.025;
+        }
+        this.player.rotation.x = Math.sin(elapsed * 3.2) * 0.018;
       }
-      this.player.rotation.x = Math.sin(elapsed * 3.2) * 0.018;
+      this.renderer.render(this.scene, this.camera);
     }
-
-    if (this.isVisible && !this.contextLost) this.renderer.render(this.scene, this.camera);
     requestAnimationFrame(() => this.animate());
   }
 }
