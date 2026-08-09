@@ -755,6 +755,7 @@ document.addEventListener('gesturestart', (event) => event.preventDefault());
 document.addEventListener('visibilitychange', () => {
   soundEffects.handleVisibility(document.hidden);
   if (document.hidden) {
+    pointerStart = null;
     pauseCountdownTimer();
   } else if (flow.getSnapshot().screen === SCREEN_PHASES.COUNTDOWN) {
     scheduleCountdown(countdownRunId);

@@ -52,3 +52,20 @@ test('3カウント中に画面を隠すと待機し、復帰後に残りから�
     /if \(document\.hidden\) \{[\s\S]*?pauseCountdownTimer\(\);[\s\S]*?\} else if \(flow\.getSnapshot\(\)\.screen === SCREEN_PHASES\.COUNTDOWN\)/
   );
 });
+
+test('画面非表示中の入力と予約移動を復帰後へ持ち越さない', () => {
+  assert.match(source, /if \(!this\.isVisible\) return;/);
+  assert.match(
+    source,
+    /if \(this\.isVisible\) \{[\s\S]*?\} else \{[\s\S]*?this\.queuedDirection = null;[\s\S]*?clearTimeout\(this\.queueTimerId\)/
+  );
+
+  const main = readFileSync(
+    new URL('../js/main.js', import.meta.url),
+    'utf8'
+  );
+  assert.match(
+    main,
+    /if \(document\.hidden\) \{[\s\S]*?pointerStart = null;[\s\S]*?pauseCountdownTimer\(\)/
+  );
+});
