@@ -526,15 +526,22 @@ function renderTutorial(snapshot = tutorial.getSnapshot()) {
   tutorialNextButton.textContent = nextLabel;
 }
 
-function cancelCountdown() {
-  countdownRunId += 1;
+function pauseCountdownTimer() {
+  if (countdownTimerId === null) return;
   window.clearTimeout(countdownTimerId);
   countdownTimerId = null;
 }
 
+function cancelCountdown() {
+  countdownRunId += 1;
+  pauseCountdownTimer();
+}
+
 function scheduleCountdown(runId) {
+  if (document.hidden || countdownTimerId !== null) return;
   countdownTimerId = window.setTimeout(() => {
-    if (runId !== countdownRunId) return;
+    countdownTimerId = null;
+    if (runId !== countdownRunId || document.hidden) return;
     const transition = flow.advanceCountdown();
     renderFlow(transition.snapshot);
 
@@ -747,6 +754,11 @@ document.addEventListener('contextmenu', (event) => {
 document.addEventListener('gesturestart', (event) => event.preventDefault());
 document.addEventListener('visibilitychange', () => {
   soundEffects.handleVisibility(document.hidden);
+  if (document.hidden) {
+    pauseCountdownTimer();
+  } else if (flow.getSnapshot().screen === SCREEN_PHASES.COUNTDOWN) {
+    scheduleCountdown(countdownRunId);
+  }
 });
 
 applyModeLabels(selectedMode);
