@@ -246,7 +246,13 @@ export class WebGLSainome {
     document.addEventListener('visibilitychange', () => {
       this.isVisible = !document.hidden;
       this.syncSimulationPause();
-      if (this.isVisible) this.clock.getDelta();
+      if (this.isVisible) {
+        this.clock.getDelta();
+      } else {
+        this.queuedDirection = null;
+        window.clearTimeout(this.queueTimerId);
+        this.queueTimerId = null;
+      }
     });
   }
 
@@ -392,6 +398,7 @@ export class WebGLSainome {
 
   move(directionName) {
     if (!DIRECTIONS[directionName]) return;
+    if (!this.isVisible) return;
     if (this.contextLost) {
       this.callbacks.onMessage?.('3D表示を復帰するまで操作できません');
       return;
