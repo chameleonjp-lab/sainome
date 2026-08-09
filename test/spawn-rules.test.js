@@ -5,6 +5,7 @@ import {
   getClearTriggeredSpawnCount,
   getOneEightySecondClearSpawnCount,
   getSixtySecondSpawnBatchCount,
+  getSixtySecondSpawnRemaining,
   ONE_EIGHTY_SECOND_MAX_SPAWN_COUNT,
   SIXTY_SECOND_SPAWN_AT_MS,
   SIXTY_SECOND_SPAWN_COUNT
@@ -31,6 +32,27 @@ test('30秒の追加生成を終えた後は再び要求しない', () => {
 
 test('60秒到達後は未生成でも追加生成しない', () => {
   assert.equal(getSixtySecondSpawnBatchCount(60_000, false), 0);
+});
+
+test('60秒モードは空きマス不足時も残りの生成数を保持する', () => {
+  assert.equal(
+    getSixtySecondSpawnRemaining(SIXTY_SECOND_SPAWN_AT_MS, 0),
+    SIXTY_SECOND_SPAWN_COUNT
+  );
+  assert.equal(
+    getSixtySecondSpawnRemaining(45_000, 1),
+    1
+  );
+  assert.equal(
+    getSixtySecondSpawnRemaining(59_999, SIXTY_SECOND_SPAWN_COUNT),
+    0
+  );
+});
+
+test('60秒モードの不正な生成済み数は追加生成しない', () => {
+  assert.equal(getSixtySecondSpawnRemaining(30_000, -1), 0);
+  assert.equal(getSixtySecondSpawnRemaining(30_000, 1.5), 0);
+  assert.equal(getSixtySecondSpawnRemaining(30_000, Number.NaN), 0);
 });
 
 test('180秒モードは2個以下の消去では生成しない', () => {
