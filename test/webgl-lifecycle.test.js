@@ -30,3 +30,9 @@ test('WebGL開始前に利用可能性を確認し、読み込み失敗時はホ
   assert.match(main, /WebGL 2/);
   assert.match(main, /flow\.goHome\(\)/);
 });
+
+test('60秒モードの追加生成は空きマス不足時も残数を保持する', () => {
+  assert.match(source, /getSixtySecondSpawnRemaining/);
+  assert.match(source, /this\.sixtySecondSpawnedCount/);
+  assert.match(source, /this\.sixtySecondSpawnedCount \+= cells\.length/);
+});

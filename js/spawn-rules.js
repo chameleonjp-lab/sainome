@@ -12,13 +12,26 @@ export function getSixtySecondSpawnBatchCount(
   elapsedMs,
   batchCompleted = false
 ) {
-  if (!Number.isFinite(elapsedMs) || elapsedMs < 0) return 0;
+  return getSixtySecondSpawnRemaining(
+    elapsedMs,
+    batchCompleted ? SIXTY_SECOND_SPAWN_COUNT : 0
+  );
+}
+
+export function getSixtySecondSpawnRemaining(
+  elapsedMs,
+  spawnedCount = 0
+) {
   if (
-    batchCompleted
+    !Number.isFinite(elapsedMs)
+    || elapsedMs < 0
+    || !Number.isInteger(spawnedCount)
+    || spawnedCount < 0
     || elapsedMs < SIXTY_SECOND_SPAWN_AT_MS
     || elapsedMs >= SIXTY_SECOND_DURATION_MS
   ) return 0;
-  return SIXTY_SECOND_SPAWN_COUNT;
+
+  return Math.max(0, SIXTY_SECOND_SPAWN_COUNT - spawnedCount);
 }
 
 export function getOneEightySecondClearSpawnCount(clearedCount) {

@@ -20,7 +20,7 @@ import {
 } from './game-modes.js';
 import {
   getClearTriggeredSpawnCount,
-  getSixtySecondSpawnBatchCount
+  getSixtySecondSpawnRemaining
 } from './spawn-rules.js';
 import {
   BOARD_BASE_SIZE,
@@ -208,7 +208,7 @@ export class WebGLSainome {
     this.contextLost = false;
     this.simulationPause = new SimulationPause();
     this.mode = getGameMode(initialModeId);
-    this.spawnBatchCompleted = false;
+    this.sixtySecondSpawnedCount = 0;
     this.pendingSpawnCount = 0;
     this.spawnBlockedNotified = false;
     this.pendingMatchResolution = false;
@@ -324,7 +324,7 @@ export class WebGLSainome {
     this.rollCount = 0;
     this.chainCount = 0;
     this.clearedCount = 0;
-    this.spawnBatchCompleted = false;
+    this.sixtySecondSpawnedCount = 0;
     this.pendingSpawnCount = 0;
     this.spawnBlockedNotified = false;
     this.pendingMatchResolution = false;
@@ -804,13 +804,12 @@ export class WebGLSainome {
 
     const spawnCount = isOneEightySecondMode
       ? this.pendingSpawnCount
-      : getSixtySecondSpawnBatchCount(
+      : getSixtySecondSpawnRemaining(
         sessionState.elapsedMs,
-        this.spawnBatchCompleted
+        this.sixtySecondSpawnedCount
       );
     if (spawnCount === 0) return;
 
-    if (!isOneEightySecondMode) this.spawnBatchCompleted = true;
     const candidates = listPlayerSafeSpawnCandidates(
       this.dice,
       BOARD_SIZE,
@@ -836,6 +835,8 @@ export class WebGLSainome {
         0,
         this.pendingSpawnCount - cells.length
       );
+    } else {
+      this.sixtySecondSpawnedCount += cells.length;
     }
 
     for (const cell of cells) {
