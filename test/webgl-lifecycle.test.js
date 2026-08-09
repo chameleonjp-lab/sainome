@@ -36,3 +36,19 @@ test('60秒モードの追加生成は空きマス不足時も残数を保持す
   assert.match(source, /this\.sixtySecondSpawnedCount/);
   assert.match(source, /this\.sixtySecondSpawnedCount \+= cells\.length/);
 });
+
+
+test('3カウント中に画面を隠すと待機し、復帰後に残りから再開する', () => {
+  const main = readFileSync(
+    new URL('../js/main.js', import.meta.url),
+    'utf8'
+  );
+
+  assert.match(main, /function pauseCountdownTimer\(\)[\s\S]*?clearTimeout\(countdownTimerId\)/);
+  assert.match(main, /if \(document\.hidden \|\| countdownTimerId !== null\) return;/);
+  assert.match(main, /countdownTimerId = null;[\s\S]*?runId !== countdownRunId \|\| document\.hidden/);
+  assert.match(
+    main,
+    /if \(document\.hidden\) \{[\s\S]*?pauseCountdownTimer\(\);[\s\S]*?\} else if \(flow\.getSnapshot\(\)\.screen === SCREEN_PHASES\.COUNTDOWN\)/
+  );
+});
