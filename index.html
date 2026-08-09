@@ -78,6 +78,10 @@
           <button id="start-button" class="primary-button" type="button">ゲーム開始</button>
           <button id="tutorial-button" class="secondary-button" type="button">遊び方を見る</button>
         </div>
+        <section id="pending-ranking-panel" class="pending-ranking-panel" aria-label="未送信のランキング記録" hidden>
+          <p id="pending-ranking-status" role="status" aria-live="polite"></p>
+          <button id="pending-ranking-retry" type="button">未送信記録を再送</button>
+        </section>
         <a
           id="home-lab-link"
           class="lab-link home-lab-link"
@@ -151,6 +155,7 @@
         <p id="result-record-warning" class="result-record-warning" role="status" hidden>
           この端末へ自己ベストを保存できませんでした
         </p>
+        <p id="result-ranking-storage-warning" class="result-record-warning" role="alert" hidden></p>
         <dl class="result-stats">
           <div><dt>消した数</dt><dd id="result-cleared">0</dd></div>
           <div><dt>最大連鎖</dt><dd id="result-chain">0</dd></div>
