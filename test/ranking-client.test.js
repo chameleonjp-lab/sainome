@@ -52,6 +52,18 @@ function submitResponse({
   };
 }
 
+test('低水準RPCを公開せず、検査済みの操作だけを公開する', () => {
+  const client = new RankingClient({
+    url: URL,
+    publishableKey: KEY,
+    fetchImpl: async () => jsonResponse([])
+  });
+
+  assert.equal(typeof client.rpc, 'undefined');
+  assert.equal(typeof client.submitScore, 'function');
+  assert.equal(typeof client.getTopRanking, 'function');
+});
+
 test('60秒の結果を固有番号と契約版付きで1回登録する', async () => {
   const requests = [];
   const client = new RankingClient({
@@ -120,8 +132,71 @@ test('180秒ランキングを60秒とは別の記録として上位10件取得�
     rank: 1,
     displayName: 'プレイヤー1',
     score: 12000,
-    playCount: 1
+    playCount: 1,
+    isCurrentUser: false
   });
+});
+
+test('上位一覧から不正名だけを除外し、DBの本人判定だけを引き継ぐ', async () => {
+  const client = new RankingClient({
+    url: URL,
+    publishableKey: KEY,
+    fetchImpl: async () => jsonResponse([
+      {
+        rank_no: 1,
+        display_name: '\u2800',
+        best_score: 9999,
+        play_count: 1,
+        is_current_user: true
+      },
+      { rank_no: 2, display_name: 'ＡＢＣ', best_score: 9000, play_count: 1 },
+      {
+        rank_no: 3,
+        display_name: 'プレイヤー',
+        best_score: 8000,
+        play_count: 2,
+        is_current_user: true
+      }
+    ])
+  });
+
+  const ranking = await client.getTopRanking(GAME_MODE_IDS.SIXTY_SECONDS);
+
+  assert.deepEqual(ranking, [{
+    rank: 3,
+    displayName: 'プレイヤー',
+    score: 8000,
+    playCount: 2,
+    isCurrentUser: true
+  }]);
+});
+
+test('本人判定が複数行にあるランキング応答を拒否する', async () => {
+  const client = new RankingClient({
+    url: URL,
+    publishableKey: KEY,
+    fetchImpl: async () => jsonResponse([
+      {
+        rank_no: 1,
+        display_name: 'プレイヤー1',
+        best_score: 9000,
+        play_count: 1,
+        is_current_user: true
+      },
+      {
+        rank_no: 2,
+        display_name: 'プレイヤー2',
+        best_score: 8000,
+        play_count: 2,
+        is_current_user: true
+      }
+    ])
+  });
+
+  await assert.rejects(
+    client.getTopRanking(GAME_MODE_IDS.SIXTY_SECONDS),
+    (error) => error instanceof RankingError && error.code === 'invalid-response'
+  );
 });
 
 test('再送済みの応答を重複登録として扱える', async () => {
@@ -266,11 +341,30 @@ test('通信失敗を画面側で判別できるエラーへ変換する', async
 });
 
 test('不正なモード、得点、登録番号、契約版を送信前に拒否する', async () => {
+  let requests = 0;
   const client = new RankingClient({
     url: URL,
     publishableKey: KEY,
-    fetchImpl: async () => { throw new Error('must not send'); }
+    fetchImpl: async () => {
+      requests += 1;
+      throw new Error('must not send');
+    }
   });
+
+  await assert.rejects(
+    client.submitScore({
+      displayName: '\u200b', modeId: GAME_MODE_IDS.SIXTY_SECONDS, score: 100,
+      submissionId: 'x'.repeat(16)
+    }),
+    /displayName/
+  );
+  await assert.rejects(
+    client.submitScore({
+      displayName: 'ＡＢＣ', modeId: GAME_MODE_IDS.SIXTY_SECONDS, score: 100,
+      submissionId: 'x'.repeat(16)
+    }),
+    /displayName/
+  );
 
   await assert.rejects(
     client.submitScore({
@@ -299,6 +393,7 @@ test('不正なモード、得点、登録番号、契約版を送信前に拒�
     }),
     /contractVersion/
   );
+  assert.equal(requests, 0);
 });
 
 test('登録番号は標準機能と代替機能のどちらでも十分な長さになる', () => {

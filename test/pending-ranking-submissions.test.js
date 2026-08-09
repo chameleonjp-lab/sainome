@@ -108,6 +108,26 @@ test('通信前に契約版とクライアント版付きで保存し、作り�
   assert.deepEqual(restored.items[0], createSubmission());
 });
 
+test('無効な名前は保存処理を呼ばずinvalid-submissionとして拒否する', async () => {
+  let addIfAbsentCalls = 0;
+  const storage = {
+    list: async () => [],
+    addIfAbsent: async () => {
+      addIfAbsentCalls += 1;
+      throw new Error('must not add');
+    }
+  };
+  const pending = new PendingRankingSubmissions({ storage });
+
+  const result = await pending.enqueue(createSubmission({ displayName: '\u2800' }));
+
+  assert.equal(result.ok, false);
+  assert.equal(result.persisted, false);
+  assert.equal(result.code, 'invalid-submission');
+  assert.equal(result.submission, null);
+  assert.equal(addIfAbsentCalls, 0);
+});
+
 test('受付成功を明示するまで未送信結果を削除せず、完全一致した対象だけ削除する', async () => {
   const storage = createAtomicMemoryStorage();
   const pending = new PendingRankingSubmissions({ storage });
@@ -289,6 +309,9 @@ test('未知版、範囲外得点、必須項目欠落、不正な名前とモ�
       result: { ...createSubmission().result, endedReason: undefined }
     }),
     recordFor(createSubmission({ displayName: '\u200b' })),
+    recordFor(createSubmission({ displayName: '\u2800' })),
+    recordFor(createSubmission({ displayName: '\u0301' })),
+    recordFor(createSubmission({ displayName: 'ＡＢＣ' })),
     recordFor(createSubmission({
       result: { ...createSubmission().result, modeId: 'unknown' }
     }))
@@ -300,6 +323,7 @@ test('未知版、範囲外得点、必須項目欠落、不正な名前とモ�
     const snapshot = await pending.refresh();
     assert.equal(snapshot.corrupted, true);
     assert.equal(snapshot.count, 0);
+    assert.deepEqual(storage.peek(record.submissionId), record);
   }
 });
 

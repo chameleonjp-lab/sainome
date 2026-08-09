@@ -307,3 +307,66 @@ test('安全に保存準備できない結果は通信しない', async () => {
   );
   assert.equal(sendCalls, 0);
 });
+
+test('不正または未正規化の名前は保存番号を作らず送信準備を止める', async () => {
+  for (const displayName of ['\u061c', 'ＡＢＣ']) {
+    let enqueueCalls = 0;
+    let idCalls = 0;
+    const pendingSubmissions = {
+      enqueue: async () => {
+        enqueueCalls += 1;
+        return { ok: true, persisted: true, code: 'queued' };
+      }
+    };
+
+    await assert.rejects(
+      prepareRankingSubmission({
+        pendingSubmissions,
+        displayName,
+        result: RESULT,
+        idFactory: () => {
+          idCalls += 1;
+          return IDS[0];
+        },
+        now: () => 100
+      }),
+      /displayName is invalid or not normalized/
+    );
+    assert.equal(enqueueCalls, 0);
+    assert.equal(idCalls, 0);
+  }
+});
+
+test('保存済みデータ由来でも不正な名前は通信前に止める', async () => {
+  let sendCalls = 0;
+  let cleanupCalls = 0;
+  const rankingClient = {
+    submitScore: async () => {
+      sendCalls += 1;
+      throw new Error('must not send');
+    }
+  };
+  const pendingSubmissions = {
+    markAccepted: async () => {
+      cleanupCalls += 1;
+    }
+  };
+
+  await assert.rejects(
+    submitPendingRanking({
+      rankingClient,
+      pendingSubmissions,
+      submission: {
+        submissionId: IDS[0],
+        contractVersion: RANKING_SUBMISSION_CONTRACT_VERSION,
+        clientVersion: RANKING_CLIENT_VERSION,
+        displayName: 'ＡＢＣ',
+        result: RESULT,
+        createdAt: 100
+      }
+    }),
+    /displayName is invalid or not normalized/
+  );
+  assert.equal(sendCalls, 0);
+  assert.equal(cleanupCalls, 0);
+});

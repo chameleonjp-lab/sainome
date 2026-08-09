@@ -1,4 +1,5 @@
 import { GAME_MODE_IDS } from './game-modes.js';
+import { validatePlayerName } from './player-profile.js';
 
 export const RANKING_LIMIT = 10;
 export const RANKING_CLIENT_VERSION = 'sainome-web-1';
@@ -39,6 +40,14 @@ function requireScore(score) {
     throw new RangeError('score must be a safe non-negative integer');
   }
   return score;
+}
+
+function requireDisplayName(displayName) {
+  const validated = validatePlayerName(displayName);
+  if (!validated.ok || validated.name !== displayName) {
+    throw new TypeError('displayName is invalid or not normalized');
+  }
+  return displayName;
 }
 
 function requireSubmissionId(submissionId) {
@@ -111,7 +120,16 @@ function parseRankingResponse(data) {
     throw new RankingError('invalid-response', 'ランキングの応答が不正です');
   }
 
-  return Object.freeze(data.slice(0, RANKING_LIMIT).map((row) => {
+  const ranking = [];
+  let currentUserCount = 0;
+  for (const row of data) {
+    if (ranking.length >= RANKING_LIMIT) break;
+    const displayName = typeof row?.display_name === 'string'
+      ? row.display_name
+      : '';
+    const validatedName = validatePlayerName(displayName);
+    if (!validatedName.ok || validatedName.name !== displayName) continue;
+
     const rank = Number(row.rank_no);
     const score = Number(row.best_score);
     const playCount = Number(row.play_count);
@@ -126,13 +144,22 @@ function parseRankingResponse(data) {
       throw new RankingError('invalid-response', 'ランキングの行が不正です');
     }
 
-    return Object.freeze({
+    if (row.is_current_user === true) {
+      currentUserCount += 1;
+      if (currentUserCount > 1) {
+        throw new RankingError('invalid-response', 'ランキングの本人判定が不正です');
+      }
+    }
+
+    ranking.push(Object.freeze({
       rank,
-      displayName: String(row.display_name ?? '').slice(0, 80),
+      displayName,
       score,
-      playCount
-    });
-  }));
+      playCount,
+      isCurrentUser: row.is_current_user === true
+    }));
+  }
+  return Object.freeze(ranking);
 }
 
 function normalizeEndpoint(url) {
@@ -168,7 +195,7 @@ export class RankingClient {
     this.timeoutMs = timeoutMs;
   }
 
-  async rpc(functionName, parameters) {
+  async #rpc(functionName, parameters) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
 
@@ -216,12 +243,8 @@ export class RankingClient {
     clientVersion = RANKING_CLIENT_VERSION,
     contractVersion = RANKING_SUBMISSION_CONTRACT_VERSION
   }) {
-    if (typeof displayName !== 'string' || displayName.length === 0) {
-      throw new TypeError('displayName is required');
-    }
-
     const expected = Object.freeze({
-      displayName,
+      displayName: requireDisplayName(displayName),
       gameSlug: requireModeSlug(modeId),
       score: requireScore(score),
       clientVersion: requireClientVersion(clientVersion),
@@ -232,7 +255,7 @@ export class RankingClient {
       throw new TypeError('contractVersion is invalid');
     }
 
-    const data = await this.rpc('submit_score_once', {
+    const data = await this.#rpc('submit_score_once', {
       p_display_name: displayName,
       p_game_slug: expected.gameSlug,
       p_score: expected.score,
@@ -244,7 +267,7 @@ export class RankingClient {
   }
 
   async getTopRanking(modeId) {
-    const data = await this.rpc('get_best_score_ranking', {
+    const data = await this.#rpc('get_best_score_ranking', {
       p_game_slug: requireModeSlug(modeId),
       p_limit: RANKING_LIMIT
     });

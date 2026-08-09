@@ -21,9 +21,11 @@
 - 初期状態オフで、設定を保存できる4種類の効果音
 - 60秒・180秒を分けて端末へ保存する自己ベスト記録
 - 端末の共有画面とコピーに対応した結果シェア
-- 必須のランキング名を端末へ保存し、結果確定時に記録を1回送信
+- 必須のランキング名をNFKCで整え、Unicode 15.1の固定契約で検査して端末へ保存
 - 60秒・180秒を分けた最高記録ランキング上位10名を結果画面へ表示
 - ランキング受付前の結果をIndexedDBトランザクションで端末へ保全し、手動で同じ番号を再送
+- ランキング名のゲーム内の保存・送信経路を同じ検査へ統一し、不正な旧ランキング行だけを非表示
+- ランキング名を双方向隔離して表示し、新DB復旧後の`is_current_user`による本人判定に対応
 - 本番Supabaseのランキング受付復旧は、`docs/ADVERSARIAL_REMEDIATION_PLAN.md`の第3工程で実施予定
 - iPhone向けの盤面に沿った斜め4方向フリック
 - パソコン向け矢印キー、WASD操作
@@ -33,7 +35,7 @@
 
 ## 遊び方
 
-1. ホーム画面でランキング名を入力し、60秒または180秒を選びます。名前は次回も使えます。初めて遊ぶ場合は「遊び方を見る」で3枚の説明を確認できます。
+1. ホーム画面でランキング名を入力し、60秒または180秒を選びます。前後や連続する空白、全角英数字などは保存時に整えられます。名前は次回も使えます。初めて遊ぶ場合は「遊び方を見る」で3枚の説明を確認できます。
 2. 「ゲーム開始」または説明の最後にある選択モードの開始ボタンを押します。
 3. 3D盤面の向きに沿って、右上・右下・左下・左上へ斜めにフリックして移動します。
 4. 空きマスへ移動すると、足元のサイコロがその方向へ転がります。
@@ -93,6 +95,7 @@ js/sound-effects.js
 js/best-records.js
 js/result-share.js
 js/player-profile.js
+js/player-name-unicode-15-1.js
 js/ranking-client.js
 js/pending-ranking-submissions.js
 js/ranking-submission-flow.js
@@ -117,6 +120,7 @@ test/best-record-wiring.test.js
 test/result-share.test.js
 test/result-share-wiring.test.js
 test/player-profile.test.js
+test/player-name-contract.test.js
 test/ranking-client.test.js
 test/ranking-wiring.test.js
 test/indexeddb-ranking-storage.test.js
@@ -125,6 +129,8 @@ test/ranking-submission-flow.test.js
 test/pending-ranking-wiring.test.js
 test/tutorial-slides.test.js
 test/ui-flow.test.js
+contracts/player-name-v1.json
+docs/RANKING_IDENTITY_CONTRACT.md
 ```
 
 描画にはCDNからThree.jsを読み込みます。効果音はブラウザの音声機能で生成するため、外部の音声ファイルは読み込みません。ランキング通信には公開用のSupabase接続情報だけを使い、秘密鍵は含めません。公開用のビルド作業はなく、静的ファイルをそのまま公開できます。`npm test`でサイコロの面、接続判定、60秒・180秒モード、生成数、得点、終了確定、効果音、名前保存、ランキング通信、チュートリアル、画面遷移を確認できます。

@@ -1,0 +1,402 @@
+{
+  "contractVersion": "player-name-v1",
+  "unicodeVersion": "15.1.0",
+  "normalization": "NFKC",
+  "maxCodePoints": 20,
+  "maxRawCodePoints": 80,
+  "maxConsecutiveMarks": 4,
+  "cases": [
+    {
+      "id": "japanese-name",
+      "inputCodePoints": ["30B5", "30A4", "30CE", "30E1"],
+      "accepted": true,
+      "normalizedCodePoints": ["30B5", "30A4", "30CE", "30E1"]
+    },
+    {
+      "id": "trim-and-collapse-spaces",
+      "inputCodePoints": ["0020", "0020", "30B5", "30A4", "0020", "0020", "30CE", "30E1", "0020"],
+      "accepted": true,
+      "normalizedCodePoints": ["30B5", "30A4", "0020", "30CE", "30E1"]
+    },
+    {
+      "id": "compatibility-normalization",
+      "inputCodePoints": ["3000", "FF21", "FF22", "FF23", "FF11", "FF12", "FF13", "00A0"],
+      "accepted": true,
+      "normalizedCodePoints": ["0041", "0042", "0043", "0031", "0032", "0033"]
+    },
+    {
+      "id": "compose-accent",
+      "inputCodePoints": ["004A", "006F", "0073", "0065", "0301"],
+      "accepted": true,
+      "normalizedCodePoints": ["004A", "006F", "0073", "00E9"]
+    },
+    {
+      "id": "compatibility-expansion",
+      "inputCodePoints": ["2460", "337F"],
+      "accepted": true,
+      "normalizedCodePoints": ["0031", "682A", "5F0F", "4F1A", "793E"]
+    },
+    {
+      "id": "single-emoji",
+      "inputCodePoints": ["1F3B2"],
+      "accepted": true,
+      "normalizedCodePoints": ["1F3B2"]
+    },
+    {
+      "id": "emoji-variation-selector",
+      "inputCodePoints": ["2764", "FE0F"],
+      "accepted": true,
+      "normalizedCodePoints": ["2764", "FE0F"]
+    },
+    {
+      "id": "emoji-join-sequence",
+      "inputCodePoints": ["1F469", "200D", "1F469", "200D", "1F467", "200D", "1F466"],
+      "accepted": true,
+      "normalizedCodePoints": ["1F469", "200D", "1F469", "200D", "1F467", "200D", "1F466"]
+    },
+    {
+      "id": "persian-join-control",
+      "inputCodePoints": ["0645", "06CC", "200C", "0631", "0648", "0645"],
+      "accepted": true,
+      "normalizedCodePoints": ["0645", "06CC", "200C", "0631", "0648", "0645"]
+    },
+    {
+      "id": "indic-virama-join-control",
+      "inputCodePoints": ["0915", "094D", "200D", "0937"],
+      "accepted": true,
+      "normalizedCodePoints": ["0915", "094D", "200D", "0937"]
+    },
+    {
+      "id": "indic-virama-zwnj-context",
+      "inputCodePoints": ["0915", "094D", "200C", "0915"],
+      "accepted": true,
+      "normalizedCodePoints": ["0915", "094D", "200C", "0915"]
+    },
+    {
+      "id": "sinhala-virama-zwj-context",
+      "inputCodePoints": ["0DC1", "0DCA", "200D", "0DBB", "0DD3"],
+      "accepted": true,
+      "normalizedCodePoints": ["0DC1", "0DCA", "200D", "0DBB", "0DD3"]
+    },
+    {
+      "id": "emoji-keycap",
+      "inputCodePoints": ["0031", "FE0F", "20E3"],
+      "accepted": true,
+      "normalizedCodePoints": ["0031", "FE0F", "20E3"]
+    },
+    {
+      "id": "twenty-code-points",
+      "inputCodePoints": ["1F3B2", "1F3B2", "1F3B2", "1F3B2", "1F3B2", "1F3B2", "1F3B2", "1F3B2", "1F3B2", "1F3B2", "1F3B2", "1F3B2", "1F3B2", "1F3B2", "1F3B2", "1F3B2", "1F3B2", "1F3B2", "1F3B2", "1F3B2"],
+      "accepted": true,
+      "normalizedCodePoints": ["1F3B2", "1F3B2", "1F3B2", "1F3B2", "1F3B2", "1F3B2", "1F3B2", "1F3B2", "1F3B2", "1F3B2", "1F3B2", "1F3B2", "1F3B2", "1F3B2", "1F3B2", "1F3B2", "1F3B2", "1F3B2", "1F3B2", "1F3B2"]
+    },
+    {
+      "id": "normalization-expands-to-eighteen",
+      "inputCodePoints": ["FB03", "FB03", "FB03", "FB03", "FB03", "FB03"],
+      "accepted": true,
+      "normalizedCodePoints": ["0066", "0066", "0069", "0066", "0066", "0069", "0066", "0066", "0069", "0066", "0066", "0069", "0066", "0066", "0069", "0066", "0066", "0069"]
+    },
+    {
+      "id": "empty",
+      "inputCodePoints": [],
+      "accepted": false,
+      "errorCode": "empty"
+    },
+    {
+      "id": "spaces-only",
+      "inputCodePoints": ["0020", "3000", "00A0"],
+      "accepted": false,
+      "errorCode": "empty"
+    },
+    {
+      "id": "line-feed",
+      "inputCodePoints": ["540D", "000A", "524D"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "tab",
+      "inputCodePoints": ["540D", "0009", "524D"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "line-separator",
+      "inputCodePoints": ["0041", "2028", "0042"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "bidi-control",
+      "inputCodePoints": ["0041", "061C", "0042"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "bidi-override",
+      "inputCodePoints": ["0041", "202E", "0042"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "zero-width-space",
+      "inputCodePoints": ["0041", "200B", "0042"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "soft-hyphen",
+      "inputCodePoints": ["0041", "00AD", "0042"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "combining-grapheme-joiner",
+      "inputCodePoints": ["0041", "034F", "0042"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "hangul-filler",
+      "inputCodePoints": ["3164"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "halfwidth-hangul-filler",
+      "inputCodePoints": ["FFA0"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "khmer-inherent-vowel",
+      "inputCodePoints": ["17B4"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "mongolian-vowel-separator",
+      "inputCodePoints": ["180E"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "variation-selector-only",
+      "inputCodePoints": ["FE0F"],
+      "accepted": false,
+      "errorCode": "invisible-only"
+    },
+    {
+      "id": "supplementary-variation-selector-only",
+      "inputCodePoints": ["E0100"],
+      "accepted": false,
+      "errorCode": "invisible-only"
+    },
+    {
+      "id": "tag-character",
+      "inputCodePoints": ["0041", "E0061"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "braille-pattern-blank",
+      "inputCodePoints": ["2800"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "egyptian-hieroglyph-full-blank",
+      "inputCodePoints": ["13441"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "egyptian-hieroglyph-half-blank",
+      "inputCodePoints": ["13442"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "musical-symbol-null-notehead",
+      "inputCodePoints": ["1D159"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "combining-mark-only",
+      "inputCodePoints": ["0301"],
+      "accepted": false,
+      "errorCode": "invisible-only"
+    },
+    {
+      "id": "combining-mark-after-space",
+      "inputCodePoints": ["0041", "0020", "0301", "0042"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "repeated-combining-mark",
+      "inputCodePoints": ["1F3B2", "0300", "0300"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "non-adjacent-repeated-mark-in-one-nfd-cluster",
+      "inputCodePoints": ["1F3B2", "0300", "0301", "0300"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "five-consecutive-marks",
+      "inputCodePoints": ["1F3B2", "0300", "0301", "0302", "0303", "0304"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "repeated-mark-hidden-by-nfkc-composition",
+      "inputCodePoints": ["0041", "0301", "0301"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "five-marks-hidden-by-nfkc-composition",
+      "inputCodePoints": ["0041", "0301", "0300", "0302", "0303", "0304"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "leading-join-control",
+      "inputCodePoints": ["200D", "0041"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "trailing-join-control",
+      "inputCodePoints": ["0041", "200D"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "join-control-before-space",
+      "inputCodePoints": ["0041", "200D", "0020", "0042"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "latin-zwnj-context",
+      "inputCodePoints": ["0041", "200C", "0042"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "digit-zwj-context",
+      "inputCodePoints": ["0031", "200D", "0032"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "punctuation-zwj-context",
+      "inputCodePoints": ["002E", "200D", "0021"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "non-joining-arabic-zwnj-context",
+      "inputCodePoints": ["0627", "200C", "0627"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "mixed-script-cursive-zwnj-context",
+      "inputCodePoints": ["0645", "200C", "0712"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "mixed-script-virama-zwnj-context",
+      "inputCodePoints": ["0D15", "0D4D", "200C", "0915"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "zwj-before-dependent-vowel",
+      "inputCodePoints": ["0915", "094D", "200D", "093E"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "unregistered-emoji-zwj-sequence",
+      "inputCodePoints": ["1F3B2", "200D", "1F3B2"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "unregistered-latin-emoji-variation",
+      "inputCodePoints": ["0041", "FE0F"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "unregistered-mongolian-variation",
+      "inputCodePoints": ["0041", "180B"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "unregistered-supplementary-variation",
+      "inputCodePoints": ["0041", "E0100"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "private-use-character",
+      "inputCodePoints": ["E000"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "unicode-15-1-unassigned-character",
+      "inputCodePoints": ["1C89"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "unicode-noncharacter",
+      "inputCodePoints": ["10FFFF"],
+      "accepted": false,
+      "errorCode": "invalid-characters"
+    },
+    {
+      "id": "normalization-expands-to-twenty-one",
+      "inputCodePoints": ["FB03", "FB03", "FB03", "FB03", "FB03", "FB03", "FB03"],
+      "accepted": false,
+      "errorCode": "too-long"
+    },
+    {
+      "id": "twenty-one-code-points",
+      "inputCodePoints": ["3042", "3042", "3042", "3042", "3042", "3042", "3042", "3042", "3042", "3042", "3042", "3042", "3042", "3042", "3042", "3042", "3042", "3042", "3042", "3042", "3042"],
+      "accepted": false,
+      "errorCode": "too-long"
+    },
+    {
+      "id": "raw-input-limit",
+      "inputCodePoints": ["0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041", "0041"],
+      "accepted": false,
+      "errorCode": "too-long"
+    },
+    {
+      "id": "nul-browser-only",
+      "inputCodePoints": ["0000"],
+      "accepted": false,
+      "errorCode": "invalid-characters",
+      "browserOnly": true
+    },
+    {
+      "id": "lone-high-surrogate-browser-only",
+      "inputUtf16Units": ["D800"],
+      "accepted": false,
+      "errorCode": "invalid-characters",
+      "browserOnly": true
+    }
+  ]
+}

@@ -56,6 +56,35 @@ test('改行、不可視文字、表示方向を変える文字を認めない',
   assert.equal(validatePlayerName('名前\u202e別名').code, 'invalid-characters');
 });
 
+test('無効な名前は保存せず、直前の有効な名前を維持する', () => {
+  const values = new Map();
+  let writes = 0;
+  const profile = new PlayerProfile({
+    storage: {
+      getItem: (key) => values.get(key) ?? null,
+      setItem: (key, value) => {
+        writes += 1;
+        values.set(key, value);
+      }
+    }
+  });
+
+  assert.equal(profile.saveName('プレイヤー').ok, true);
+  assert.equal(writes, 1);
+  for (const invalidName of [
+    '\u2800',
+    '\u{13441}',
+    '\u{1d159}',
+    'A\ufe0f',
+    '🎲\u200d🎲',
+    '🎲\u0300\u0301\u0300'
+  ]) {
+    assert.equal(profile.saveName(invalidName).ok, false);
+    assert.equal(writes, 1);
+    assert.equal(profile.getName(), 'プレイヤー');
+  }
+});
+
 test('壊れた保存値は空の名前として扱う', () => {
   const brokenJson = new PlayerProfile({
     storage: memoryStorage({ [PLAYER_PROFILE_STORAGE_KEY]: '{broken' })
@@ -71,6 +100,17 @@ test('壊れた保存値は空の名前として扱う', () => {
 
   assert.equal(brokenJson.getName(), '');
   assert.equal(brokenName.getName(), '');
+});
+
+test('新契約で無効な旧保存名は削除も書き換えもしない', () => {
+  for (const name of ['\u3164', 'ＡＢＣ', 'A\ufe0f', '🎲\u200d🎲']) {
+    const original = JSON.stringify({ version: 1, name });
+    const storage = memoryStorage({ [PLAYER_PROFILE_STORAGE_KEY]: original });
+    const profile = new PlayerProfile({ storage });
+
+    assert.equal(profile.getName(), '');
+    assert.equal(storage.read(PLAYER_PROFILE_STORAGE_KEY), original);
+  }
 });
 
 test('端末が保存を拒否しても現在の名前は利用できる', () => {

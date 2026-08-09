@@ -4,8 +4,17 @@ import {
   RANKING_GAME_SLUGS,
   RANKING_SUBMISSION_CONTRACT_VERSION
 } from './ranking-client.js';
+import { validatePlayerName } from './player-profile.js';
 
 const MAX_ID_ATTEMPTS = 3;
+
+function requireCanonicalPlayerName(displayName) {
+  const validated = validatePlayerName(displayName);
+  if (!validated.ok || validated.name !== displayName) {
+    throw new TypeError('displayName is invalid or not normalized');
+  }
+  return displayName;
+}
 
 export class SingleFlight {
   constructor() {
@@ -49,6 +58,7 @@ export async function prepareRankingSubmission({
   if (typeof idFactory !== 'function' || typeof now !== 'function') {
     throw new TypeError('submission factories are invalid');
   }
+  requireCanonicalPlayerName(displayName);
 
   let lastCandidate = null;
   for (let attempt = 0; attempt < MAX_ID_ATTEMPTS; attempt += 1) {
@@ -89,6 +99,7 @@ export async function submitPendingRanking({
   if (submission?.canSubmit === false) {
     throw new Error('ranking submission is not safe to send');
   }
+  requireCanonicalPlayerName(submission?.displayName);
 
   const outcome = await rankingClient.submitScore({
     displayName: submission.displayName,
