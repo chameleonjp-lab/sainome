@@ -16,3 +16,17 @@ test('WebGLの描画停止中はゲーム時間と操作を止め、復帰後に
   assert.match(source, /if \(this\.isVisible && !this\.contextLost\) \{[\s\S]*?this\.session\.tick\(now\)/);
   assert.match(source, /this\.simulationPause\.getPausedDuration\(now\)/);
 });
+
+test('WebGL開始前に利用可能性を確認し、読み込み失敗時はホーム画面へ案内する', () => {
+  const main = readFileSync(
+    new URL('../js/main.js', import.meta.url),
+    'utf8'
+  );
+
+  assert.match(main, /checkWebGL2Support/);
+  assert.match(main, /function canStartWebGLGame\(\) \{[\s\S]*?if \(game\) return true;/);
+  assert.match(main, /if \(!canStartWebGLGame\(\)\) return;/);
+  assert.match(main, /loading\.classList\.add\('hidden'\)/);
+  assert.match(main, /WebGL 2/);
+  assert.match(main, /flow\.goHome\(\)/);
+});

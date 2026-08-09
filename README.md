@@ -26,6 +26,7 @@
 - 通信失敗時の再送と、同じプレイを二重登録しないSupabase処理
 - iPhone向けの盤面に沿った斜め4方向フリック
 - パソコン向け矢印キー、WASD操作
+- 開始前のWebGL 2対応確認と、非対応時の理由表示
 - 画面離脱やWebGL描画停止中のゲーム時間・操作の一時停止と復帰
 
 ## 遊び方
@@ -92,6 +93,7 @@ js/result-share.js
 js/player-profile.js
 js/ranking-client.js
 js/supabase-config.js
+js/webgl-support.js
 js/tutorial-slides.js
 js/ui-flow.js
 js/main.js
@@ -102,6 +104,7 @@ test/game-session.test.js
 test/simulation-pause.test.js
 test/input-direction.test.js
 test/webgl-lifecycle.test.js
+test/webgl-support.test.js
 test/spawn-rules.test.js
 test/sound-effects.test.js
 test/sound-wiring.test.js
