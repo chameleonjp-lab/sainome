@@ -2,6 +2,7 @@ import { GAME_MODE_IDS } from './game-modes.js';
 
 export const RANKING_LIMIT = 10;
 export const RANKING_CLIENT_VERSION = 'sainome-web-1';
+export const RANKING_SUBMISSION_CONTRACT_VERSION = 'shared-v1';
 export const RANKING_GAME_SLUGS = Object.freeze({
   [GAME_MODE_IDS.SIXTY_SECONDS]: 'sainome_60_seconds',
   [GAME_MODE_IDS.ONE_EIGHTY_SECONDS]: 'sainome_180_seconds'
@@ -9,6 +10,15 @@ export const RANKING_GAME_SLUGS = Object.freeze({
 
 const MAX_SCORE = 100_000_000;
 const SUBMISSION_ID_PATTERN = /^[A-Za-z0-9_-]{16,80}$/u;
+const CLIENT_VERSION_PATTERN = /^[A-Za-z0-9._-]{1,40}$/u;
+
+export function isValidRankingSubmissionId(value) {
+  return typeof value === 'string' && SUBMISSION_ID_PATTERN.test(value);
+}
+
+export function isValidRankingClientVersion(value) {
+  return typeof value === 'string' && CLIENT_VERSION_PATTERN.test(value);
+}
 
 export class RankingError extends Error {
   constructor(code, message, cause) {
@@ -32,27 +42,62 @@ function requireScore(score) {
 }
 
 function requireSubmissionId(submissionId) {
-  if (typeof submissionId !== 'string' || !SUBMISSION_ID_PATTERN.test(submissionId)) {
+  if (!isValidRankingSubmissionId(submissionId)) {
     throw new TypeError('submissionId is invalid');
   }
   return submissionId;
 }
 
-function parseSubmitResponse(data) {
+function requireClientVersion(clientVersion) {
+  if (!isValidRankingClientVersion(clientVersion)) {
+    throw new TypeError('clientVersion is invalid');
+  }
+  return clientVersion;
+}
+
+function parseSubmitResponse(data, expected) {
+  if (Array.isArray(data) && data.length !== 1) {
+    throw new RankingError('invalid-response', '記録登録の応答件数が不正です');
+  }
   const row = Array.isArray(data) ? data[0] : data;
   if (!row || row.accepted !== true) {
     throw new RankingError('invalid-response', '記録登録の応答を確認できませんでした');
   }
 
-  const bestScore = Number(row.result_best_score);
-  const playCount = Number(row.result_play_count);
-  if (!Number.isSafeInteger(bestScore) || !Number.isSafeInteger(playCount)) {
+  const bestScore = row.result_best_score;
+  const playCount = row.result_play_count;
+  if (
+    typeof row.result_display_name !== 'string'
+    || row.result_display_name.length === 0
+    || row.result_display_name.length > 80
+    || typeof bestScore !== 'number'
+    || !Number.isSafeInteger(bestScore)
+    || bestScore < 0
+    || bestScore > MAX_SCORE
+    || typeof playCount !== 'number'
+    || !Number.isSafeInteger(playCount)
+    || playCount < 1
+    || typeof row.is_first_play !== 'boolean'
+    || typeof row.is_new_best !== 'boolean'
+    || typeof row.was_duplicate !== 'boolean'
+    || row.result_submission_id !== expected.submissionId
+    || row.result_contract_version !== expected.contractVersion
+    || row.result_client_version !== expected.clientVersion
+    || row.result_game_slug !== expected.gameSlug
+    || row.result_display_name !== expected.displayName
+    || row.result_submitted_score !== expected.score
+  ) {
     throw new RankingError('invalid-response', '記録登録の応答が不正です');
   }
 
   return Object.freeze({
     accepted: true,
-    displayName: String(row.result_display_name ?? ''),
+    submissionId: row.result_submission_id,
+    contractVersion: row.result_contract_version,
+    clientVersion: row.result_client_version,
+    gameSlug: row.result_game_slug,
+    submittedScore: row.result_submitted_score,
+    displayName: row.result_display_name,
     bestScore,
     playCount,
     isFirstPlay: row.is_first_play === true,
@@ -163,19 +208,39 @@ export class RankingClient {
     }
   }
 
-  async submitScore({ displayName, modeId, score, submissionId }) {
+  async submitScore({
+    displayName,
+    modeId,
+    score,
+    submissionId,
+    clientVersion = RANKING_CLIENT_VERSION,
+    contractVersion = RANKING_SUBMISSION_CONTRACT_VERSION
+  }) {
     if (typeof displayName !== 'string' || displayName.length === 0) {
       throw new TypeError('displayName is required');
     }
 
+    const expected = Object.freeze({
+      displayName,
+      gameSlug: requireModeSlug(modeId),
+      score: requireScore(score),
+      clientVersion: requireClientVersion(clientVersion),
+      submissionId: requireSubmissionId(submissionId),
+      contractVersion
+    });
+    if (contractVersion !== RANKING_SUBMISSION_CONTRACT_VERSION) {
+      throw new TypeError('contractVersion is invalid');
+    }
+
     const data = await this.rpc('submit_score_once', {
       p_display_name: displayName,
-      p_game_slug: requireModeSlug(modeId),
-      p_score: requireScore(score),
-      p_client_version: RANKING_CLIENT_VERSION,
-      p_submission_id: requireSubmissionId(submissionId)
+      p_game_slug: expected.gameSlug,
+      p_score: expected.score,
+      p_client_version: expected.clientVersion,
+      p_submission_id: expected.submissionId,
+      p_contract_version: expected.contractVersion
     });
-    return parseSubmitResponse(data);
+    return parseSubmitResponse(data, expected);
   }
 
   async getTopRanking(modeId) {

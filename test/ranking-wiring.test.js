@@ -42,9 +42,9 @@ test('名前を確認してから開始し、結果確定時だけ登録する',
     startFunction.indexOf('capturePlayerName()') < startFunction.indexOf('ensureGame('),
     true
   );
-  assert.match(main, /onFinish:[\s\S]*?createSubmissionId\(\)/);
-  assert.match(main, /onFinish:[\s\S]*?syncResultRanking\(latestRankingSubmission\)/);
-  assert.match(main, /rankingClient\.submitScore\(\{/);
+  assert.match(main, /async function preserveFinishedRanking[\s\S]*?prepareRankingSubmission\(\{/);
+  assert.match(main, /async function preserveFinishedRanking[\s\S]*?syncResultRanking\(submission\)/);
+  assert.match(main, /submitPendingRanking\(\{/);
   assert.match(main, /rankingClient\.getTopRanking\(submission\.result\.modeId\)/);
 });
 

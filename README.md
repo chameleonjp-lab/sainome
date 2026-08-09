@@ -23,7 +23,8 @@
 - 端末の共有画面とコピーに対応した結果シェア
 - 必須のランキング名を端末へ保存し、結果確定時に記録を1回送信
 - 60秒・180秒を分けた最高記録ランキング上位10名を結果画面へ表示
-- 通信失敗時の再送と、同じプレイを二重登録しないSupabase処理
+- ランキング受付前の結果をIndexedDBトランザクションで端末へ保全し、手動で同じ番号を再送
+- 本番Supabaseのランキング受付復旧は、`docs/ADVERSARIAL_REMEDIATION_PLAN.md`の第3工程で実施予定
 - iPhone向けの盤面に沿った斜め4方向フリック
 - パソコン向け矢印キー、WASD操作
 - 開始前のWebGL 2対応確認と、非対応時の理由表示
@@ -65,7 +66,7 @@
 - 自己ベストは60秒と180秒を分けて端末へ保存します。保存できない場合もゲームは続けられます。
 - 「結果をシェア」では、モード、得点、消した数、最大連鎖、自己ベスト判定、ゲームURLを共有します。端末の共有画面が使えない場合は同じ内容をコピーします。
 - 結果確定時に選択したモードへ記録を送信し、結果画面の下部へ最高記録ランキング上位10名を表示します。60秒と180秒の順位は混ざりません。
-- 送信に失敗した場合は同じ結果を再送できます。同じプレイ固有番号はSupabase側でも1回として扱います。
+- 送信に失敗した結果は端末に保全し、同じ登録番号で手動再送できます。本番Supabase側の受付と重複防止は現在復旧前です。
 
 モード設定は`js/game-modes.js`、時間・得点・結果の処理は`js/game-session.js`、画面の状態は`js/ui-flow.js`に分けています。いずれもHTMLやThree.jsに依存せず、自動テストで確認できます。
 
@@ -93,6 +94,8 @@ js/best-records.js
 js/result-share.js
 js/player-profile.js
 js/ranking-client.js
+js/pending-ranking-submissions.js
+js/ranking-submission-flow.js
 js/supabase-config.js
 js/webgl-support.js
 js/tutorial-slides.js
@@ -116,6 +119,10 @@ test/result-share-wiring.test.js
 test/player-profile.test.js
 test/ranking-client.test.js
 test/ranking-wiring.test.js
+test/indexeddb-ranking-storage.test.js
+test/pending-ranking-submissions.test.js
+test/ranking-submission-flow.test.js
+test/pending-ranking-wiring.test.js
 test/tutorial-slides.test.js
 test/ui-flow.test.js
 ```
