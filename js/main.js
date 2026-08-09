@@ -31,6 +31,7 @@ import {
   SUPABASE_PUBLISHABLE_KEY,
   SUPABASE_URL
 } from './supabase-config.js';
+import { checkWebGL2Support } from './webgl-support.js';
 
 const app = document.querySelector('#app');
 const canvas = document.querySelector('#game-canvas');
@@ -88,6 +89,11 @@ const soundToggle = document.querySelector('#sound-toggle');
 const soundToggleIcon = document.querySelector('#sound-toggle-icon');
 const soundToggleLabel = document.querySelector('#sound-toggle-label');
 const soundStatus = document.querySelector('#sound-status');
+
+const WEBGL_UNAVAILABLE_MESSAGE =
+  'この端末またはブラウザでは、3D表示に必要な機能（WebGL 2）が利用できません。ブラウザの設定で3D表示を有効にするか、対応環境でお試しください。';
+const WEBGL_LOAD_FAILURE_MESSAGE =
+  '3D表示を開始できませんでした。通信状態を確認して、もう一度お試しください。';
 
 const flow = new GameFlow();
 if (tutorialSlideElements.length !== TUTORIAL_SLIDE_COUNT) {
@@ -431,9 +437,8 @@ async function ensureGame(initialModeId = DEFAULT_GAME_MODE_ID) {
   } catch (error) {
     console.error(error);
     gameLoadPromise = null;
-    loading.textContent = '3D表示を開始できませんでした';
-    loading.classList.remove('hidden');
-    homeError.textContent = '3D表示を読み込めませんでした。通信状態を確認して、もう一度お試しください。';
+    loading.classList.add('hidden');
+    homeError.textContent = WEBGL_LOAD_FAILURE_MESSAGE;
     homeError.hidden = false;
     return false;
   }
@@ -544,6 +549,26 @@ function scheduleCountdown(runId) {
   }, 1000);
 }
 
+function showHomeStartError(errorMessage) {
+  loading.classList.add('hidden');
+  homeError.textContent = errorMessage;
+  homeError.hidden = false;
+  if (flow.getSnapshot().screen !== SCREEN_PHASES.HOME) {
+    renderFlow(flow.goHome());
+  }
+  window.setTimeout(() => startButton.focus(), 0);
+}
+
+function canStartWebGLGame() {
+  if (game) return true;
+
+  const support = checkWebGL2Support();
+  if (support.available) return true;
+
+  showHomeStartError(WEBGL_UNAVAILABLE_MESSAGE);
+  return false;
+}
+
 async function startRound() {
   if (startPending || flow.getSnapshot().screen === SCREEN_PHASES.COUNTDOWN) return;
   const roundPlayerName = capturePlayerName();
@@ -552,6 +577,7 @@ async function startRound() {
     window.setTimeout(() => playerNameInput.focus(), 0);
     return;
   }
+  if (!canStartWebGLGame()) return;
   void soundEffects.unlock();
   const roundMode = readSelectedMode();
   setStartPending(true);
