@@ -49,9 +49,17 @@ test('名前を確認してから開始し、結果確定時だけ登録する',
 });
 
 test('ランキング名と得点はHTML文字列ではなく文字として表示する', () => {
+  assert.match(html, /<bdi dir="auto"><strong id="result-player-name"/);
+  assert.match(main, /document\.createElement\('bdi'\)/);
+  assert.match(main, /name\.dir = 'auto'/);
   assert.match(main, /name\.textContent = row\.displayName/);
   assert.match(main, /score\.textContent = `\$\{numberFormatter\.format\(row\.score\)\}点`/);
   assert.doesNotMatch(main, /resultRankingList\.innerHTML/);
+});
+
+test('表示名の一致ではなくDBの本人判定だけでランキング行を強調する', () => {
+  assert.match(main, /row\.isCurrentUser === true/);
+  assert.doesNotMatch(main, /row\.displayName === displayName/);
 });
 
 test('古い通信結果を新しい結果画面へ混ぜない', () => {

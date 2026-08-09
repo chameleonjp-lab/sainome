@@ -342,18 +342,19 @@ async function retryStoredRankingSubmissions() {
   await renderPendingRankingPanel(finalMessage);
 }
 
-function renderRankingRows(rows, displayName) {
+function renderRankingRows(rows) {
   clearRankingRows();
   for (const row of rows) {
     const item = document.createElement('li');
-    item.classList.toggle('is-current-player', row.displayName === displayName);
+    item.classList.toggle('is-current-player', row.isCurrentUser === true);
 
     const position = document.createElement('span');
     position.className = 'ranking-position';
     position.textContent = `${row.rank}位`;
 
-    const name = document.createElement('span');
+    const name = document.createElement('bdi');
     name.className = 'ranking-name';
+    name.dir = 'auto';
     name.textContent = row.displayName;
 
     const score = document.createElement('span');
@@ -437,7 +438,7 @@ async function syncResultRanking(submission) {
   setRankingPending(submission, false);
 
   if (rankingRows) {
-    renderRankingRows(rankingRows, submission.displayName);
+    renderRankingRows(rankingRows);
   } else {
     clearRankingRows();
   }
