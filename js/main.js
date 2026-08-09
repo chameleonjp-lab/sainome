@@ -140,6 +140,7 @@ let activeMode = selectedMode;
 let activePlayerName = playerProfile.getName();
 let latestRecordOutcome = null;
 let latestRankingSubmission = null;
+let activePlayTicket = null;
 let rankingRunId = 0;
 let pendingRankingRetryCursor = 0;
 
@@ -282,7 +283,9 @@ function renderRankingStorageWarning(submission) {
     'submission-conflict':
       '安全な登録番号を確保できなかったため、この結果の送信を止めました。',
     'invalid-submission':
-      'この結果を安全な未送信記録として保存できなかったため、送信を止めました。'
+      'この結果を安全な未送信記録として保存できなかったため、送信を止めました。',
+    'ticket-unavailable':
+      'プレイ番号を発行できなかったため、このプレイはランキング対象外です。'
   };
   resultRankingStorageWarning.textContent = messages[submission.pendingSaveCode]
     ?? 'この結果を端末へ保存できませんでした。画面を閉じると失われます。';
@@ -530,7 +533,8 @@ async function preserveFinishedRanking(provisional) {
     prepared = await prepareRankingSubmission({
       pendingSubmissions: pendingRankingSubmissions,
       displayName: provisional.displayName,
-      result: provisional.result
+      result: provisional.result,
+      playTicket: provisional.playTicket
     });
   } catch (error) {
     console.error(error);
@@ -552,6 +556,24 @@ async function preserveFinishedRanking(provisional) {
   if (isLatest) latestRankingSubmission = submission;
   notifyPendingRankingChange();
   await renderPendingRankingPanel();
+
+  if (submission.pendingSaveCode === 'ticket-unavailable') {
+    if (isLatest && isCurrentRankingSubmission(submission)) {
+      renderRankingStorageWarning(submission);
+      resultRankingStatus.textContent =
+        'このプレイはランキング対象外です。次回の開始時に受付を再試行します';
+      resultRankingRetry.hidden = true;
+    }
+    if (rankingClient) {
+      try {
+        const rankingRows = await rankingClient.getTopRanking(submission.result.modeId);
+        if (isCurrentRankingSubmission(submission)) renderRankingRows(rankingRows);
+      } catch (error) {
+        console.error(error);
+      }
+    }
+    return;
+  }
 
   if (isLatest && isCurrentRankingSubmission(submission)) {
     renderRankingStorageWarning(submission);
@@ -613,11 +635,14 @@ const gameCallbacks = {
   onFinish: (result) => {
     const next = flow.finish(result);
     if (!next) return;
+    const playTicket = activePlayTicket;
+    activePlayTicket = null;
     latestRecordOutcome = bestRecords.recordResult(next.result);
     const provisional = Object.freeze({
       runId: ++rankingRunId,
       displayName: activePlayerName,
       result: next.result,
+      playTicket,
       persisted: false,
       pendingSaveCode: 'preparing',
       canSubmit: false
@@ -803,14 +828,29 @@ async function startRound() {
   homeError.hidden = true;
 
   const ready = await ensureGame(roundMode.id);
-  setStartPending(false);
   if (!ready) {
+    setStartPending(false);
     if (flow.getSnapshot().screen !== SCREEN_PHASES.HOME) {
       renderFlow(flow.goHome());
       window.setTimeout(() => startButton.focus(), 0);
     }
     return;
   }
+
+  // サーバー発行番号は3カウントより前に取得する。失敗してもゲームは開始するが、
+  // 結果確定後に番号を遡って発行することはしない。
+  activePlayTicket = null;
+  if (rankingClient) {
+    try {
+      activePlayTicket = await rankingClient.issuePlay({
+        displayName: roundPlayerName,
+        modeId: roundMode.id
+      });
+    } catch (error) {
+      console.error(error);
+    }
+  }
+  setStartPending(false);
 
   const snapshot = flow.beginCountdown();
   if (!snapshot) return;

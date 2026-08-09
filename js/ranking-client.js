@@ -1,21 +1,24 @@
 import { GAME_MODE_IDS } from './game-modes.js';
 import { validatePlayerName } from './player-profile.js';
+import { SupabaseAuthClient, SupabaseAuthError } from './supabase-auth.js';
 
 export const RANKING_LIMIT = 10;
-export const RANKING_CLIENT_VERSION = 'sainome-web-1';
-export const RANKING_SUBMISSION_CONTRACT_VERSION = 'shared-v1';
+export const RANKING_CLIENT_VERSION = 'sainome-web-2';
+export const RANKING_SUBMISSION_CONTRACT_VERSION = 'sainome-play-v2';
 export const RANKING_GAME_SLUGS = Object.freeze({
   [GAME_MODE_IDS.SIXTY_SECONDS]: 'sainome_60_seconds',
   [GAME_MODE_IDS.ONE_EIGHTY_SECONDS]: 'sainome_180_seconds'
 });
 
 const MAX_SCORE = 100_000_000;
-const SUBMISSION_ID_PATTERN = /^[A-Za-z0-9_-]{16,80}$/u;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const CLIENT_VERSION_PATTERN = /^[A-Za-z0-9._-]{1,40}$/u;
 
 export function isValidRankingSubmissionId(value) {
-  return typeof value === 'string' && SUBMISSION_ID_PATTERN.test(value);
+  return typeof value === 'string' && UUID_PATTERN.test(value);
 }
+
+export const isValidServerSubmissionId = isValidRankingSubmissionId;
 
 export function isValidRankingClientVersion(value) {
   return typeof value === 'string' && CLIENT_VERSION_PATTERN.test(value);
@@ -54,7 +57,7 @@ function requireSubmissionId(submissionId) {
   if (!isValidRankingSubmissionId(submissionId)) {
     throw new TypeError('submissionId is invalid');
   }
-  return submissionId;
+  return submissionId.toLowerCase();
 }
 
 function requireClientVersion(clientVersion) {
@@ -64,19 +67,27 @@ function requireClientVersion(clientVersion) {
   return clientVersion;
 }
 
-function parseSubmitResponse(data, expected) {
-  if (Array.isArray(data) && data.length !== 1) {
-    throw new RankingError('invalid-response', '記録登録の応答件数が不正です');
+function parseOneRow(data, message) {
+  if (!Array.isArray(data) || data.length !== 1 || !data[0]) {
+    throw new RankingError('invalid-response', message);
   }
-  const row = Array.isArray(data) ? data[0] : data;
-  if (!row || row.accepted !== true) {
-    throw new RankingError('invalid-response', '記録登録の応答を確認できませんでした');
-  }
+  return data[0];
+}
 
+function parseSubmitResponse(data, expected) {
+  const row = parseOneRow(data, '記録登録の応答件数が不正です');
   const bestScore = row.result_best_score;
   const playCount = row.result_play_count;
   if (
-    typeof row.result_display_name !== 'string'
+    row.accepted !== true
+    || !isValidRankingSubmissionId(row.result_submission_id)
+    || row.result_submission_id.toLowerCase() !== expected.submissionId
+    || row.result_contract_version !== expected.contractVersion
+    || row.result_client_version !== expected.clientVersion
+    || row.result_game_slug !== expected.gameSlug
+    || row.result_display_name !== expected.displayName
+    || row.result_submitted_score !== expected.score
+    || typeof row.result_display_name !== 'string'
     || row.result_display_name.length === 0
     || row.result_display_name.length > 80
     || typeof bestScore !== 'number'
@@ -89,19 +100,13 @@ function parseSubmitResponse(data, expected) {
     || typeof row.is_first_play !== 'boolean'
     || typeof row.is_new_best !== 'boolean'
     || typeof row.was_duplicate !== 'boolean'
-    || row.result_submission_id !== expected.submissionId
-    || row.result_contract_version !== expected.contractVersion
-    || row.result_client_version !== expected.clientVersion
-    || row.result_game_slug !== expected.gameSlug
-    || row.result_display_name !== expected.displayName
-    || row.result_submitted_score !== expected.score
   ) {
     throw new RankingError('invalid-response', '記録登録の応答が不正です');
   }
 
   return Object.freeze({
     accepted: true,
-    submissionId: row.result_submission_id,
+    submissionId: row.result_submission_id.toLowerCase(),
     contractVersion: row.result_contract_version,
     clientVersion: row.result_client_version,
     gameSlug: row.result_game_slug,
@@ -109,9 +114,48 @@ function parseSubmitResponse(data, expected) {
     displayName: row.result_display_name,
     bestScore,
     playCount,
-    isFirstPlay: row.is_first_play === true,
-    isNewBest: row.is_new_best === true,
-    wasDuplicate: row.was_duplicate === true
+    isFirstPlay: row.is_first_play,
+    isNewBest: row.is_new_best,
+    wasDuplicate: row.was_duplicate
+  });
+}
+
+function parseIssuedAt(value, name) {
+  if (typeof value !== 'string') throw new RankingError('invalid-response', `${name}が不正です`);
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) throw new RankingError('invalid-response', `${name}が不正です`);
+  return timestamp;
+}
+
+function parseIssueResponse(data, expected) {
+  const row = parseOneRow(data, 'プレイ番号の発行応答が不正です');
+  const issuedAt = parseIssuedAt(row.issued_at, '発行時刻');
+  const earliestSubmitAt = parseIssuedAt(row.earliest_submit_at, '受付開始時刻');
+  const expiresAt = parseIssuedAt(row.expires_at, '失効時刻');
+  const requiredDelay = expected.gameSlug === 'sainome_60_seconds' ? 63_000 : 183_000;
+  if (
+    row.issued !== true
+    || !isValidRankingSubmissionId(row.result_submission_id)
+    || row.result_display_name !== expected.displayName
+    || row.result_game_slug !== expected.gameSlug
+    || row.result_client_version !== RANKING_CLIENT_VERSION
+    || row.result_contract_version !== RANKING_SUBMISSION_CONTRACT_VERSION
+    || earliestSubmitAt - issuedAt !== requiredDelay
+    || expiresAt - issuedAt !== 86_400_000
+    || !(issuedAt < earliestSubmitAt && earliestSubmitAt < expiresAt)
+  ) {
+    throw new RankingError('invalid-response', 'プレイ番号の発行応答が不正です');
+  }
+
+  return Object.freeze({
+    submissionId: row.result_submission_id.toLowerCase(),
+    displayName: row.result_display_name,
+    gameSlug: row.result_game_slug,
+    clientVersion: row.result_client_version,
+    contractVersion: row.result_contract_version,
+    issuedAt,
+    earliestSubmitAt,
+    expiresAt
   });
 }
 
@@ -124,27 +168,29 @@ function parseRankingResponse(data) {
   let currentUserCount = 0;
   for (const row of data) {
     if (ranking.length >= RANKING_LIMIT) break;
-    const displayName = typeof row?.display_name === 'string'
-      ? row.display_name
-      : '';
+    const displayName = typeof row?.display_name === 'string' ? row.display_name : '';
     const validatedName = validatePlayerName(displayName);
     if (!validatedName.ok || validatedName.name !== displayName) continue;
 
-    const rank = Number(row.rank_no);
-    const score = Number(row.best_score);
-    const playCount = Number(row.play_count);
+    const { rank_no: rank, best_score: score, play_count: playCount } = row;
     if (
-      !Number.isSafeInteger(rank)
+      typeof rank !== 'number'
+      || !Number.isSafeInteger(rank)
       || rank < 1
+      || typeof score !== 'number'
       || !Number.isSafeInteger(score)
       || score < 0
+      || score > MAX_SCORE
+      || typeof playCount !== 'number'
       || !Number.isSafeInteger(playCount)
       || playCount < 1
+      || typeof row.is_current_user !== 'boolean'
+      || row.verification_status !== 'unverified'
     ) {
       throw new RankingError('invalid-response', 'ランキングの行が不正です');
     }
 
-    if (row.is_current_user === true) {
+    if (row.is_current_user) {
       currentUserCount += 1;
       if (currentUserCount > 1) {
         throw new RankingError('invalid-response', 'ランキングの本人判定が不正です');
@@ -156,7 +202,7 @@ function parseRankingResponse(data) {
       displayName,
       score,
       playCount,
-      isCurrentUser: row.is_current_user === true
+      isCurrentUser: row.is_current_user
     }));
   }
   return Object.freeze(ranking);
@@ -170,57 +216,89 @@ function normalizeEndpoint(url) {
 }
 
 export function createSubmissionId(cryptoObject = globalThis.crypto) {
-  if (typeof cryptoObject?.randomUUID === 'function') {
-    return cryptoObject.randomUUID();
-  }
-
+  if (typeof cryptoObject?.randomUUID === 'function') return cryptoObject.randomUUID();
   if (typeof cryptoObject?.getRandomValues === 'function') {
     const bytes = cryptoObject.getRandomValues(new Uint8Array(16));
     return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
   }
-
   return `fallback_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 14)}`;
 }
 
 export class RankingClient {
-  constructor({ url, publishableKey, fetchImpl = globalThis.fetch, timeoutMs = 8_000 }) {
+  constructor({
+    url,
+    publishableKey,
+    fetchImpl = globalThis.fetch,
+    authClient = null,
+    timeoutMs = 8_000
+  }) {
     this.url = normalizeEndpoint(url);
     if (typeof publishableKey !== 'string' || publishableKey.length < 20) {
       throw new TypeError('Supabase publishable key is invalid');
     }
     if (typeof fetchImpl !== 'function') throw new TypeError('fetch is unavailable');
     if (!Number.isFinite(timeoutMs) || timeoutMs < 1) throw new RangeError('timeoutMs is invalid');
+    if (authClient !== null && typeof authClient.getSession !== 'function') {
+      throw new TypeError('authClient is invalid');
+    }
     this.publishableKey = publishableKey;
     this.fetchImpl = fetchImpl;
     this.timeoutMs = timeoutMs;
+    this.authClient = authClient ?? new SupabaseAuthClient({
+      url: this.url,
+      publishableKey,
+      fetchImpl,
+      timeoutMs
+    });
   }
 
-  async #rpc(functionName, parameters) {
+  async #rpc(functionName, parameters, { authRequired = false, createSession = false } = {}) {
+    let session = null;
+    try {
+      session = await this.authClient.getSession({ create: createSession });
+    } catch (error) {
+      if (authRequired) {
+        if (error instanceof SupabaseAuthError) {
+          throw new RankingError('auth-required', error.message, error);
+        }
+        throw error;
+      }
+      // ランキングの読み取りは未認証でも可能なため、期限切れの匿名セッションを
+      // 無理に作り直さず、anon権限で読み取る。
+      session = null;
+    }
+    if (authRequired && !session?.accessToken) {
+      throw new RankingError('auth-required', 'ランキング受付には匿名認証が必要です');
+    }
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
+    const headers = {
+      apikey: this.publishableKey,
+      Accept: 'application/json',
+      'Content-Type': 'application/json'
+    };
+    if (session?.accessToken) headers.Authorization = `Bearer ${session.accessToken}`;
 
     try {
       const response = await this.fetchImpl(`${this.url}/rest/v1/rpc/${functionName}`, {
         method: 'POST',
-        headers: {
-          apikey: this.publishableKey,
-          Accept: 'application/json',
-          'Content-Type': 'application/json'
-        },
+        headers,
         body: JSON.stringify(parameters),
         cache: 'no-store',
         credentials: 'omit',
         signal: controller.signal
       });
-
       let data = null;
       try {
         data = await response.json();
       } catch {
         data = null;
       }
-
       if (!response.ok) {
+        if (authRequired && response.status === 401) {
+          throw new RankingError('auth-required', 'ランキング認証の有効期限が切れています');
+        }
         throw new RankingError('request-failed', 'ランキング通信に失敗しました');
       }
       return data;
@@ -233,6 +311,20 @@ export class RankingClient {
     } finally {
       clearTimeout(timeoutId);
     }
+  }
+
+  async issuePlay({ displayName, modeId }) {
+    const expected = Object.freeze({
+      displayName: requireDisplayName(displayName),
+      gameSlug: requireModeSlug(modeId)
+    });
+    const data = await this.#rpc('issue_sainome_play_v2', {
+      p_display_name: expected.displayName,
+      p_game_slug: expected.gameSlug,
+      p_client_version: RANKING_CLIENT_VERSION,
+      p_contract_version: RANKING_SUBMISSION_CONTRACT_VERSION
+    }, { authRequired: true, createSession: true });
+    return parseIssueResponse(data, expected);
   }
 
   async submitScore({
@@ -256,21 +348,23 @@ export class RankingClient {
     }
 
     const data = await this.#rpc('submit_score_once', {
-      p_display_name: displayName,
+      p_display_name: expected.displayName,
       p_game_slug: expected.gameSlug,
       p_score: expected.score,
       p_client_version: expected.clientVersion,
       p_submission_id: expected.submissionId,
       p_contract_version: expected.contractVersion
-    });
+    }, { authRequired: true, createSession: false });
     return parseSubmitResponse(data, expected);
   }
 
   async getTopRanking(modeId) {
-    const data = await this.#rpc('get_best_score_ranking', {
+    const data = await this.#rpc('get_sainome_ranking_v2', {
       p_game_slug: requireModeSlug(modeId),
       p_limit: RANKING_LIMIT
     });
     return parseRankingResponse(data);
   }
 }
+
+export { parseIssueResponse, parseRankingResponse, parseSubmitResponse };

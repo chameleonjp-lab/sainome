@@ -42,10 +42,16 @@ test('名前を確認してから開始し、結果確定時だけ登録する',
     startFunction.indexOf('capturePlayerName()') < startFunction.indexOf('ensureGame('),
     true
   );
+  assert.match(startFunction, /rankingClient\.issuePlay\(/);
+  assert.equal(
+    startFunction.indexOf('rankingClient.issuePlay(') < startFunction.indexOf('flow.beginCountdown()'),
+    true
+  );
   assert.match(main, /async function preserveFinishedRanking[\s\S]*?prepareRankingSubmission\(\{/);
   assert.match(main, /async function preserveFinishedRanking[\s\S]*?syncResultRanking\(submission\)/);
   assert.match(main, /submitPendingRanking\(\{/);
   assert.match(main, /rankingClient\.getTopRanking\(submission\.result\.modeId\)/);
+  assert.match(main, /activePlayTicket/);
 });
 
 test('ランキング名と得点はHTML文字列ではなく文字として表示する', () => {

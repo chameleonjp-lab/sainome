@@ -14,9 +14,18 @@ import {
 } from '../js/ranking-client.js';
 
 const IDS = [
-  '11111111-1111-1111-1111-111111111111',
-  '22222222-2222-2222-2222-222222222222'
+  '11111111-1111-4111-8111-111111111111',
+  '22222222-2222-4222-8222-222222222222'
 ];
+const PLAY_TICKET = Object.freeze({
+  submissionId: IDS[0],
+  gameSlug: 'sainome_60_seconds',
+  clientVersion: RANKING_CLIENT_VERSION,
+  contractVersion: RANKING_SUBMISSION_CONTRACT_VERSION,
+  issuedAt: 1_000,
+  earliestSubmitAt: 64_000,
+  expiresAt: 86_401_000
+});
 const RESULT = Object.freeze({
   modeId: '60-seconds',
   score: 3200,
@@ -112,8 +121,8 @@ test('保存完了後にだけ通信を開始し、受付内容一致後に同�
     pendingSubmissions,
     displayName: 'プレイヤー',
     result: RESULT,
-    idFactory: () => IDS[0],
-    now: () => 100
+    now: () => 100,
+    playTicket: PLAY_TICKET
   });
   const submitted = await submitPendingRanking({
     rankingClient,
@@ -139,8 +148,8 @@ test('通信失敗では受付削除へ進まない', async () => {
     pendingSubmissions,
     displayName: 'プレイヤー',
     result: RESULT,
-    idFactory: () => IDS[0],
-    now: () => 100
+    now: () => 100,
+    playTicket: PLAY_TICKET
   });
 
   await assert.rejects(
@@ -173,8 +182,8 @@ test('受付応答の登録番号・契約版・内容が違う場合は削除�
       pendingSubmissions,
       displayName: 'プレイヤー',
       result: RESULT,
-      idFactory: () => IDS[0],
-      now: () => 100
+      now: () => 100,
+      playTicket: PLAY_TICKET
     });
 
     await assert.rejects(
@@ -200,8 +209,8 @@ test('受付後の保存削除失敗を呼び出し側へ返す', async () => {
     pendingSubmissions,
     displayName: 'プレイヤー',
     result: RESULT,
-    idFactory: () => IDS[0],
-    now: () => 100
+    now: () => 100,
+    playTicket: PLAY_TICKET
   });
 
   const submitted = await submitPendingRanking({
@@ -210,39 +219,30 @@ test('受付後の保存削除失敗を呼び出し側へ返す', async () => {
   assert.deepEqual(submitted.cleanup, cleanupFailure);
 });
 
-test('登録番号が別内容と衝突した場合は新しい番号を作り直してから送る', async () => {
+test('DB発行番号が保存内容と衝突した場合は別番号を作らず送信を止める', async () => {
   const seen = [];
-  const ids = [...IDS];
   const pendingSubmissions = {
     enqueue: async (submission) => {
       seen.push(submission.submissionId);
-      return submission.submissionId === IDS[0]
-        ? { ok: false, persisted: false, code: 'submission-conflict' }
-        : { ok: true, persisted: true, code: 'queued' };
+      return { ok: false, persisted: false, code: 'submission-conflict' };
     },
-    markAccepted: async () => ({
-      ok: true, removed: true, persisted: true, code: 'removed'
-    })
-  };
-  let sentId = null;
-  const rankingClient = {
-    submitScore: async (request) => {
-      sentId = request.submissionId;
-      return acceptedOutcome(request);
-    }
+    markAccepted: async () => { throw new Error('must not clean up'); }
   };
   const submission = await prepareRankingSubmission({
     pendingSubmissions,
     displayName: 'プレイヤー',
     result: RESULT,
-    idFactory: () => ids.shift(),
-    now: () => 100
+    now: () => 100,
+    playTicket: PLAY_TICKET
   });
-  await submitPendingRanking({ rankingClient, pendingSubmissions, submission });
 
-  assert.deepEqual(seen, IDS);
-  assert.equal(submission.submissionId, IDS[1]);
-  assert.equal(sentId, IDS[1]);
+  assert.deepEqual(seen, [IDS[0]]);
+  assert.equal(submission.submissionId, IDS[0]);
+  assert.equal(submission.canSubmit, false);
+  await assert.rejects(
+    submitPendingRanking({ rankingClient: {}, pendingSubmissions, submission }),
+    /not safe to send/
+  );
 });
 
 test('保存した元のクライアント版と契約版を再送に使う', async () => {
@@ -280,9 +280,8 @@ test('未送信上限では画面内の送信を許すが保存失敗を明示�
     pendingSubmissions,
     displayName: 'プレイヤー',
     result: RESULT,
-    idFactory: () => IDS[0],
     now: () => 100,
-    clientVersion: RANKING_CLIENT_VERSION
+    playTicket: PLAY_TICKET
   });
 
   assert.equal(submission.persisted, false);
@@ -324,11 +323,8 @@ test('不正または未正規化の名前は保存番号を作らず送信準�
         pendingSubmissions,
         displayName,
         result: RESULT,
-        idFactory: () => {
-          idCalls += 1;
-          return IDS[0];
-        },
-        now: () => 100
+        now: () => 100,
+        playTicket: PLAY_TICKET
       }),
       /displayName is invalid or not normalized/
     );

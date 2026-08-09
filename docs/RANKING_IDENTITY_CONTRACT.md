@@ -14,6 +14,8 @@
 - 第2工程では本番Supabase、公開キー、既存の`shared-v1`保存形式を変更しない。
 - 表示名は公開用の文字列であり、本人を識別するIDではない。同じ表示名を複数の利用者が使える。
 
+第3工程のDraft実装では、`supabase/migrations/20260810120000_sainome_ranking_v2.sql`を追加し、クライアントは`js/supabase-auth.js`とv2 RPCへ切り替える。移行の`accepting_runs`は`false`、`ranking_enable_not_before`は`infinity`、`public.games.is_active`は`false`のままであり、本番受付を開く移行は別途行わない。ブラウザの認証・RPC・保存キューの自動検査は実装済みだが、DB移行の本番適用、キャッシュ測定、Turnstile/IP制限、Advisor差分確認は未実施である。
+
 ## 2. `player-name-v1`
 
 ### 入力の正規化 `canonicalize(raw)`
@@ -72,6 +74,8 @@ PostgreSQL側もUnicode 15.1.0の同じ範囲と共通ベクトルを使う。Po
 - `char_length`が1〜20で、禁止範囲、不可視だけの値、不正な結合文脈がない。
 
 Unicode版を上げる時は、範囲データ、契約JSON、ブラウザ検査、DB検査を同じ変更で更新し、名前契約版も更新する。
+
+現在の第3工程Draft SQLは、既知の共通正常ベクトルと主要な不可視・非文字・私用領域を安全側へ固定する最小実装であり、ブラウザ側のUnicode 15.1全範囲とまだ完全一致していない。したがって、この差分が残ったまま受付を有効化してはならない。完全一致の範囲データとDB試験を追加するまで、珍しい結合・Join_Control・絵文字列はサーバー側でランキング対象外になる可能性があることを、Draftの残課題として扱う。
 
 ## 3. `sainome-play-v2`
 
