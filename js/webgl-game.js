@@ -28,7 +28,9 @@ import {
   CAMERA_TARGET,
   calculateCameraFrustum
 } from './camera-framing.js';
+import { SCREEN_PHASES } from './ui-flow.js';
 import { SimulationPause } from './simulation-pause.js';
+import { RenderLoopController } from './render-loop.js';
 
 const BOARD_SIZE = 7;
 const HALF_BOARD = (BOARD_SIZE - 1) / 2;
@@ -206,7 +208,16 @@ export class WebGLSainome {
     this.epoch = 0;
     this.isVisible = !document.hidden;
     this.contextLost = false;
+    this.renderActive = false;
+    this.screenPhase = SCREEN_PHASES.HOME;
+    this.animationFrameTasks = new Set();
     this.simulationPause = new SimulationPause();
+    this.renderLoop = new RenderLoopController({
+      requestFrame: (callback) => window.requestAnimationFrame(callback),
+      cancelFrame: (frameId) => window.cancelAnimationFrame(frameId),
+      shouldRun: () => this.renderActive && this.isVisible && !this.contextLost,
+      onFrame: () => this.animate()
+    });
     this.mode = getGameMode(initialModeId);
     this.sixtySecondSpawnedCount = 0;
     this.pendingSpawnCount = 0;
@@ -224,7 +235,6 @@ export class WebGLSainome {
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(this.canvas.parentElement);
     this.bindLifecycleEvents();
-    this.animate();
   }
 
   bindLifecycleEvents() {
@@ -232,6 +242,7 @@ export class WebGLSainome {
       event.preventDefault();
       this.contextLost = true;
       this.syncSimulationPause();
+      this.renderLoop.refresh();
       this.callbacks.onMessage?.('3D表示を復帰しています…操作を一時停止します');
     });
 
@@ -241,6 +252,7 @@ export class WebGLSainome {
       this.callbacks.onMessage?.('3D表示が復帰しました');
       this.resize();
       this.clock.getDelta();
+      this.renderLoop.refresh();
     });
 
     document.addEventListener('visibilitychange', () => {
@@ -248,7 +260,9 @@ export class WebGLSainome {
       this.syncSimulationPause();
       if (this.isVisible) {
         this.clock.getDelta();
+        this.renderLoop.refresh();
       } else {
+        this.renderLoop.refresh();
         this.queuedDirection = null;
         window.clearTimeout(this.queueTimerId);
         this.queueTimerId = null;
@@ -258,6 +272,24 @@ export class WebGLSainome {
 
   syncSimulationPause(now = performance.now()) {
     this.simulationPause.sync(!this.isVisible || this.contextLost, now);
+  }
+
+  setScreenPhase(screenPhase) {
+    this.screenPhase = screenPhase;
+    this.renderActive = screenPhase === SCREEN_PHASES.COUNTDOWN
+      || screenPhase === SCREEN_PHASES.PLAYING;
+    this.renderLoop.setEnabled(this.renderActive);
+  }
+
+  enqueueAnimationFrame(task) {
+    this.animationFrameTasks.add(task);
+    this.renderLoop.refresh();
+  }
+
+  runAnimationFrameTasks() {
+    const tasks = [...this.animationFrameTasks];
+    this.animationFrameTasks.clear();
+    for (const task of tasks) task();
   }
 
   createLights() {
@@ -541,10 +573,10 @@ export class WebGLSainome {
         const t = easeInOutCubic(raw);
         this.player.position.lerpVectors(start, end, t);
         this.player.position.y += Math.sin(Math.PI * raw) * jumpHeight;
-        if (raw < 1) requestAnimationFrame(step);
+        if (raw < 1) this.enqueueAnimationFrame(step);
         else resolve(true);
       };
-      requestAnimationFrame(step);
+      this.enqueueAnimationFrame(step);
     });
   }
 
@@ -580,10 +612,10 @@ export class WebGLSainome {
         );
         this.player.rotation.z = Math.sin(Math.PI * raw)
           * (directionName === 'left' ? 0.12 : directionName === 'right' ? -0.12 : 0);
-        if (raw < 1) requestAnimationFrame(step);
+        if (raw < 1) this.enqueueAnimationFrame(step);
         else resolve(true);
       };
-      requestAnimationFrame(step);
+      this.enqueueAnimationFrame(step);
     });
 
     if (!completed || epoch !== this.epoch) return;
@@ -952,6 +984,7 @@ export class WebGLSainome {
   }
 
   animate() {
+    if (!this.renderActive) return;
     const now = this.getGameTime();
     if (this.isVisible && !this.contextLost) {
       const sessionState = this.session.tick(now);
@@ -961,6 +994,7 @@ export class WebGLSainome {
       this.updateSpawning(now);
       this.resolvePendingMatches();
       this.finishSessionIfSettled();
+      this.runAnimationFrameTasks();
       const elapsed = this.clock.getElapsedTime();
       if (!this.busy) {
         const activeDie = this.activeKey ? this.dice.get(this.activeKey) : null;
@@ -972,6 +1006,5 @@ export class WebGLSainome {
       }
       this.renderer.render(this.scene, this.camera);
     }
-    requestAnimationFrame(() => this.animate());
   }
 }

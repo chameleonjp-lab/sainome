@@ -98,3 +98,25 @@ test('3D盤面の準備とセッション開始を3カウントの前後で分�
     true
   );
 });
+
+test('画面状態に応じて3D描画ループを開始・停止する', () => {
+  assert.match(source, /setScreenPhase\(screenPhase\)/);
+  assert.match(
+    source,
+    /screenPhase === SCREEN_PHASES\.COUNTDOWN[\s\S]*?SCREEN_PHASES\.PLAYING/
+  );
+  assert.match(source, /this\.renderLoop\.setEnabled\(this\.renderActive\)/);
+  assert.match(source, /this\.renderLoop\.refresh\(\)/);
+
+  const main = readFileSync(
+    new URL('../js/main.js', import.meta.url),
+    'utf8'
+  );
+  assert.match(main, /game\?\.setScreenPhase\(snapshot\.screen\)/);
+});
+
+test('移動アニメーションは独自の描画ループを増やさない', () => {
+  assert.match(source, /this\.animationFrameTasks = new Set\(\)/);
+  assert.match(source, /runAnimationFrameTasks\(\)/);
+  assert.doesNotMatch(source, /requestAnimationFrame\(step\)/);
+});

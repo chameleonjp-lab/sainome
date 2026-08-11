@@ -914,6 +914,7 @@ async function ensureGame(initialModeId = DEFAULT_GAME_MODE_ID) {
 
 function renderFlow(snapshot = flow.getSnapshot()) {
   app.dataset.screen = snapshot.screen;
+  game?.setScreenPhase(snapshot.screen);
   homeScreen.hidden = snapshot.screen !== SCREEN_PHASES.HOME;
   tutorialScreen.hidden = snapshot.screen !== SCREEN_PHASES.TUTORIAL;
   countdownScreen.hidden = snapshot.screen !== SCREEN_PHASES.COUNTDOWN;
