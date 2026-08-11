@@ -246,25 +246,33 @@ export class WebGLSainome {
   }
 
   bindLifecycleEvents() {
-    this.canvas.addEventListener('webglcontextlost', (event) => {
+    this.handleContextLost = (event) => {
       event.preventDefault();
       this.contextLost = true;
       this.syncSimulationPause();
       this.renderLoop.refresh();
       this.callbacks.onStateSnapshot?.(this.getStateSnapshot());
       this.callbacks.onMessage?.('3D表示を復帰しています…操作を一時停止します');
-    });
+      this.callbacks.onContextLost?.({ screenPhase: this.screenPhase });
+    };
 
-    this.canvas.addEventListener('webglcontextrestored', () => {
+    this.handleContextRestored = () => {
+      if (!this.rebuildRendererResources()) {
+        this.contextLost = true;
+        this.syncSimulationPause();
+        this.callbacks.onContextRecoveryFailed?.();
+        return;
+      }
+
       this.contextLost = false;
       this.syncSimulationPause();
       this.callbacks.onMessage?.('3D表示が復帰しました');
-      this.resize();
       this.clock.getDelta();
       this.renderLoop.refresh();
-    });
+      this.callbacks.onContextRestored?.({ screenPhase: this.screenPhase });
+    };
 
-    document.addEventListener('visibilitychange', () => {
+    this.handleVisibilityChange = () => {
       this.isVisible = !document.hidden;
       this.syncSimulationPause();
       if (this.isVisible) {
@@ -277,7 +285,40 @@ export class WebGLSainome {
         this.queueTimerId = null;
         this.callbacks.onStateSnapshot?.(this.getStateSnapshot());
       }
-    });
+    };
+
+    this.canvas.addEventListener('webglcontextlost', this.handleContextLost);
+    this.canvas.addEventListener('webglcontextrestored', this.handleContextRestored);
+    document.addEventListener('visibilitychange', this.handleVisibilityChange);
+  }
+
+  rebuildRendererResources() {
+    try {
+      const context = this.renderer.getContext?.();
+      if (context?.isContextLost?.()) return false;
+      this.renderer.resetState?.();
+      this.resize();
+      this.renderer.render(this.scene, this.camera);
+      return !context?.isContextLost?.();
+    } catch (error) {
+      console.error(error);
+      return false;
+    }
+  }
+
+  dispose() {
+    this.renderLoop.setEnabled(false);
+    this.renderLoop.cancel();
+    this.animationFrameTasks.clear();
+    this.epoch += 1;
+    this.queuedDirection = null;
+    window.clearTimeout(this.queueTimerId);
+    this.queueTimerId = null;
+    this.resizeObserver?.disconnect();
+    this.canvas.removeEventListener('webglcontextlost', this.handleContextLost);
+    this.canvas.removeEventListener('webglcontextrestored', this.handleContextRestored);
+    document.removeEventListener('visibilitychange', this.handleVisibilityChange);
+    this.renderer.dispose();
   }
 
   syncSimulationPause(now = performance.now()) {

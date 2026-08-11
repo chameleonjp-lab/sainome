@@ -46,7 +46,7 @@ import {
 } from './game-state-storage.js';
 
 const app = document.querySelector('#app');
-const canvas = document.querySelector('#game-canvas');
+let canvas = document.querySelector('#game-canvas');
 const stage = document.querySelector('#stage');
 const loading = document.querySelector('#loading');
 const message = document.querySelector('#message');
@@ -112,11 +112,16 @@ const gameRecoveryPanel = document.querySelector('#game-recovery-panel');
 const gameRecoveryStatus = document.querySelector('#game-recovery-status');
 const gameRecoveryResume = document.querySelector('#game-recovery-resume');
 const gameRecoveryDiscard = document.querySelector('#game-recovery-discard');
+const webglRecoveryPanel = document.querySelector('#webgl-recovery-panel');
+const webglRecoveryStatus = document.querySelector('#webgl-recovery-status');
+const webglRecoveryRecreate = document.querySelector('#webgl-recovery-recreate');
+const webglRecoveryHome = document.querySelector('#webgl-recovery-home');
 
 const WEBGL_UNAVAILABLE_MESSAGE =
   'この端末またはブラウザでは、3D表示に必要な機能（WebGL 2）が利用できません。ブラウザの設定で3D表示を有効にするか、対応環境でお試しください。';
 const WEBGL_LOAD_FAILURE_MESSAGE =
   '3D表示を開始できませんでした。通信状態を確認して、もう一度お試しください。';
+const WEBGL_RECOVERY_WAIT_MS = 5_000;
 
 const flow = new GameFlow();
 if (tutorialSlideElements.length !== TUTORIAL_SLIDE_COUNT) {
@@ -165,6 +170,10 @@ let gameRecoveryLoadPromise = null;
 let gameRecoveryLoaded = false;
 let gameStateOperation = Promise.resolve();
 let gameStateOperationPending = false;
+let webglRecoveryTimerId = null;
+let webglRecoveryRunId = 0;
+let webglRecoveryVisible = false;
+let webglRecoveryActionPending = false;
 
 const MAX_MANUAL_PENDING_RETRIES = 10;
 const pendingRankingRetryFlight = new SingleFlight();
@@ -949,6 +958,78 @@ async function loadGameRecovery() {
   }
 }
 
+function isWebGLRecoveryScreen(screen = flow.getSnapshot().screen) {
+  return screen === SCREEN_PHASES.COUNTDOWN
+    || screen === SCREEN_PHASES.PLAYING;
+}
+
+function clearWebGLRecoveryTimer() {
+  if (webglRecoveryTimerId === null) return;
+  window.clearTimeout(webglRecoveryTimerId);
+  webglRecoveryTimerId = null;
+}
+
+function renderWebGLRecovery() {
+  webglRecoveryPanel.hidden = !webglRecoveryVisible;
+  webglRecoveryRecreate.disabled = webglRecoveryActionPending;
+  webglRecoveryHome.disabled = webglRecoveryActionPending;
+}
+
+function hideWebGLRecovery() {
+  webglRecoveryRunId += 1;
+  clearWebGLRecoveryTimer();
+  webglRecoveryVisible = false;
+  webglRecoveryActionPending = false;
+  webglRecoveryStatus.textContent = '';
+  renderWebGLRecovery();
+}
+
+function showWebGLRecovery(messageText) {
+  if (!isWebGLRecoveryScreen()) return;
+  clearWebGLRecoveryTimer();
+  webglRecoveryVisible = true;
+  webglRecoveryActionPending = false;
+  webglRecoveryStatus.textContent = messageText;
+  renderWebGLRecovery();
+  window.setTimeout(() => webglRecoveryRecreate.focus(), 0);
+}
+
+function beginWebGLRecovery() {
+  if (!isWebGLRecoveryScreen()) return;
+  webglRecoveryRunId += 1;
+  const runId = webglRecoveryRunId;
+  clearWebGLRecoveryTimer();
+  webglRecoveryVisible = true;
+  webglRecoveryActionPending = true;
+  webglRecoveryStatus.textContent = '3D表示を復元しています…操作を一時停止します';
+  renderWebGLRecovery();
+  webglRecoveryTimerId = window.setTimeout(() => {
+    webglRecoveryTimerId = null;
+    if (runId !== webglRecoveryRunId) return;
+    showWebGLRecovery(
+      '3D表示を自動復元できません。保存地点は端末に残しています。'
+    );
+  }, WEBGL_RECOVERY_WAIT_MS);
+}
+
+function handleWebGLContextRestored() {
+  if (!isWebGLRecoveryScreen()) {
+    hideWebGLRecovery();
+    return;
+  }
+  hideWebGLRecovery();
+  renderFlow();
+  if (flow.getSnapshot().screen === SCREEN_PHASES.COUNTDOWN) {
+    scheduleCountdown(countdownRunId);
+  }
+}
+
+function handleWebGLRecoveryFailed() {
+  showWebGLRecovery(
+    '3D表示の資源を作り直せませんでした。保存地点は端末に残しています。'
+  );
+}
+
 async function resumeSavedGame() {
   if (gameStateOperationPending) return;
   gameStateOperationPending = true;
@@ -1066,6 +1147,18 @@ const gameCallbacks = {
   onStateSnapshot: (snapshot) => {
     requestGameStateSave(snapshot);
   },
+  onContextLost: () => {
+    if (!isWebGLRecoveryScreen()) return;
+    pointerStart = null;
+    cancelCountdown();
+    beginWebGLRecovery();
+  },
+  onContextRestored: () => {
+    handleWebGLContextRestored();
+  },
+  onContextRecoveryFailed: () => {
+    handleWebGLRecoveryFailed();
+  },
   onFinish: (result) => {
     void clearGameState();
     const next = flow.finish(result);
@@ -1093,18 +1186,35 @@ const gameCallbacks = {
   }
 };
 
+async function createGameInstance(initialModeId = DEFAULT_GAME_MODE_ID) {
+  if (!gameLoadPromise) {
+    gameLoadPromise = import('./webgl-game.js')
+      .then(({ WebGLSainome }) => WebGLSainome);
+  }
+  const WebGLSainome = await gameLoadPromise;
+  game = new WebGLSainome(canvas, gameCallbacks, initialModeId);
+  loading.classList.add('hidden');
+  return game;
+}
+
+function disposeGameInstance({ replaceCanvas = false } = {}) {
+  const previousCanvas = canvas;
+  game?.dispose?.();
+  game = null;
+  if (!replaceCanvas) return;
+
+  const nextCanvas = document.createElement('canvas');
+  nextCanvas.id = 'game-canvas';
+  nextCanvas.tabIndex = -1;
+  previousCanvas.replaceWith(nextCanvas);
+  canvas = nextCanvas;
+}
+
 async function ensureGame(initialModeId = DEFAULT_GAME_MODE_ID) {
   if (game) return true;
-  if (!gameLoadPromise) {
-    gameLoadPromise = import('./webgl-game.js').then(({ WebGLSainome }) => {
-      game = new WebGLSainome(canvas, gameCallbacks, initialModeId);
-      loading.classList.add('hidden');
-      return game;
-    });
-  }
 
   try {
-    await gameLoadPromise;
+    await createGameInstance(initialModeId);
     return true;
   } catch (error) {
     console.error(error);
@@ -1116,9 +1226,90 @@ async function ensureGame(initialModeId = DEFAULT_GAME_MODE_ID) {
   }
 }
 
+async function recreateWebGLGame() {
+  if (webglRecoveryActionPending) return;
+  const phase = flow.getSnapshot().screen;
+  if (!isWebGLRecoveryScreen(phase)) return;
+
+  webglRecoveryActionPending = true;
+  renderWebGLRecovery();
+  let loaded = null;
+
+  try {
+    if (phase === SCREEN_PHASES.PLAYING) {
+      loaded = await gameStateStorage.load();
+      if (loaded.status !== 'available') {
+        if (loaded.status === 'invalid' && loaded.serialized) {
+          savedGameRecovery = { invalid: true, serialized: loaded.serialized };
+        }
+        renderGameRecovery();
+        throw new Error('A saved gameplay state is unavailable');
+      }
+    }
+
+    disposeGameInstance({ replaceCanvas: true });
+    const ready = await ensureGame(
+      phase === SCREEN_PHASES.PLAYING
+        ? loaded.state.game.modeId
+        : activeMode.id
+    );
+    if (!ready) throw new Error('WebGL recreation failed');
+
+    if (phase === SCREEN_PHASES.PLAYING) {
+      const saved = loaded.state;
+      const mode = getGameMode(saved.game.modeId);
+      activeMode = mode;
+      selectedMode = mode;
+      activePlayerName = saved.displayName;
+      activePlayTicket = saved.playTicket;
+      playerNameInput.value = saved.displayName;
+      applyModeLabels(mode);
+      resetHudDisplay(mode);
+      game.restoreState(saved.game);
+      savedGameRecovery = loaded;
+      renderFlow(flow.getSnapshot());
+      game.emitStateSnapshot();
+      renderGameRecovery();
+    } else {
+      renderFlow(flow.getSnapshot());
+    }
+
+    hideWebGLRecovery();
+    if (phase === SCREEN_PHASES.COUNTDOWN) {
+      scheduleCountdown(countdownRunId);
+    }
+  } catch (error) {
+    console.error(error);
+    showWebGLRecovery(
+      '3D表示を再生成できませんでした。保存地点を残したまま、ホームへ戻れます。'
+    );
+  } finally {
+    webglRecoveryActionPending = false;
+    if (webglRecoveryVisible) renderWebGLRecovery();
+  }
+}
+
+async function leaveWebGLRecoveryForHome() {
+  if (webglRecoveryActionPending) return;
+  webglRecoveryActionPending = true;
+  renderWebGLRecovery();
+  cancelCountdown();
+  pointerStart = null;
+  const pendingStateOperation = gameStateOperation;
+  disposeGameInstance({ replaceCanvas: true });
+  hideWebGLRecovery();
+  renderFlow(flow.goHome());
+  renderGameRecovery();
+  void pendingStateOperation.then(() => {
+    if (flow.getSnapshot().screen === SCREEN_PHASES.HOME) renderGameRecovery();
+  });
+  window.setTimeout(() => startButton.focus(), 0);
+}
+
 function renderFlow(snapshot = flow.getSnapshot()) {
   app.dataset.screen = snapshot.screen;
   game?.setScreenPhase(snapshot.screen);
+  if (!isWebGLRecoveryScreen(snapshot.screen)) hideWebGLRecovery();
   homeScreen.hidden = snapshot.screen !== SCREEN_PHASES.HOME;
   tutorialScreen.hidden = snapshot.screen !== SCREEN_PHASES.TUTORIAL;
   countdownScreen.hidden = snapshot.screen !== SCREEN_PHASES.COUNTDOWN;
@@ -1211,10 +1402,10 @@ function cancelCountdown() {
 }
 
 function scheduleCountdown(runId) {
-  if (document.hidden || countdownTimerId !== null) return;
+  if (document.hidden || webglRecoveryVisible || countdownTimerId !== null) return;
   countdownTimerId = window.setTimeout(() => {
     countdownTimerId = null;
-    if (runId !== countdownRunId || document.hidden) return;
+    if (runId !== countdownRunId || document.hidden || webglRecoveryVisible) return;
     const transition = flow.advanceCountdown();
     renderFlow(transition.snapshot);
 
@@ -1245,6 +1436,9 @@ function showHomeStartError(errorMessage) {
 }
 
 function canStartWebGLGame() {
+  if (game?.contextLost) {
+    disposeGameInstance({ replaceCanvas: true });
+  }
   if (game) return true;
 
   const support = checkWebGL2Support();
@@ -1333,12 +1527,12 @@ async function startRound() {
 }
 
 function requestMove(direction) {
-  if (!game || !flow.canMove()) return;
+  if (!game || webglRecoveryVisible || !flow.canMove()) return;
   game.move(direction);
 }
 
 stage.addEventListener('pointerdown', (event) => {
-  if (!flow.canMove()) return;
+  if (webglRecoveryVisible || !flow.canMove()) return;
   void soundEffects.unlock();
   pointerStart = { x: event.clientX, y: event.clientY, id: event.pointerId };
   stage.setPointerCapture?.(event.pointerId);
@@ -1367,7 +1561,7 @@ const keyMap = {
 
 document.addEventListener('keydown', (event) => {
   const direction = keyMap[event.key];
-  if (!direction || !flow.canMove()) return;
+  if (!direction || webglRecoveryVisible || !flow.canMove()) return;
   event.preventDefault();
   void soundEffects.unlock();
   requestMove(direction);
@@ -1380,6 +1574,12 @@ gameRecoveryResume.addEventListener('click', () => {
 });
 gameRecoveryDiscard.addEventListener('click', () => {
   void discardSavedGame();
+});
+webglRecoveryRecreate.addEventListener('click', () => {
+  void recreateWebGLGame();
+});
+webglRecoveryHome.addEventListener('click', () => {
+  void leaveWebGLRecoveryForHome();
 });
 resultShareButton.addEventListener('click', handleResultShare);
 resultRankingRetry.addEventListener('click', () => {
