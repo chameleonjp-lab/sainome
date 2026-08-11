@@ -92,6 +92,19 @@ export class GameFlow {
     return Object.freeze({ started: true, snapshot: this.getSnapshot() });
   }
 
+  resumePlaying() {
+    if (
+      this.screen !== SCREEN_PHASES.HOME
+      && this.screen !== SCREEN_PHASES.TUTORIAL
+      && this.screen !== SCREEN_PHASES.RESULT
+    ) return null;
+
+    this.screen = SCREEN_PHASES.PLAYING;
+    this.countdown = 0;
+    this.result = null;
+    return this.getSnapshot();
+  }
+
   finish(result) {
     if (this.screen !== SCREEN_PHASES.PLAYING) return null;
     this.result = normalizeResult(result);

@@ -129,6 +129,18 @@ test('結果画面から再挑戦すると結果を消して3カウントへ戻�
   assert.equal(replay.countdown, 1);
 });
 
+test('保存済みのプレイ状態は3カウントをやり直さず再開できる', () => {
+  const flow = new GameFlow();
+
+  const resumed = flow.resumePlaying();
+
+  assert.equal(resumed.screen, SCREEN_PHASES.PLAYING);
+  assert.equal(resumed.countdown, 0);
+  assert.equal(resumed.result, null);
+  assert.equal(flow.canMove(), true);
+  assert.equal(flow.resumePlaying(), null);
+});
+
 test('ホームへ戻ると途中の状態と結果を初期化する', () => {
   const flow = new GameFlow();
   flow.beginCountdown();

@@ -78,6 +78,14 @@
           <button id="start-button" class="primary-button" type="button">ゲーム開始</button>
           <button id="tutorial-button" class="secondary-button" type="button">遊び方を見る</button>
         </div>
+        <section id="game-recovery-panel" class="game-recovery-panel" aria-labelledby="game-recovery-title" hidden>
+          <strong id="game-recovery-title">前回のプレイを続けられます</strong>
+          <p id="game-recovery-status" role="status" aria-live="polite"></p>
+          <div class="game-recovery-actions">
+            <button id="game-recovery-resume" class="primary-button" type="button">続きから再開</button>
+            <button id="game-recovery-discard" class="secondary-button" type="button">保存を削除</button>
+          </div>
+        </section>
         <section id="pending-ranking-panel" class="pending-ranking-panel" aria-label="未送信のランキング記録" hidden>
           <p id="pending-ranking-status" role="status" aria-live="polite"></p>
           <button id="pending-ranking-retry" type="button">未送信記録を再送</button>

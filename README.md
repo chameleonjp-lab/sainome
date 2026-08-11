@@ -34,6 +34,7 @@
 - 開始前のWebGL 2対応確認と、非対応時の理由表示
 - 画面離脱やWebGL描画停止中のゲーム時間・操作の一時停止と復帰
 - 開始前の3カウントも画面離脱中は停止し、復帰後に続行
+- プレイ中の安全地点を版付きIndexedDBへ保存し、再読み込み後に盤面・得点・時間・生成状態・乱数を復元
 
 ## 遊び方
 
@@ -71,6 +72,7 @@
 - 「結果をシェア」では、モード、得点、消した数、最大連鎖、自己ベスト判定、ゲームURLを共有します。端末の共有画面が使えない場合は同じ内容をコピーします。
 - 結果確定時に選択したモードへ記録を送信し、結果画面の下部へ最高記録ランキング上位10名を表示します。60秒と180秒の順位は混ざりません。
 - 送信に失敗した結果は端末に保全し、サーバー発行の同じプレイ番号で手動再送できます。本番Supabase側の受付と重複防止は、移行の有効化確認まで停止したままです。
+- プレイ中の保存は移動処理の完了地点だけで行い、復元できない未知版の値は削除せず、明示操作まで保全します。
 
 モード設定は`js/game-modes.js`、時間・得点・結果の処理は`js/game-session.js`、画面の状態は`js/ui-flow.js`に分けています。いずれもHTMLやThree.jsに依存せず、自動テストで確認できます。
 
@@ -90,6 +92,8 @@ js/dice.js
 js/board-rules.js
 js/game-modes.js
 js/game-session.js
+js/game-random.js
+js/game-state-storage.js
 js/simulation-pause.js
 js/input-direction.js
 js/spawn-rules.js
@@ -111,6 +115,8 @@ js/webgl-game.js
 test/board-rules.test.js
 test/game-modes.test.js
 test/game-session.test.js
+test/game-random.test.js
+test/game-state-storage.test.js
 test/simulation-pause.test.js
 test/input-direction.test.js
 test/webgl-lifecycle.test.js

@@ -12,6 +12,7 @@ import {
   selectSpawnBatch
 } from './board-rules.js';
 import { BASE_ORIENTATION, Dice } from './dice.js';
+import { GameRandom } from './game-random.js';
 import { GAME_PHASES, GameSession } from './game-session.js';
 import {
   DEFAULT_GAME_MODE_ID,
@@ -31,6 +32,10 @@ import {
 import { SCREEN_PHASES } from './ui-flow.js';
 import { SimulationPause } from './simulation-pause.js';
 import { RenderLoopController } from './render-loop.js';
+import {
+  GAME_STATE_VERSION,
+  normalizeGameRuntimeState
+} from './game-state-storage.js';
 
 const BOARD_SIZE = 7;
 const HALF_BOARD = (BOARD_SIZE - 1) / 2;
@@ -45,6 +50,7 @@ const SPECIAL_ONE_DURATION = 360;
 const RISE_DURATION = 720;
 const RISE_DEPTH = 1.18;
 const BURIED_DICE_Y = -0.24;
+const STATE_SNAPSHOT_INTERVAL_MS = 1_000;
 
 const DIRECTIONS = {
   up: { row: -1, column: 0, axis: new THREE.Vector3(1, 0, 0), angle: -Math.PI / 2 },
@@ -205,6 +211,8 @@ export class WebGLSainome {
     this.chainCount = 0;
     this.clearedCount = 0;
     this.diceSequence = 0;
+    this.random = new GameRandom();
+    this.lastStateSnapshotElapsedMs = 0;
     this.epoch = 0;
     this.isVisible = !document.hidden;
     this.contextLost = false;
@@ -243,6 +251,7 @@ export class WebGLSainome {
       this.contextLost = true;
       this.syncSimulationPause();
       this.renderLoop.refresh();
+      this.callbacks.onStateSnapshot?.(this.getStateSnapshot());
       this.callbacks.onMessage?.('3D表示を復帰しています…操作を一時停止します');
     });
 
@@ -266,6 +275,7 @@ export class WebGLSainome {
         this.queuedDirection = null;
         window.clearTimeout(this.queueTimerId);
         this.queueTimerId = null;
+        this.callbacks.onStateSnapshot?.(this.getStateSnapshot());
       }
     });
   }
@@ -347,7 +357,10 @@ export class WebGLSainome {
   reset(modeId = this.mode.id) {
     this.mode = getGameMode(modeId);
     this.session = new GameSession({ modeId: this.mode.id });
+    this.random = new GameRandom();
+    this.lastStateSnapshotElapsedMs = 0;
     this.epoch += 1;
+    this.animationFrameTasks.clear();
     for (const die of this.dice.values()) this.removeDie(die, true);
     this.dice.clear();
     this.diceSequence = 0;
@@ -385,19 +398,187 @@ export class WebGLSainome {
 
     const snapshot = this.session.start(this.getGameTime());
     this.emitSession(snapshot, true);
+    this.emitStateSnapshot();
     return true;
   }
 
-  addDie(row, column, state = 'normal') {
+  getStateSnapshot() {
+    const now = this.getGameTime();
+    const session = this.session.tick(now);
+    if (session.phase !== GAME_PHASES.RUNNING && session.phase !== GAME_PHASES.FINISHING) {
+      return null;
+    }
+    if (this.busy || this.animationFrameTasks.size > 0) return null;
+
+    return Object.freeze({
+      version: GAME_STATE_VERSION,
+      modeId: this.mode.id,
+      session: Object.freeze({
+        phase: session.phase,
+        modeId: session.modeId,
+        durationMs: session.durationMs,
+        elapsedMs: session.elapsedMs,
+        score: session.score,
+        clearedDice: session.clearedDice,
+        maxChain: session.maxChain,
+        clearEvents: session.clearEvents,
+        specialOneEvents: session.specialOneEvents
+      }),
+      player: Object.freeze({
+        row: this.playerRow,
+        column: this.playerColumn,
+        activeKey: this.activeKey,
+        rotationY: this.player.rotation.y
+      }),
+      dice: Object.freeze([...this.dice.values()].map((die) => Object.freeze({
+        id: die.id,
+        key: boardKey(die.row, die.column),
+        row: die.row,
+        column: die.column,
+        state: die.state,
+        top: die.top,
+        bottom: die.bottom,
+        front: die.front,
+        back: die.back,
+        left: die.left,
+        right: die.right,
+        positionY: die.mesh.position.y,
+        scale: die.mesh.scale.x,
+        quaternion: Object.freeze([
+          die.mesh.quaternion.x,
+          die.mesh.quaternion.y,
+          die.mesh.quaternion.z,
+          die.mesh.quaternion.w
+        ]),
+        sinkElapsedMs: die.state === 'sinking' || die.state === 'one-clearing'
+          ? Math.max(0, now - die.sinkStartedAt)
+          : 0,
+        riseElapsedMs: die.state === 'rising'
+          ? Math.max(0, now - die.riseStartedAt)
+          : 0,
+        riseStartY: die.riseStartY
+      }))),
+      diceSequence: this.diceSequence,
+      rollCount: this.rollCount,
+      chainCount: this.chainCount,
+      clearedCount: this.clearedCount,
+      sixtySecondSpawnedCount: this.sixtySecondSpawnedCount,
+      pendingSpawnCount: this.pendingSpawnCount,
+      spawnBlockedNotified: this.spawnBlockedNotified,
+      pendingMatchResolution: this.pendingMatchResolution,
+      randomState: this.random.getState()
+    });
+  }
+
+  emitStateSnapshot() {
+    const snapshot = this.getStateSnapshot();
+    if (snapshot) {
+      this.lastStateSnapshotElapsedMs = snapshot.session.elapsedMs;
+      this.callbacks.onStateSnapshot?.(snapshot);
+    }
+    return snapshot;
+  }
+
+  restoreState(value) {
+    const state = normalizeGameRuntimeState(value);
+    const now = this.getGameTime();
+    this.mode = getGameMode(state.modeId);
+    this.epoch += 1;
+    this.animationFrameTasks.clear();
+    this.busy = false;
+    this.queuedDirection = null;
+    window.clearTimeout(this.queueTimerId);
+    this.queueTimerId = null;
+
+    for (const die of this.dice.values()) this.removeDie(die, true);
+    this.dice.clear();
+    this.diceSequence = 0;
+    this.random = new GameRandom(state.randomState);
+
+    for (const savedDie of state.dice) {
+      const die = this.addDie(
+        savedDie.row,
+        savedDie.column,
+        savedDie.state,
+        savedDie,
+        savedDie.id
+      );
+      die.mesh.position.y = savedDie.positionY;
+      die.mesh.scale.setScalar(savedDie.scale);
+      die.mesh.quaternion.fromArray(savedDie.quaternion).normalize();
+      die.sinkStartedAt = savedDie.sinkElapsedMs > 0
+        ? now - savedDie.sinkElapsedMs
+        : now;
+      die.riseStartedAt = savedDie.riseElapsedMs > 0
+        ? now - savedDie.riseElapsedMs
+        : now;
+      die.riseStartY = savedDie.riseStartY;
+      const material = die.mesh.userData.bodyMaterial;
+      if (die.state === 'buried') {
+        material.emissive.setHex(0x12304a);
+        material.emissiveIntensity = 0.28;
+      } else if (die.state === 'sinking' || die.state === 'one-clearing') {
+        material.emissive.setHex(die.state === 'one-clearing' ? 0x6a1d7a : 0x694000);
+        material.emissiveIntensity = die.state === 'one-clearing' ? 0.82 : 0.46;
+      }
+    }
+
+    this.diceSequence = state.diceSequence;
+    this.playerRow = state.player.row;
+    this.playerColumn = state.player.column;
+    this.activeKey = state.player.activeKey;
+    this.player.rotation.set(0, state.player.rotationY, 0);
+    this.player.rotation.z = 0;
+    this.rollCount = state.rollCount;
+    this.chainCount = state.chainCount;
+    this.clearedCount = state.clearedCount;
+    this.sixtySecondSpawnedCount = state.sixtySecondSpawnedCount;
+    this.pendingSpawnCount = state.pendingSpawnCount;
+    this.spawnBlockedNotified = state.spawnBlockedNotified;
+    this.pendingMatchResolution = state.pendingMatchResolution;
+    this.session = new GameSession({ modeId: this.mode.id });
+    const session = this.session.restore(state.session, now);
+    this.lastStateSnapshotElapsedMs = session.elapsedMs;
+    this.placePlayer();
+    this.lastSessionSignature = '';
+    this.emitSession(session, true);
+    this.callbacks.onRoll?.(this.rollCount, this.dice.get(this.activeKey)?.top);
+    this.callbacks.onChain?.({
+      chain: this.chainCount,
+      count: 0,
+      value: 0,
+      isChain: this.chainCount > 0
+    });
+    this.callbacks.onClear?.(this.clearedCount);
+    this.callbacks.onMessage?.('前回のプレイを再開しました');
+    return session;
+  }
+
+  addDie(row, column, state = 'normal', orientation = null, id = null) {
     this.diceSequence += 1;
-    const die = new Dice(`die-${this.diceSequence}`, row, column, { ...BASE_ORIENTATION });
+    const initialOrientation = orientation
+      ? {
+        top: orientation.top,
+        bottom: orientation.bottom,
+        front: orientation.front,
+        back: orientation.back,
+        left: orientation.left,
+        right: orientation.right
+      }
+      : { ...BASE_ORIENTATION };
+    const die = new Dice(
+      id ?? `die-${this.diceSequence}`,
+      row,
+      column,
+      initialOrientation
+    );
     die.mesh = createDieMesh();
     die.mesh.position.copy(gridToWorld(row, column));
     die.state = state;
     die.sinkStartedAt = 0;
     die.riseStartedAt = 0;
     die.riseStartY = DICE_Y - RISE_DEPTH;
-    this.randomizeOrientation(die);
+    if (!orientation) this.randomizeOrientation(die);
     this.scene.add(die.mesh);
     this.dice.set(boardKey(row, column), die);
     return die;
@@ -407,9 +588,12 @@ export class WebGLSainome {
     Object.assign(die, BASE_ORIENTATION);
     die.mesh.quaternion.identity();
     const directions = Object.keys(DIRECTIONS);
-    const turns = 3 + Math.floor(Math.random() * 6);
+    const turns = 3 + Math.floor(this.random.next() * 6);
     for (let index = 0; index < turns; index += 1) {
-      this.applyQuarterTurn(die, directions[Math.floor(Math.random() * directions.length)]);
+      this.applyQuarterTurn(
+        die,
+        directions[Math.floor(this.random.next() * directions.length)]
+      );
     }
   }
 
@@ -538,6 +722,7 @@ export class WebGLSainome {
     if (!matched && !wasBuried) {
       this.callbacks.onMessage?.(this.activeKey ? 'サイコロの上を移動' : '床へ着地');
     }
+    this.emitStateSnapshot();
     this.consumeQueue();
   }
 
@@ -558,6 +743,7 @@ export class WebGLSainome {
     if (!matched) {
       this.callbacks.onMessage?.('床を移動中。近くのサイコロへ移動すると登れます');
     }
+    this.emitStateSnapshot();
     this.consumeQueue();
   }
 
@@ -637,6 +823,7 @@ export class WebGLSainome {
     const matched = this.resolveMatches();
     if (!matched) this.callbacks.onMessage?.(`上面は${die.top}。同じ目を${die.top}個以上つなげます`);
     this.busy = false;
+    this.emitStateSnapshot();
     this.consumeQueue();
   }
 
@@ -863,7 +1050,7 @@ export class WebGLSainome {
       this.playerRow,
       this.playerColumn
     );
-    const cells = selectSpawnBatch(candidates, spawnCount);
+    const cells = selectSpawnBatch(candidates, spawnCount, () => this.random.next());
     if (cells.length === 0) {
       if (!this.spawnBlockedNotified) {
         this.callbacks.onMessage?.(
@@ -995,6 +1182,15 @@ export class WebGLSainome {
       this.resolvePendingMatches();
       this.finishSessionIfSettled();
       this.runAnimationFrameTasks();
+      const currentSession = this.session.getSnapshot();
+      if (
+        !this.busy
+        && currentSession.phase === GAME_PHASES.RUNNING
+        && currentSession.elapsedMs - this.lastStateSnapshotElapsedMs
+          >= STATE_SNAPSHOT_INTERVAL_MS
+      ) {
+        this.emitStateSnapshot();
+      }
       const elapsed = this.clock.getElapsedTime();
       if (!this.busy) {
         const activeDie = this.activeKey ? this.dice.get(this.activeKey) : null;

@@ -199,6 +199,27 @@ test('再開始すると時間と得点と結果を初期化する', () => {
   assert.equal(session.getResult(), null);
 });
 
+test('保存したプレイ状態を現在時刻へ接続して再開する', () => {
+  const session = new GameSession({ modeId: GAME_MODE_IDS.ONE_EIGHTY_SECONDS });
+  const restored = session.restore({
+    phase: 'running',
+    modeId: GAME_MODE_IDS.ONE_EIGHTY_SECONDS,
+    durationMs: 180_000,
+    elapsedMs: 12_345,
+    score: 1_200,
+    clearedDice: 4,
+    maxChain: 2,
+    clearEvents: 2,
+    specialOneEvents: 0
+  }, 50_000);
+
+  assert.equal(restored.phase, 'running');
+  assert.equal(restored.elapsedMs, 12_345);
+  assert.equal(restored.remainingMs, 167_655);
+  assert.equal(restored.score, 1_200);
+  assert.equal(session.tick(50_001).elapsedMs, 12_346);
+});
+
 test('不正な得点条件と時間は拒否する', () => {
   assert.throws(
     () => calculateClearScore({ value: 1, count: 1, chain: 1 }),

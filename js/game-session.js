@@ -29,6 +29,13 @@ function requirePositiveInteger(value, name) {
   return value;
 }
 
+function requireNonNegativeInteger(value, name, maximum = Number.MAX_SAFE_INTEGER) {
+  if (!Number.isSafeInteger(value) || value < 0 || value > maximum) {
+    throw new RangeError(`${name} must be a non-negative safe integer`);
+  }
+  return value;
+}
+
 export function calculateClearScore({
   value,
   count,
@@ -105,6 +112,35 @@ export class GameSession {
     this.maxChain = 0;
     this.clearEvents = 0;
     this.specialOneEvents = 0;
+    this.result = null;
+    return this.getSnapshot();
+  }
+
+  restore(snapshot, now = 0) {
+    const currentTime = requireFiniteNumber(now, 'now');
+    if (!snapshot || typeof snapshot !== 'object') {
+      throw new TypeError('session snapshot is required');
+    }
+    if (snapshot.modeId !== this.modeId || snapshot.durationMs !== this.durationMs) {
+      throw new RangeError('session snapshot mode does not match');
+    }
+    if (snapshot.phase !== PHASES.RUNNING && snapshot.phase !== PHASES.FINISHING) {
+      throw new RangeError('session snapshot phase is invalid');
+    }
+    const elapsedMs = requireFiniteNumber(snapshot.elapsedMs, 'elapsedMs');
+    if (elapsedMs < 0 || elapsedMs > this.durationMs) {
+      throw new RangeError('elapsedMs is invalid');
+    }
+
+    this.startedAt = currentTime - elapsedMs;
+    this.lastNow = currentTime;
+    this.phase = snapshot.phase;
+    this.elapsedMs = elapsedMs;
+    this.score = requireNonNegativeInteger(snapshot.score, 'score');
+    this.clearedDice = requireNonNegativeInteger(snapshot.clearedDice, 'clearedDice');
+    this.maxChain = requireNonNegativeInteger(snapshot.maxChain, 'maxChain');
+    this.clearEvents = requireNonNegativeInteger(snapshot.clearEvents, 'clearEvents');
+    this.specialOneEvents = requireNonNegativeInteger(snapshot.specialOneEvents, 'specialOneEvents');
     this.result = null;
     return this.getSnapshot();
   }
