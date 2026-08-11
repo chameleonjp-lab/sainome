@@ -3,7 +3,7 @@
 作成日：2026年8月9日  
 対象基準：`main`（PR #26 merge `f1d57fe8143b9f9c35b2c6cc73af67c2dbf58d50`）
 
-進捗：完了 2/11、第3工程Draft実装・検証中（本番受付は停止）
+進捗：完了 2/11、第3工程（安全停止状態でDB適用済み・Unicode一致修正Draft）
 
 ## 1. 目的
 
@@ -113,6 +113,14 @@ IndexedDBは通信障害やタブ破棄に備える可用性用キューであ�
 - `js/ranking-client.js`は開始前にサーバー発行UUIDを取得し、発行失敗時はそのプレイを遡及登録しない。ランキング行は`verification_status='unverified'`だけを表示する。
 - `supabase/migrations/20260810120000_sainome_ranking_v2.sql`は専用private台帳、UID対応、モード別集計、RLS、権限撤回、旧RPCのslugガード、2つの非公開ゲームを追加する。ただし`accepting_runs=false`、`ranking_enable_not_before='infinity'`、`public.games.is_active=false`で、本番受付は開かない。
 - DB名前検査は既知の共通正常ベクトルを安全側へ固定している。ブラウザのUnicode 15.1全範囲とDBの完全一致は未完了のため、ここを解消し、実測キャッシュ寿命・Turnstile・Advisor差分を確認するまで第3工程を完了扱いにしない。
+
+### 第3工程の本番DB適用後の確認
+
+- sainome_ranking_v2_contractを本番へ適用した。移行履歴、専用private台帳のRLS、公開ロールの表権限、v2 RPCの実行権限を読み取り専用で確認した。
+- private.sainome_v2_config.accepting_runs=false、ranking_enable_not_before=infinity、2つのpublic.games.is_active=falseを確認した。受付開始や既存記録の変換は行っていない。
+- Unicode 15.1の未割り当て文字U+1C89をDB検査が受け付ける差を再現した。受付停止中のため公開記録には影響していないが、DBとブラウザの契約一致を満たしていない。
+- 次のDraftでは、js/player-name-unicode-15-1.jsから固定範囲・Script・Emoji列挙をDBへ移し、名前検査を同じ判定順へ置き換える。これが本番受付を有効化する前提である。
+- supabase/migrations/20260811090000_sainome_unicode_name_contract.sqlは、上記の固定データ移行と名前検査の置換を含む。既存DBへはまだ適用せず、ロールバック付きSQL検証で共通契約例・範囲・Script・Emoji件数を確認した。本番受付停止条件は維持している。
 
 ## 7. ランキングDB復旧時の安全条件
 
