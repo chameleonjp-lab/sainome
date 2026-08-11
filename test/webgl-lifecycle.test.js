@@ -120,3 +120,25 @@ test('移動アニメーションは独自の描画ループを増やさない',
   assert.match(source, /runAnimationFrameTasks\(\)/);
   assert.doesNotMatch(source, /requestAnimationFrame\(step\)/);
 });
+
+test('プレイ状態は安全な地点で版付き保存し、乱数状態を含めて復元する', () => {
+  assert.match(source, /GAME_STATE_VERSION/);
+  assert.match(source, /getStateSnapshot\(\)/);
+  assert.match(source, /if \(this\.busy \|\| this\.animationFrameTasks\.size > 0\) return null/);
+  assert.match(source, /randomState: this\.random\.getState\(\)/);
+  assert.match(source, /restoreState\(value\)/);
+  assert.match(source, /normalizeGameRuntimeState\(value\)/);
+  assert.match(source, /callbacks\.onStateSnapshot/);
+});
+
+test('ゲーム中の乱数は保存可能な専用状態から生成する', () => {
+  assert.match(source, /new GameRandom\(\)/);
+  assert.match(source, /this\.random\.next\(\)/);
+  assert.match(source, /selectSpawnBatch\(candidates, spawnCount, \(\) => this\.random\.next\(\)\)/);
+});
+
+test('移動していない時間も安全地点として定期保存する', () => {
+  assert.match(source, /STATE_SNAPSHOT_INTERVAL_MS/);
+  assert.match(source, /lastStateSnapshotElapsedMs/);
+  assert.match(source, /this\.emitStateSnapshot\(\)/);
+});

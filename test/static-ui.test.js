@@ -56,6 +56,16 @@ test('ホームと結果画面から実験場へ戻れる', () => {
   assert.match(css, /\.result-lab-link\s*\{[^}]*grid-column:\s*1\s*\/\s*-1/s);
 });
 
+test('再読み込み後に保存状態を確認して続きから再開できる', () => {
+  for (const id of ['game-recovery-panel', 'game-recovery-status', 'game-recovery-resume', 'game-recovery-discard']) {
+    assert.match(html, new RegExp(`\\bid="${id}"`));
+  }
+  assert.match(main, /GameStateStorage/);
+  assert.match(main, /resumeSavedGame/);
+  assert.match(main, /discardSavedGame/);
+  assert.match(css, /\.game-recovery-panel\s*\{/);
+});
+
 test('HTMLから読むローカルファイルはすべて存在する', () => {
   const paths = [...html.matchAll(/(?:src|href)="\.\/([^"?#]+)"/g)]
     .map((match) => match[1]);

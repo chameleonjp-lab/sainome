@@ -40,6 +40,10 @@ import {
   SUPABASE_URL
 } from './supabase-config.js';
 import { checkWebGL2Support } from './webgl-support.js';
+import {
+  GAME_STATE_VERSION,
+  GameStateStorage
+} from './game-state-storage.js';
 
 const app = document.querySelector('#app');
 const canvas = document.querySelector('#game-canvas');
@@ -104,6 +108,10 @@ const pendingRankingRetry = document.querySelector('#pending-ranking-retry');
 const pendingRankingExport = document.querySelector('#pending-ranking-export');
 const pendingRankingRecoveryList = document.querySelector('#pending-ranking-recovery-list');
 const pendingRankingRecoveryStatus = document.querySelector('#pending-ranking-recovery-status');
+const gameRecoveryPanel = document.querySelector('#game-recovery-panel');
+const gameRecoveryStatus = document.querySelector('#game-recovery-status');
+const gameRecoveryResume = document.querySelector('#game-recovery-resume');
+const gameRecoveryDiscard = document.querySelector('#game-recovery-discard');
 
 const WEBGL_UNAVAILABLE_MESSAGE =
   'この端末またはブラウザでは、3D表示に必要な機能（WebGL 2）が利用できません。ブラウザの設定で3D表示を有効にするか、対応環境でお試しください。';
@@ -119,6 +127,7 @@ const soundEffects = new SoundEffects();
 const bestRecords = new BestRecords();
 const playerProfile = new PlayerProfile();
 const pendingRankingSubmissions = new PendingRankingSubmissions();
+const gameStateStorage = new GameStateStorage();
 const pendingRankingChannel = createPendingRankingChannel();
 let rankingClient = null;
 try {
@@ -151,6 +160,11 @@ let resultRankingRetryAction = null;
 let recoveryActionCounter = 0;
 let recoveryActionPending = false;
 const recoveryActionRecords = new Map();
+let savedGameRecovery = null;
+let gameRecoveryLoadPromise = null;
+let gameRecoveryLoaded = false;
+let gameStateOperation = Promise.resolve();
+let gameStateOperationPending = false;
 
 const MAX_MANUAL_PENDING_RETRIES = 10;
 const pendingRankingRetryFlight = new SingleFlight();
@@ -723,6 +737,8 @@ function setStartPending(pending) {
   tutorialButton.disabled = pending;
   tutorialHomeButton.disabled = pending;
   tutorialNextButton.disabled = pending;
+  gameRecoveryResume.disabled = pending || gameStateOperationPending;
+  gameRecoveryDiscard.disabled = pending || gameStateOperationPending;
   playerNameInput.disabled = pending;
   for (const input of modeInputs) input.disabled = pending;
   startButton.textContent = pending ? '3D盤面を準備中…' : 'ゲーム開始';
@@ -820,6 +836,190 @@ async function preserveFinishedRanking(provisional) {
   if (submission.canSubmit) void syncResultRanking(submission);
 }
 
+function formatSavedGameSummary(state) {
+  const mode = getGameMode(state.game.modeId);
+  const seconds = formatRemainingSeconds(
+    Math.max(0, mode.durationMs - state.game.session.elapsedMs)
+  );
+  return `${mode.label}・残り${seconds}秒・${numberFormatter.format(state.game.session.score)}点`;
+}
+
+function renderGameRecovery() {
+  if (!savedGameRecovery) {
+    gameRecoveryPanel.hidden = true;
+    gameRecoveryStatus.textContent = '';
+    gameRecoveryResume.disabled = false;
+    gameRecoveryDiscard.disabled = false;
+    return;
+  }
+
+  gameRecoveryPanel.hidden = false;
+  if (savedGameRecovery.invalid) {
+    gameRecoveryResume.disabled = true;
+    gameRecoveryDiscard.disabled = gameStateOperationPending;
+    gameRecoveryStatus.textContent =
+      '前回のプレイ保存を確認できません。削除するまで新しい保存を上書きしません';
+    return;
+  }
+  gameRecoveryResume.disabled = gameStateOperationPending;
+  gameRecoveryDiscard.disabled = gameStateOperationPending;
+  gameRecoveryStatus.textContent = formatSavedGameSummary(savedGameRecovery.state);
+}
+
+function enqueueGameStateOperation(action) {
+  const operation = gameStateOperation.then(action, action);
+  gameStateOperation = operation.catch((error) => {
+    console.error(error);
+  });
+  return operation;
+}
+
+function createPersistedGameState(snapshot) {
+  return {
+    version: GAME_STATE_VERSION,
+    savedAt: Date.now(),
+    displayName: activePlayerName,
+    playTicket: activePlayTicket,
+    game: snapshot
+  };
+}
+
+function requestGameStateSave(snapshot) {
+  if (!snapshot || flow.getSnapshot().screen !== SCREEN_PHASES.PLAYING) return;
+  const persisted = createPersistedGameState(snapshot);
+  void enqueueGameStateOperation(async () => {
+    const result = await gameStateStorage.save(persisted);
+    if (result.ok) {
+      savedGameRecovery = { state: persisted, serialized: result.serialized };
+    } else {
+      message.textContent = 'プレイ状態を端末へ保存できません。画面を閉じないでください';
+    }
+    return result;
+  }).catch((error) => {
+    console.error(error);
+    message.textContent = 'プレイ状態を端末へ保存できません。画面を閉じないでください';
+  });
+}
+
+async function clearGameState(expectedSerialized = null) {
+  let result;
+  try {
+    result = await enqueueGameStateOperation(() =>
+      gameStateStorage.clear({ expectedSerialized })
+    );
+  } catch (error) {
+    console.error(error);
+    result = { status: 'unavailable', error };
+  }
+  if (result.status === 'removed' || result.status === 'not-found') {
+    savedGameRecovery = null;
+    renderGameRecovery();
+  }
+  return result;
+}
+
+async function loadGameRecovery() {
+  if (gameRecoveryLoaded) return;
+  if (gameRecoveryLoadPromise) return gameRecoveryLoadPromise;
+
+  gameRecoveryLoadPromise = (async () => {
+    const loaded = await gameStateStorage.load();
+    if (loaded.status === 'available') {
+      savedGameRecovery = loaded;
+      if (
+        !startPending
+        && flow.getSnapshot().screen === SCREEN_PHASES.HOME
+        && playerNameInput.value === activePlayerName
+      ) {
+        playerNameInput.value = loaded.state.displayName;
+      }
+    } else if (loaded.status === 'invalid' && loaded.serialized) {
+      savedGameRecovery = { invalid: true, serialized: loaded.serialized };
+    } else {
+      savedGameRecovery = null;
+    }
+    renderGameRecovery();
+    gameRecoveryLoaded = true;
+  })();
+
+  try {
+    await gameRecoveryLoadPromise;
+  } finally {
+    gameRecoveryLoadPromise = null;
+  }
+}
+
+async function resumeSavedGame() {
+  if (gameStateOperationPending) return;
+  gameStateOperationPending = true;
+  renderGameRecovery();
+  setStartPending(true);
+  try {
+    const loaded = await gameStateStorage.load();
+    if (loaded.status !== 'available') {
+      if (loaded.status === 'invalid' && loaded.serialized) {
+        savedGameRecovery = { invalid: true, serialized: loaded.serialized };
+      } else {
+        savedGameRecovery = null;
+      }
+      renderGameRecovery();
+      showHomeStartError('前回のプレイを復元できませんでした。保存データは削除していません。');
+      return;
+    }
+
+    const saved = loaded.state;
+    const mode = getGameMode(saved.game.modeId);
+    if (!canStartWebGLGame()) return;
+    const ready = await ensureGame(mode.id);
+    if (!ready) return;
+
+    activeMode = mode;
+    selectedMode = mode;
+    activePlayerName = saved.displayName;
+    activePlayTicket = saved.playTicket;
+    playerNameInput.value = saved.displayName;
+    applyModeLabels(mode);
+    resetHudDisplay(mode);
+    game.restoreState(saved.game);
+    const snapshot = flow.resumePlaying();
+    if (!snapshot) throw new Error('ゲーム画面を再開できませんでした');
+    savedGameRecovery = loaded;
+    renderFlow(snapshot);
+    game.emitStateSnapshot();
+  } catch (error) {
+    console.error(error);
+    showHomeStartError('前回のプレイを復元できませんでした。保存データは削除していません。');
+  } finally {
+    gameStateOperationPending = false;
+    setStartPending(false);
+    renderGameRecovery();
+  }
+}
+
+async function discardSavedGame() {
+  if (gameStateOperationPending) return;
+  const expectedSerialized = savedGameRecovery?.serialized ?? null;
+  if (!expectedSerialized) return;
+  if (
+    typeof globalThis.confirm === 'function'
+    && !globalThis.confirm('前回のプレイ保存を削除しますか？削除後は復元できません。')
+  ) return;
+  gameStateOperationPending = true;
+  renderGameRecovery();
+  try {
+    const result = await clearGameState(expectedSerialized);
+    if (result.status === 'conflict') {
+      gameRecoveryStatus.textContent = '別の保存状態が作られたため、削除を止めました。画面を更新して確認してください';
+    }
+  } catch (error) {
+    console.error(error);
+    gameRecoveryStatus.textContent = '保存を削除できませんでした。元のデータを保持しています';
+  } finally {
+    gameStateOperationPending = false;
+    renderGameRecovery();
+  }
+}
+
 const gameCallbacks = {
   onRoll: () => {},
   onMove: () => {
@@ -863,7 +1063,11 @@ const gameCallbacks = {
   onSessionChange: (snapshot) => {
     updateSessionDisplay(snapshot);
   },
+  onStateSnapshot: (snapshot) => {
+    requestGameStateSave(snapshot);
+  },
   onFinish: (result) => {
+    void clearGameState();
     const next = flow.finish(result);
     if (!next) return;
     const playTicket = activePlayTicket;
@@ -1064,6 +1268,22 @@ async function startRound() {
   setStartPending(true);
   homeError.hidden = true;
 
+  try {
+    await loadGameRecovery();
+  } catch (error) {
+    console.error(error);
+    setStartPending(false);
+    showHomeStartError('前回のプレイ保存を確認できないため、新しいゲームを開始しません');
+    return;
+  }
+
+  if (savedGameRecovery?.invalid) {
+    setStartPending(false);
+    renderGameRecovery();
+    showHomeStartError('確認できない保存データがあるため、新しい保存を上書きしません。先に保存を削除してください');
+    return;
+  }
+
   const ready = await ensureGame(roundMode.id);
   if (!ready) {
     setStartPending(false);
@@ -1072,6 +1292,15 @@ async function startRound() {
       window.setTimeout(() => startButton.focus(), 0);
     }
     return;
+  }
+
+  if (savedGameRecovery) {
+    const cleared = await clearGameState(savedGameRecovery.serialized);
+    if (cleared.status !== 'removed' && cleared.status !== 'not-found') {
+      setStartPending(false);
+      showHomeStartError('前回のプレイ保存を削除できないため、新しいゲームを開始しません');
+      return;
+    }
   }
 
   // サーバー発行番号は3カウントより前に取得する。失敗してもゲームは開始するが、
@@ -1146,6 +1375,12 @@ document.addEventListener('keydown', (event) => {
 
 startButton.addEventListener('click', startRound);
 replayButton.addEventListener('click', startRound);
+gameRecoveryResume.addEventListener('click', () => {
+  void resumeSavedGame();
+});
+gameRecoveryDiscard.addEventListener('click', () => {
+  void discardSavedGame();
+});
 resultShareButton.addEventListener('click', handleResultShare);
 resultRankingRetry.addEventListener('click', () => {
   if (
@@ -1282,3 +1517,6 @@ resetHudDisplay(selectedMode);
 renderSoundToggle();
 renderFlow();
 void renderPendingRankingPanel();
+void loadGameRecovery().catch((error) => {
+  console.error(error);
+});

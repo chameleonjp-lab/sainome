@@ -367,6 +367,35 @@ button:disabled { opacity: .55; }
 .home-actions .secondary-button,
 .tutorial-actions .primary-button,
 .tutorial-actions .secondary-button { min-width: 0; }
+.game-recovery-panel {
+  width: min(100%, 460px);
+  display: grid;
+  gap: 8px;
+  padding: 11px 12px;
+  border: 1px solid rgba(123, 190, 255, .38);
+  border-radius: 14px;
+  background: rgba(38, 86, 124, .20);
+  text-align: left;
+}
+.game-recovery-panel > strong { color: #d9edff; font-size: .82rem; }
+.game-recovery-panel p {
+  margin: 0;
+  color: #b8cfe1;
+  font-size: .74rem;
+  font-weight: 750;
+  line-height: 1.5;
+}
+.game-recovery-actions {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 8px;
+}
+.game-recovery-actions .primary-button,
+.game-recovery-actions .secondary-button {
+  min-height: 44px;
+  padding: 9px 12px;
+  font-size: .76rem;
+}
 .home-error {
   max-width: 460px;
   margin: 0;
