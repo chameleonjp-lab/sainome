@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  classifyRankingFailure,
   prepareRankingSubmission,
   SingleFlight,
   submitPendingRanking,
@@ -10,6 +11,7 @@ import {
 import {
   RANKING_CLIENT_VERSION,
   RANKING_GAME_SLUGS,
+  RankingError,
   RANKING_SUBMISSION_CONTRACT_VERSION
 } from '../js/ranking-client.js';
 
@@ -47,6 +49,39 @@ function acceptedOutcome(request, overrides = {}) {
     ...overrides
   });
 }
+
+test('ランキング失敗を通信再試行と恒久拒否へ分類する', () => {
+  assert.equal(
+    classifyRankingFailure(new RankingError(
+      'request-failed',
+      'temporary',
+      undefined,
+      { retryable: true, status: 503 }
+    )),
+    'transient'
+  );
+  assert.equal(
+    classifyRankingFailure(new RankingError(
+      'request-failed',
+      'rejected',
+      undefined,
+      { retryable: false, status: 400 }
+    )),
+    'permanent'
+  );
+  assert.equal(classifyRankingFailure(new RankingError('invalid-response', 'invalid')), 'transient');
+  assert.equal(classifyRankingFailure(new RankingError('auth-required', 'sign in')), 'transient');
+  assert.equal(
+    classifyRankingFailure(new RankingError(
+      'request-failed',
+      'endpoint unavailable',
+      undefined,
+      { retryable: false, status: 404 }
+    )),
+    'transient'
+  );
+  assert.equal(classifyRankingFailure(new Error('offline')), 'transient');
+});
 
 test('遅れて完了した古いプレイは新しい結果画面を更新しない', async () => {
   let activeRunId = 1;

@@ -8,8 +8,11 @@ import {
 
 export const PENDING_RANKING_DATABASE_NAME = 'sainome-ranking';
 export const PENDING_RANKING_OBJECT_STORE = 'pending-submissions-v1';
+export const PENDING_RANKING_QUARANTINE_OBJECT_STORE = 'quarantined-submissions-v1';
 export const PENDING_RANKING_CHANNEL_NAME = 'sainome-pending-ranking-v1';
+export const PENDING_RANKING_DATABASE_VERSION = 2;
 export const PENDING_RANKING_STORAGE_VERSION = 2;
+export const PENDING_RANKING_LEGACY_CONTRACT_VERSION = 'shared-v1';
 export const MAX_PENDING_RANKING_SUBMISSIONS = 50;
 
 const MAX_SCORE = 100_000_000;
@@ -41,11 +44,13 @@ function transactionDone(transaction) {
   });
 }
 
-async function runTransaction(database, mode, action) {
-  const transaction = database.transaction(PENDING_RANKING_OBJECT_STORE, mode);
+async function runTransaction(database, storeNames, mode, action) {
+  const names = Array.isArray(storeNames) ? storeNames : [storeNames];
+  const transaction = database.transaction(names, mode);
   const done = transactionDone(transaction);
   try {
-    const result = await action(transaction.objectStore(PENDING_RANKING_OBJECT_STORE));
+    const stores = names.map((name) => transaction.objectStore(name));
+    const result = await action(stores.length === 1 ? stores[0] : stores, transaction);
     await done;
     return result;
   } catch (error) {
@@ -73,13 +78,22 @@ export class IndexedDbRankingStorage {
     if (this.databasePromise) return this.databasePromise;
 
     this.databasePromise = new Promise((resolve, reject) => {
-      const request = this.indexedDB.open(this.databaseName, 1);
+      const request = this.indexedDB.open(
+        this.databaseName,
+        PENDING_RANKING_DATABASE_VERSION
+      );
       request.addEventListener('upgradeneeded', () => {
         const database = request.result;
         if (!database.objectStoreNames.contains(PENDING_RANKING_OBJECT_STORE)) {
           database.createObjectStore(PENDING_RANKING_OBJECT_STORE, {
             keyPath: 'submissionId'
           });
+        }
+        if (!database.objectStoreNames.contains(PENDING_RANKING_QUARANTINE_OBJECT_STORE)) {
+          const store = database.createObjectStore(PENDING_RANKING_QUARANTINE_OBJECT_STORE, {
+            keyPath: 'quarantineId'
+          });
+          store.createIndex('submissionId', 'submissionId', { unique: false });
         }
       });
       request.addEventListener('success', () => {
@@ -101,12 +115,27 @@ export class IndexedDbRankingStorage {
 
   async list() {
     const database = await this.open();
-    return runTransaction(database, 'readonly', (store) => requestResult(store.getAll()));
+    return runTransaction(
+      database,
+      PENDING_RANKING_OBJECT_STORE,
+      'readonly',
+      (store) => requestResult(store.getAll())
+    );
+  }
+
+  async listQuarantined() {
+    const database = await this.open();
+    return runTransaction(
+      database,
+      PENDING_RANKING_QUARANTINE_OBJECT_STORE,
+      'readonly',
+      (store) => requestResult(store.getAll())
+    );
   }
 
   async addIfAbsent({ submissionId, serialized, maxItems }) {
     const database = await this.open();
-    return runTransaction(database, 'readwrite', async (store) => {
+    return runTransaction(database, PENDING_RANKING_OBJECT_STORE, 'readwrite', async (store) => {
       const existing = await requestResult(store.get(submissionId));
       if (existing !== undefined) return { status: 'existing', record: existing };
 
@@ -121,7 +150,7 @@ export class IndexedDbRankingStorage {
 
   async deleteIfMatch({ submissionId, serialized }) {
     const database = await this.open();
-    return runTransaction(database, 'readwrite', async (store) => {
+    return runTransaction(database, PENDING_RANKING_OBJECT_STORE, 'readwrite', async (store) => {
       const existing = await requestResult(store.get(submissionId));
       if (existing === undefined) return { status: 'not-found', record: null };
       if (
@@ -135,6 +164,73 @@ export class IndexedDbRankingStorage {
       await requestResult(store.delete(submissionId));
       return { status: 'removed', record: existing };
     });
+  }
+
+  async quarantineIfMatch({
+    submissionId,
+    serialized,
+    reason = 'permanent-rejection',
+    code = 'request-rejected',
+    quarantinedAt = Date.now()
+  }) {
+    const database = await this.open();
+    return runTransaction(
+      database,
+      [PENDING_RANKING_OBJECT_STORE, PENDING_RANKING_QUARANTINE_OBJECT_STORE],
+      'readwrite',
+      async ([pendingStore, quarantineStore]) => {
+        const quarantineId = `pending:${submissionId}`;
+        const existingQuarantine = await requestResult(quarantineStore.get(quarantineId));
+        const existing = await requestResult(pendingStore.get(submissionId));
+
+        if (existingQuarantine !== undefined) {
+          if (existingQuarantine.serialized !== serialized) {
+            return { status: 'conflict', record: existingQuarantine };
+          }
+          if (existing !== undefined) await requestResult(pendingStore.delete(submissionId));
+          return { status: 'already-quarantined', record: existingQuarantine };
+        }
+        if (existing === undefined) return { status: 'not-found', record: null };
+        if (
+          !existing
+          || existing.submissionId !== submissionId
+          || existing.serialized !== serialized
+        ) {
+          return { status: 'conflict', record: existing };
+        }
+
+        const record = Object.freeze({
+          quarantineId,
+          source: 'pending-submission',
+          submissionId,
+          serialized,
+          reason: String(reason).slice(0, 120),
+          code: String(code).slice(0, 80),
+          quarantinedAt
+        });
+        await requestResult(quarantineStore.add(record));
+        await requestResult(pendingStore.delete(submissionId));
+        return { status: 'quarantined', record };
+      }
+    );
+  }
+
+  async deleteQuarantinedIfMatch({ quarantineId, serialized }) {
+    const database = await this.open();
+    return runTransaction(
+      database,
+      PENDING_RANKING_QUARANTINE_OBJECT_STORE,
+      'readwrite',
+      async (store) => {
+        const existing = await requestResult(store.get(quarantineId));
+        if (existing === undefined) return { status: 'not-found', record: null };
+        if (!existing || existing.serialized !== serialized) {
+          return { status: 'conflict', record: existing };
+        }
+        await requestResult(store.delete(quarantineId));
+        return { status: 'removed', record: existing };
+      }
+    );
   }
 }
 
@@ -225,6 +321,34 @@ function serializeSubmission(submission) {
   return serialized;
 }
 
+function recordKey(record) {
+  return String(record?.submissionId ?? 'unknown');
+}
+
+function isLegacySharedV1Record(record) {
+  if (!record || typeof record.serialized !== 'string') return false;
+  try {
+    const parsed = JSON.parse(record.serialized);
+    const submission = parsed?.submission ?? parsed;
+    return parsed?.version === PENDING_RANKING_LEGACY_CONTRACT_VERSION
+      || parsed?.contractVersion === PENDING_RANKING_LEGACY_CONTRACT_VERSION
+      || parsed?.contract_version === PENDING_RANKING_LEGACY_CONTRACT_VERSION
+      || submission?.contractVersion === PENDING_RANKING_LEGACY_CONTRACT_VERSION
+      || submission?.contract_version === PENDING_RANKING_LEGACY_CONTRACT_VERSION;
+  } catch {
+    return false;
+  }
+}
+
+function createRecoveryRecord(record, type, extra = {}) {
+  return Object.freeze({
+    type,
+    submissionId: recordKey(record),
+    serialized: typeof record?.serialized === 'string' ? record.serialized : '',
+    ...extra
+  });
+}
+
 function decodeRecord(record) {
   if (
     !record
@@ -274,16 +398,23 @@ export class PendingRankingSubmissions {
     this.maxItems = maxItems;
     this.items = [];
     this.volatileItems = new Map();
+    this.volatileQuarantinedItems = new Map();
     this.corruptedIds = new Set();
+    this.corruptedItems = [];
+    this.unverifiedItems = [];
+    this.quarantinedItems = [];
     this.storageAvailable = Boolean(storage);
+    this.recoveryStorageAvailable = Boolean(storage);
   }
 
   async refresh() {
     if (!this.storage) {
       this.storageAvailable = false;
+      this.recoveryStorageAvailable = false;
       this.items = sortSubmissions(
         [...this.volatileItems.values()].map((entry) => entry.submission)
       );
+      this.quarantinedItems = [...this.volatileQuarantinedItems.values()];
       return this.getSnapshot();
     }
 
@@ -294,6 +425,7 @@ export class PendingRankingSubmissions {
       this.storageAvailable = true;
     } catch {
       this.storageAvailable = false;
+      this.recoveryStorageAvailable = false;
       this.items = sortSubmissions(
         [...this.volatileItems.values()].map((entry) => entry.submission)
       );
@@ -302,12 +434,24 @@ export class PendingRankingSubmissions {
 
     const storedItems = new Map();
     const corruptedIds = new Set();
+    const corruptedItems = [];
+    const unverifiedItems = [];
     for (const record of records) {
+      if (isLegacySharedV1Record(record)) {
+        unverifiedItems.push(createRecoveryRecord(record, 'unverified', {
+          contractVersion: PENDING_RANKING_LEGACY_CONTRACT_VERSION
+        }));
+        continue;
+      }
       try {
         const decoded = decodeRecord(record);
         storedItems.set(decoded.submission.submissionId, decoded);
       } catch {
-        corruptedIds.add(String(record?.submissionId ?? 'unknown'));
+        const recovery = createRecoveryRecord(record, 'corrupted', {
+          reason: 'saved-submission-unreadable'
+        });
+        corruptedIds.add(recovery.submissionId);
+        corruptedItems.push(recovery);
       }
     }
 
@@ -326,6 +470,32 @@ export class PendingRankingSubmissions {
     }
 
     this.corruptedIds = corruptedIds;
+    this.corruptedItems = corruptedItems;
+    this.unverifiedItems = unverifiedItems;
+    this.recoveryStorageAvailable = true;
+    if (typeof this.storage.listQuarantined === 'function') {
+      try {
+        const quarantined = await this.storage.listQuarantined();
+        if (!Array.isArray(quarantined)) throw new TypeError('quarantine records are invalid');
+        this.quarantinedItems = [
+          ...quarantined
+            .filter((record) => record && typeof record.serialized === 'string')
+            .map((record) => createRecoveryRecord(record, 'quarantined', {
+              quarantineId: String(record.quarantineId ?? ''),
+              source: String(record.source ?? 'pending-submission'),
+              code: String(record.code ?? 'request-rejected'),
+              reason: String(record.reason ?? 'permanent-rejection'),
+              quarantinedAt: record.quarantinedAt
+            })),
+          ...this.volatileQuarantinedItems.values()
+        ];
+      } catch {
+        this.recoveryStorageAvailable = false;
+        this.quarantinedItems = [...this.volatileQuarantinedItems.values()];
+      }
+    } else {
+      this.quarantinedItems = [...this.volatileQuarantinedItems.values()];
+    }
     this.items = sortSubmissions(
       [...storedItems.values()].map((entry) => entry.submission)
     );
@@ -338,6 +508,14 @@ export class PendingRankingSubmissions {
       count: this.items.length,
       corrupted: this.corruptedIds.size > 0,
       corruptedCount: this.corruptedIds.size,
+      corruptedItems: Object.freeze([...this.corruptedItems]),
+      unverified: this.unverifiedItems.length > 0,
+      unverifiedCount: this.unverifiedItems.length,
+      unverifiedItems: Object.freeze([...this.unverifiedItems]),
+      quarantined: this.quarantinedItems.length > 0,
+      quarantineCount: this.quarantinedItems.length,
+      quarantinedItems: Object.freeze([...this.quarantinedItems]),
+      recoveryStorageAvailable: this.recoveryStorageAvailable,
       storageAvailable: this.storageAvailable,
       persisted: this.storageAvailable && this.volatileItems.size === 0,
       volatileCount: this.volatileItems.size
@@ -360,6 +538,11 @@ export class PendingRankingSubmissions {
     }
 
     await this.refresh();
+    const blockedRecovery = [
+      ...this.corruptedItems,
+      ...this.unverifiedItems,
+      ...this.quarantinedItems
+    ].find((record) => record.submissionId === submission.submissionId);
     const existing = this.items.find((item) => item.submissionId === submission.submissionId);
     if (existing) {
       const matches = sameSubmission(existing, submission);
@@ -368,6 +551,14 @@ export class PendingRankingSubmissions {
         persisted: matches && !this.volatileItems.has(existing.submissionId),
         code: matches ? 'already-queued' : 'submission-conflict',
         submission: existing
+      });
+    }
+    if (blockedRecovery) {
+      return freezeResult({
+        ok: false,
+        persisted: false,
+        code: 'submission-conflict',
+        submission: null
       });
     }
     if (this.corruptedIds.has(submission.submissionId)) {
@@ -480,6 +671,191 @@ export class PendingRankingSubmissions {
       persisted: true,
       code: 'queued',
       submission
+    });
+  }
+
+  async quarantine(value, {
+    reason = 'permanent-rejection',
+    code = 'request-rejected'
+  } = {}) {
+    let submission;
+    let serialized;
+    try {
+      submission = normalizeSubmission(value);
+      serialized = serializeSubmission(submission);
+    } catch {
+      return freezeResult({
+        ok: false,
+        isolated: false,
+        persisted: false,
+        code: 'invalid-submission'
+      });
+    }
+
+    await this.refresh();
+    const volatile = this.volatileItems.get(submission.submissionId);
+    if (volatile && volatile.serialized !== serialized) {
+      return freezeResult({
+        ok: false,
+        isolated: false,
+        persisted: false,
+        code: 'submission-conflict'
+      });
+    }
+
+    if (!this.storage) {
+      if (!volatile) {
+        return freezeResult({
+          ok: false,
+          isolated: false,
+          persisted: false,
+          code: 'not-found'
+        });
+      }
+      const record = createRecoveryRecord({
+        submissionId: submission.submissionId,
+        serialized
+      }, 'quarantined', {
+        quarantineId: `pending:${submission.submissionId}`,
+        source: 'pending-submission',
+        reason,
+        code,
+        quarantinedAt: Date.now()
+      });
+      this.volatileItems.delete(submission.submissionId);
+      this.volatileQuarantinedItems.set(record.quarantineId, record);
+      await this.refresh();
+      return freezeResult({
+        ok: true,
+        isolated: true,
+        persisted: false,
+        code: 'quarantined'
+      });
+    }
+
+    if (typeof this.storage.quarantineIfMatch !== 'function') {
+      return freezeResult({
+        ok: false,
+        isolated: false,
+        persisted: false,
+        code: 'storage-unavailable'
+      });
+    }
+
+    let result;
+    try {
+      result = await this.storage.quarantineIfMatch({
+        submissionId: submission.submissionId,
+        serialized,
+        reason,
+        code,
+        quarantinedAt: Date.now()
+      });
+      this.storageAvailable = true;
+    } catch {
+      this.storageAvailable = false;
+      return freezeResult({
+        ok: false,
+        isolated: false,
+        persisted: false,
+        code: 'storage-unavailable'
+      });
+    }
+
+    if (!['quarantined', 'already-quarantined'].includes(result?.status)) {
+      await this.refresh();
+      return freezeResult({
+        ok: false,
+        isolated: false,
+        persisted: false,
+        code: result?.status === 'conflict' ? 'submission-conflict' : 'not-found'
+      });
+    }
+    await this.refresh();
+    return freezeResult({
+      ok: true,
+      isolated: true,
+      persisted: true,
+      code: result.status
+    });
+  }
+
+  async exportRecoveryData() {
+    const snapshot = await this.refresh();
+    return JSON.stringify({
+      exportVersion: 'sainome-ranking-recovery-v1',
+      exportedAt: new Date().toISOString(),
+      pending: snapshot.items,
+      unverified: snapshot.unverifiedItems,
+      corrupted: snapshot.corruptedItems,
+      quarantined: snapshot.quarantinedItems
+    }, null, 2);
+  }
+
+  async deleteRecoveryRecord(record) {
+    if (!record || typeof record !== 'object' || typeof record.serialized !== 'string') {
+      return freezeResult({ ok: false, removed: false, code: 'invalid-recovery-record' });
+    }
+    const snapshot = await this.refresh();
+    const candidates = record.type === 'quarantined'
+      ? snapshot.quarantinedItems
+      : [...snapshot.corruptedItems, ...snapshot.unverifiedItems];
+    const current = candidates.find((candidate) =>
+      candidate.submissionId === record.submissionId
+      && candidate.serialized === record.serialized
+      && (record.type !== 'quarantined' || candidate.quarantineId === record.quarantineId)
+    );
+    if (!current) {
+      return freezeResult({ ok: false, removed: false, code: 'not-found' });
+    }
+
+    if (record.type === 'quarantined') {
+      const volatileRemoved = this.volatileQuarantinedItems.delete(record.quarantineId);
+      if (volatileRemoved) {
+        await this.refresh();
+        return freezeResult({ ok: true, removed: true, code: 'removed' });
+      }
+      if (typeof this.storage?.deleteQuarantinedIfMatch !== 'function') {
+        return freezeResult({ ok: false, removed: false, code: 'storage-unavailable' });
+      }
+      let result;
+      try {
+        result = await this.storage.deleteQuarantinedIfMatch({
+          quarantineId: record.quarantineId,
+          serialized: record.serialized
+        });
+      } catch {
+        this.storageAvailable = false;
+        this.recoveryStorageAvailable = false;
+        return freezeResult({ ok: false, removed: false, code: 'storage-unavailable' });
+      }
+      await this.refresh();
+      return freezeResult({
+        ok: result?.status === 'removed' || result?.status === 'not-found',
+        removed: result?.status === 'removed',
+        code: result?.status ?? 'storage-unavailable'
+      });
+    }
+
+    if (typeof this.storage?.deleteIfMatch !== 'function') {
+      return freezeResult({ ok: false, removed: false, code: 'storage-unavailable' });
+    }
+    let result;
+    try {
+      result = await this.storage.deleteIfMatch({
+        submissionId: record.submissionId,
+        serialized: record.serialized
+      });
+    } catch {
+      this.storageAvailable = false;
+      this.recoveryStorageAvailable = false;
+      return freezeResult({ ok: false, removed: false, code: 'storage-unavailable' });
+    }
+    await this.refresh();
+    return freezeResult({
+      ok: result?.status === 'removed' || result?.status === 'not-found',
+      removed: result?.status === 'removed',
+      code: result?.status ?? 'storage-unavailable'
     });
   }
 

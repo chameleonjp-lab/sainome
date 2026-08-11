@@ -11,6 +11,8 @@ test('ホームの開始操作後に未送信件数と手動再送を表示で�
   assert.match(html, /id="pending-ranking-panel"[^>]*hidden/);
   assert.match(html, /id="pending-ranking-status"[^>]*role="status"/);
   assert.match(html, /id="pending-ranking-retry"[^>]*type="button"/);
+  assert.match(html, /id="pending-ranking-export"[^>]*type="button"/);
+  assert.match(html, /id="pending-ranking-recovery-list"[^>]*hidden/);
   assert.equal(html.indexOf('id="pending-ranking-panel"') > html.indexOf('class="home-actions"'), true);
   assert.match(css, /\.pending-ranking-panel button\s*\{[^}]*min-height:\s*44px/s);
   assert.match(css, /@media \(max-width: 370px\)[\s\S]*\.pending-ranking-panel\s*\{[^}]*grid-template-columns:\s*1fr/s);
@@ -41,6 +43,9 @@ test('復元した未送信記録は手動操作だけで再送し、タブ間�
   assert.doesNotMatch(main, /renderPendingRankingPanel\(\);\s*void retryStoredRankingSubmissions\(\);/);
 });
 
-test('DB復旧前の手動再送は1操作1件に制限する', () => {
-  assert.match(main, /const MAX_MANUAL_PENDING_RETRIES = 1;/);
+test('恒久拒否を隔離し、再送と順位再読込を別操作に分ける', () => {
+  assert.match(main, /const MAX_MANUAL_PENDING_RETRIES = 10;/);
+  assert.match(main, /classifyRankingFailure\(error\)/);
+  assert.match(main, /pendingRankingSubmissions\.quarantine\(submission/);
+  assert.match(main, /syncResultRanking\(latestRankingSubmission, \{ submit: false \}\)/);
 });

@@ -408,6 +408,56 @@ button:disabled { opacity: .55; }
   font-weight: 900;
   touch-action: manipulation;
 }
+.pending-ranking-recovery-actions,
+.pending-ranking-recovery-status,
+.pending-ranking-recovery-list {
+  grid-column: 1 / -1;
+}
+.pending-ranking-recovery-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+.pending-ranking-recovery-actions button {
+  min-height: 40px;
+  padding-inline: 13px;
+  border-color: rgba(255,255,255,.22);
+  background: rgba(255,255,255,.06);
+  color: #e2ddd1;
+}
+.pending-ranking-recovery-status {
+  margin: 0;
+  color: #aaa494;
+  font-size: .72rem;
+  line-height: 1.5;
+}
+.pending-ranking-recovery-list {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pending-ranking-recovery-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 9px;
+  background: rgba(0,0,0,.12);
+  color: #bdb6a7;
+  font-size: .7rem;
+  line-height: 1.4;
+}
+.pending-ranking-recovery-list button {
+  min-height: 36px;
+  padding: 6px 9px;
+  border-color: rgba(255,111,95,.42);
+  background: rgba(92,30,26,.25);
+  color: #ffc4ba;
+  font-size: .68rem;
+}
 
 .tutorial-screen {
   align-content: center;

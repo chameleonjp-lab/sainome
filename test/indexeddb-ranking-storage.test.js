@@ -98,6 +98,43 @@ test('実IndexedDBアダプタは同じ番号の確保と完全一致削除を�
     });
     assert.equal(alreadyRemoved.status, 'not-found');
     assert.equal(reopenedCompletions(), 3);
+
+    const quarantineSubmissionId = '22222222-2222-4222-8222-222222222222';
+    const quarantineSerialized = JSON.stringify({ source: 'quarantine' });
+    const addedForQuarantine = await reopened.addIfAbsent({
+      submissionId: quarantineSubmissionId,
+      serialized: quarantineSerialized,
+      maxItems: 50
+    });
+    assert.equal(addedForQuarantine.status, 'added');
+    assert.equal(reopenedCompletions(), 4);
+
+    const quarantined = await reopened.quarantineIfMatch({
+      submissionId: quarantineSubmissionId,
+      serialized: quarantineSerialized,
+      reason: 'permanent-rejection',
+      code: 'request-failed',
+      quarantinedAt: 1_785_000_000_000
+    });
+    assert.equal(quarantined.status, 'quarantined');
+    assert.equal(reopenedCompletions(), 5);
+    assert.deepEqual(await reopened.list(), []);
+    assert.deepEqual(await reopened.listQuarantined(), [quarantined.record]);
+
+    const quarantineMismatch = await reopened.deleteQuarantinedIfMatch({
+      quarantineId: quarantined.record.quarantineId,
+      serialized: `${quarantineSerialized}-mismatch`
+    });
+    assert.equal(quarantineMismatch.status, 'conflict');
+    assert.equal(reopenedCompletions(), 6);
+
+    const quarantineRemoved = await reopened.deleteQuarantinedIfMatch({
+      quarantineId: quarantined.record.quarantineId,
+      serialized: quarantineSerialized
+    });
+    assert.equal(quarantineRemoved.status, 'removed');
+    assert.equal(reopenedCompletions(), 7);
+    assert.deepEqual(await reopened.listQuarantined(), []);
   } finally {
     for (const adapter of adapters) {
       if (!adapter.databasePromise) continue;
