@@ -20,10 +20,38 @@ test('60秒モードは開始直後に入力を受け付ける', () => {
   assert.equal(session.isAcceptingInput(), true);
 });
 
+test('盤面準備中は開始命令まで時間と入力を進めない', () => {
+  const session = new GameSession();
+
+  const prepared = session.getSnapshot();
+  const stillPrepared = session.tick(60_000);
+
+  assert.equal(prepared.phase, 'idle');
+  assert.equal(prepared.remainingMs, DEFAULT_GAME_DURATION_MS);
+  assert.equal(stillPrepared.phase, 'idle');
+  assert.equal(stillPrepared.elapsedMs, 0);
+  assert.equal(stillPrepared.remainingMs, DEFAULT_GAME_DURATION_MS);
+  assert.equal(session.isAcceptingInput(), false);
+
+  const started = session.start(60_000);
+  const afterOneMs = session.tick(60_001);
+
+  assert.equal(started.phase, 'running');
+  assert.equal(started.remainingMs, DEFAULT_GAME_DURATION_MS);
+  assert.equal(afterOneMs.elapsedMs, 1);
+  assert.equal(afterOneMs.remainingMs, DEFAULT_GAME_DURATION_MS - 1);
+});
+
 test('180秒モードは180秒到達時まで入力を受け付ける', () => {
   const session = new GameSession({
     modeId: GAME_MODE_IDS.ONE_EIGHTY_SECONDS
   });
+
+  const prepared = session.tick(181_000);
+  assert.equal(prepared.phase, 'idle');
+  assert.equal(prepared.remainingMs, 180_000);
+  assert.equal(prepared.elapsedMs, 0);
+
   session.start(1_000);
 
   const beforeEnd = session.tick(180_999);

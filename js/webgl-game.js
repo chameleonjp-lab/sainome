@@ -341,11 +341,19 @@ export class WebGLSainome {
     this.player.rotation.set(0, 0, 0);
     this.placePlayer();
     this.lastSessionSignature = '';
-    this.emitSession(this.session.start(this.getGameTime()), true);
+    this.emitSession(this.session.getSnapshot(), true);
     this.callbacks.onRoll?.(this.rollCount, this.dice.get(this.activeKey)?.top);
     this.callbacks.onChain?.({ chain: 0, count: 0, value: 0, isChain: false });
     this.callbacks.onClear?.(this.clearedCount);
     this.callbacks.onMessage?.('同じ目を、目の数以上つなげます');
+  }
+
+  startSession() {
+    if (this.session.getSnapshot().phase !== GAME_PHASES.IDLE) return false;
+
+    const snapshot = this.session.start(this.getGameTime());
+    this.emitSession(snapshot, true);
+    return true;
   }
 
   addDie(row, column, state = 'normal') {
