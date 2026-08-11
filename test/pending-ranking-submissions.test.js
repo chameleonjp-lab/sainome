@@ -11,7 +11,22 @@ import {
   RANKING_SUBMISSION_CONTRACT_VERSION
 } from '../js/ranking-client.js';
 
-const SUBMISSION_ID = '12345678-1234-1234-1234-123456789012';
+const SUBMISSION_ID = '12345678-1234-4234-8234-123456789012';
+const ALTERNATE_IDS = Object.freeze([
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+  'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+  'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+  'ffffffff-ffff-4fff-8fff-ffffffffffff'
+]);
+
+const CREATED_AT = 1_785_000_000_000;
+const TICKET_FIELDS = Object.freeze({
+  issuedAt: CREATED_AT - 1_000,
+  earliestSubmitAt: CREATED_AT + 62_000,
+  expiresAt: CREATED_AT + 86_399_000
+});
 
 function createSubmission(overrides = {}) {
   return {
@@ -26,7 +41,8 @@ function createSubmission(overrides = {}) {
       maxChain: 2,
       endedReason: 'time-up'
     },
-    createdAt: 1_785_000_000_000,
+    createdAt: CREATED_AT,
+    ...TICKET_FIELDS,
     ...overrides
   };
 }
@@ -198,7 +214,7 @@ test('壊れた1件は上書きせず保持し、別の正常な結果を保存�
   const brokenRecord = { submissionId: brokenId, serialized: '{broken-json' };
   const storage = createAtomicMemoryStorage([brokenRecord]);
   const pending = new PendingRankingSubmissions({ storage });
-  const valid = createSubmission({ submissionId: 'v'.repeat(16) });
+  const valid = createSubmission({ submissionId: ALTERNATE_IDS[0] });
 
   assert.equal((await pending.refresh()).corrupted, true);
   assert.equal((await pending.enqueue(valid)).ok, true);
@@ -208,10 +224,10 @@ test('壊れた1件は上書きせず保持し、別の正常な結果を保存�
 });
 
 test('保存不能でも現在の画面内では結果を保持し、既存の保存値を変更しない', async () => {
-  const existing = createSubmission({ submissionId: 'e'.repeat(16) });
+  const existing = createSubmission({ submissionId: ALTERNATE_IDS[1] });
   const storage = createAtomicMemoryStorage([recordFor(existing)], { failAdd: true });
   const pending = new PendingRankingSubmissions({ storage });
-  const volatile = createSubmission({ submissionId: 'n'.repeat(16) });
+  const volatile = createSubmission({ submissionId: ALTERNATE_IDS[2] });
   const queued = await pending.enqueue(volatile);
 
   assert.equal(queued.ok, true);
@@ -283,12 +299,12 @@ test('別タブが先に対象を削除した場合は原子的な不存在確�
 });
 
 test('上限到達時に既存の未送信結果を捨てず、同時追加でも上限を超えない', async () => {
-  const first = createSubmission({ submissionId: 'a'.repeat(16), createdAt: 1 });
+  const first = createSubmission({ submissionId: ALTERNATE_IDS[3], createdAt: 1 });
   const storage = createAtomicMemoryStorage([recordFor(first)]);
   const firstTab = new PendingRankingSubmissions({ storage, maxItems: 2 });
   const secondTab = new PendingRankingSubmissions({ storage, maxItems: 2 });
-  const second = createSubmission({ submissionId: 'b'.repeat(16), createdAt: 2 });
-  const third = createSubmission({ submissionId: 'c'.repeat(16), createdAt: 3 });
+  const second = createSubmission({ submissionId: ALTERNATE_IDS[4], createdAt: 2 });
+  const third = createSubmission({ submissionId: ALTERNATE_IDS[5], createdAt: 3 });
 
   const results = await Promise.all([firstTab.enqueue(second), secondTab.enqueue(third)]);
   assert.equal(results.filter((result) => result.code === 'queued').length, 1);
@@ -331,8 +347,8 @@ test('同時に開いた2タブ相当が別IDを追加しても両方を保持�
   const storage = createAtomicMemoryStorage();
   const firstTab = new PendingRankingSubmissions({ storage });
   const secondTab = new PendingRankingSubmissions({ storage });
-  const first = createSubmission({ submissionId: 'a'.repeat(16), createdAt: 1 });
-  const second = createSubmission({ submissionId: 'b'.repeat(16), createdAt: 2 });
+  const first = createSubmission({ submissionId: ALTERNATE_IDS[3], createdAt: 1 });
+  const second = createSubmission({ submissionId: ALTERNATE_IDS[4], createdAt: 2 });
 
   await Promise.all([firstTab.enqueue(first), secondTab.enqueue(second)]);
 
@@ -347,8 +363,8 @@ test('古いタブ相当が1件を受付済みにしても別タブの追加を�
   const storage = createAtomicMemoryStorage();
   const firstTab = new PendingRankingSubmissions({ storage });
   const secondTab = new PendingRankingSubmissions({ storage });
-  const first = createSubmission({ submissionId: 'a'.repeat(16), createdAt: 1 });
-  const second = createSubmission({ submissionId: 'b'.repeat(16), createdAt: 2 });
+  const first = createSubmission({ submissionId: ALTERNATE_IDS[3], createdAt: 1 });
+  const second = createSubmission({ submissionId: ALTERNATE_IDS[4], createdAt: 2 });
 
   await firstTab.enqueue(first);
   await secondTab.enqueue(second);

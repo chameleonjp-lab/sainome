@@ -1,12 +1,10 @@
 import {
-  createSubmissionId,
+  isValidRankingSubmissionId,
   RANKING_CLIENT_VERSION,
   RANKING_GAME_SLUGS,
   RANKING_SUBMISSION_CONTRACT_VERSION
 } from './ranking-client.js';
 import { validatePlayerName } from './player-profile.js';
-
-const MAX_ID_ATTEMPTS = 3;
 
 function requireCanonicalPlayerName(displayName) {
   const validated = validatePlayerName(displayName);
@@ -14,6 +12,36 @@ function requireCanonicalPlayerName(displayName) {
     throw new TypeError('displayName is invalid or not normalized');
   }
   return displayName;
+}
+
+function requirePlayTicket(playTicket, result) {
+  if (!playTicket || typeof playTicket !== 'object') return null;
+  if (!isValidRankingSubmissionId(playTicket.submissionId)) {
+    throw new TypeError('play ticket submissionId is invalid');
+  }
+  if (playTicket.gameSlug !== RANKING_GAME_SLUGS[result.modeId]) {
+    throw new TypeError('play ticket game slug is invalid');
+  }
+  if (playTicket.clientVersion !== RANKING_CLIENT_VERSION) {
+    throw new TypeError('play ticket client version is invalid');
+  }
+  if (playTicket.contractVersion !== RANKING_SUBMISSION_CONTRACT_VERSION) {
+    throw new TypeError('play ticket contract version is invalid');
+  }
+  for (const [name, value] of [
+    ['issuedAt', playTicket.issuedAt],
+    ['earliestSubmitAt', playTicket.earliestSubmitAt],
+    ['expiresAt', playTicket.expiresAt]
+  ]) {
+    if (!Number.isSafeInteger(value) || value < 0) {
+      throw new TypeError(`play ticket ${name} is invalid`);
+    }
+  }
+  if (!(playTicket.issuedAt < playTicket.earliestSubmitAt
+    && playTicket.earliestSubmitAt < playTicket.expiresAt)) {
+    throw new TypeError('play ticket time window is invalid');
+  }
+  return playTicket;
 }
 
 export class SingleFlight {
@@ -47,47 +75,52 @@ export async function prepareRankingSubmission({
   pendingSubmissions,
   displayName,
   result,
-  idFactory = createSubmissionId,
   now = () => Date.now(),
-  clientVersion = RANKING_CLIENT_VERSION,
-  contractVersion = RANKING_SUBMISSION_CONTRACT_VERSION
+  playTicket = null
 }) {
   if (!pendingSubmissions || typeof pendingSubmissions.enqueue !== 'function') {
     throw new TypeError('pendingSubmissions is invalid');
   }
-  if (typeof idFactory !== 'function' || typeof now !== 'function') {
-    throw new TypeError('submission factories are invalid');
+  if (typeof now !== 'function') {
+    throw new TypeError('submission clock is invalid');
   }
   requireCanonicalPlayerName(displayName);
 
-  let lastCandidate = null;
-  for (let attempt = 0; attempt < MAX_ID_ATTEMPTS; attempt += 1) {
-    const candidate = Object.freeze({
-      submissionId: idFactory(),
-      contractVersion,
-      clientVersion,
+  if (!playTicket) {
+    return Object.freeze({
+      submissionId: null,
+      contractVersion: RANKING_SUBMISSION_CONTRACT_VERSION,
+      clientVersion: RANKING_CLIENT_VERSION,
       displayName,
       result,
-      createdAt: now()
-    });
-    lastCandidate = candidate;
-    const queued = await pendingSubmissions.enqueue(candidate);
-    if (queued.code === 'submission-conflict') continue;
-
-    const canSubmit = queued.ok || queued.code === 'queue-full';
-    return Object.freeze({
-      ...candidate,
-      persisted: queued.persisted,
-      pendingSaveCode: queued.code,
-      canSubmit
+      createdAt: now(),
+      persisted: false,
+      pendingSaveCode: 'ticket-unavailable',
+      canSubmit: false
     });
   }
 
+  const ticket = requirePlayTicket(playTicket, result);
+  const candidate = Object.freeze({
+    submissionId: ticket.submissionId,
+    contractVersion: ticket.contractVersion,
+    clientVersion: ticket.clientVersion,
+    displayName,
+    result,
+    createdAt: now(),
+    issuedAt: ticket.issuedAt,
+    earliestSubmitAt: ticket.earliestSubmitAt,
+    expiresAt: ticket.expiresAt
+  });
+
+  const queued = await pendingSubmissions.enqueue(candidate);
+  const canSubmit = queued.ok || queued.code === 'queue-full';
+
   return Object.freeze({
-    ...lastCandidate,
-    persisted: false,
-    pendingSaveCode: 'submission-conflict',
-    canSubmit: false
+    ...candidate,
+    persisted: queued.persisted,
+    pendingSaveCode: queued.code,
+    canSubmit
   });
 }
 

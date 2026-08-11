@@ -9,7 +9,7 @@ import {
 export const PENDING_RANKING_DATABASE_NAME = 'sainome-ranking';
 export const PENDING_RANKING_OBJECT_STORE = 'pending-submissions-v1';
 export const PENDING_RANKING_CHANNEL_NAME = 'sainome-pending-ranking-v1';
-export const PENDING_RANKING_STORAGE_VERSION = 1;
+export const PENDING_RANKING_STORAGE_VERSION = 2;
 export const MAX_PENDING_RANKING_SUBMISSIONS = 50;
 
 const MAX_SCORE = 100_000_000;
@@ -195,13 +195,22 @@ function normalizeSubmission(value) {
   }
 
   requireNonNegativeInteger(value.createdAt, 'createdAt', MAX_CREATED_AT);
+  requireNonNegativeInteger(value.issuedAt, 'issuedAt', MAX_CREATED_AT);
+  requireNonNegativeInteger(value.earliestSubmitAt, 'earliestSubmitAt', MAX_CREATED_AT);
+  requireNonNegativeInteger(value.expiresAt, 'expiresAt', MAX_CREATED_AT);
+  if (!(value.issuedAt < value.earliestSubmitAt && value.earliestSubmitAt < value.expiresAt)) {
+    throw new RangeError('ranking ticket time window is invalid');
+  }
   return Object.freeze({
     submissionId: value.submissionId,
     contractVersion: value.contractVersion,
     clientVersion: value.clientVersion,
     displayName: validatedName.name,
     result: normalizeResult(value.result),
-    createdAt: value.createdAt
+    createdAt: value.createdAt,
+    issuedAt: value.issuedAt,
+    earliestSubmitAt: value.earliestSubmitAt,
+    expiresAt: value.expiresAt
   });
 }
 

@@ -26,7 +26,7 @@
 - ランキング受付前の結果をIndexedDBトランザクションで端末へ保全し、手動で同じ番号を再送
 - ランキング名のゲーム内の保存・送信経路を同じ検査へ統一し、不正な旧ランキング行だけを非表示
 - ランキング名を双方向隔離して表示し、新DB復旧後の`is_current_user`による本人判定に対応
-- 本番Supabaseのランキング受付復旧は、`docs/ADVERSARIAL_REMEDIATION_PLAN.md`の第3工程で実施予定
+- 本番Supabaseのランキング契約復旧は第3工程のDraft PRで実装中で、移行後も受付停止状態を保つ
 - iPhone向けの盤面に沿った斜め4方向フリック
 - パソコン向け矢印キー、WASD操作
 - 開始前のWebGL 2対応確認と、非対応時の理由表示
@@ -68,7 +68,7 @@
 - 自己ベストは60秒と180秒を分けて端末へ保存します。保存できない場合もゲームは続けられます。
 - 「結果をシェア」では、モード、得点、消した数、最大連鎖、自己ベスト判定、ゲームURLを共有します。端末の共有画面が使えない場合は同じ内容をコピーします。
 - 結果確定時に選択したモードへ記録を送信し、結果画面の下部へ最高記録ランキング上位10名を表示します。60秒と180秒の順位は混ざりません。
-- 送信に失敗した結果は端末に保全し、同じ登録番号で手動再送できます。本番Supabase側の受付と重複防止は現在復旧前です。
+- 送信に失敗した結果は端末に保全し、サーバー発行の同じプレイ番号で手動再送できます。本番Supabase側の受付と重複防止は、移行の有効化確認まで停止したままです。
 
 モード設定は`js/game-modes.js`、時間・得点・結果の処理は`js/game-session.js`、画面の状態は`js/ui-flow.js`に分けています。いずれもHTMLやThree.jsに依存せず、自動テストで確認できます。
 
@@ -96,6 +96,7 @@ js/best-records.js
 js/result-share.js
 js/player-profile.js
 js/player-name-unicode-15-1.js
+js/supabase-auth.js
 js/ranking-client.js
 js/pending-ranking-submissions.js
 js/ranking-submission-flow.js
@@ -121,16 +122,19 @@ test/result-share.test.js
 test/result-share-wiring.test.js
 test/player-profile.test.js
 test/player-name-contract.test.js
+test/supabase-auth.test.js
 test/ranking-client.test.js
 test/ranking-wiring.test.js
 test/indexeddb-ranking-storage.test.js
 test/pending-ranking-submissions.test.js
 test/ranking-submission-flow.test.js
 test/pending-ranking-wiring.test.js
+test/sainome-ranking-v2-migration.test.js
 test/tutorial-slides.test.js
 test/ui-flow.test.js
 contracts/player-name-v1.json
 docs/RANKING_IDENTITY_CONTRACT.md
+supabase/migrations/20260810120000_sainome_ranking_v2.sql
 ```
 
 描画にはCDNからThree.jsを読み込みます。効果音はブラウザの音声機能で生成するため、外部の音声ファイルは読み込みません。ランキング通信には公開用のSupabase接続情報だけを使い、秘密鍵は含めません。公開用のビルド作業はなく、静的ファイルをそのまま公開できます。`npm test`でサイコロの面、接続判定、60秒・180秒モード、生成数、得点、終了確定、効果音、名前保存、ランキング通信、チュートリアル、画面遷移を確認できます。
