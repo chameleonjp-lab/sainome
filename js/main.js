@@ -1014,7 +1014,12 @@ function scheduleCountdown(runId) {
     renderFlow(transition.snapshot);
 
     if (transition.started) {
-      game.reset(activeMode.id);
+      if (!game.startSession()) {
+        cancelCountdown();
+        activePlayTicket = null;
+        showHomeStartError('ゲームを開始できませんでした。もう一度お試しください。');
+        return;
+      }
       message.textContent = '盤面に沿って斜めにフリック';
       canvas.focus({ preventScroll: true });
       return;
@@ -1083,13 +1088,15 @@ async function startRound() {
   }
   setStartPending(false);
 
-  const snapshot = flow.beginCountdown();
-  if (!snapshot) return;
   selectedMode = roundMode;
   activeMode = roundMode;
   activePlayerName = roundPlayerName;
   applyModeLabels(activeMode);
   resetHudDisplay(activeMode);
+  game.reset(activeMode.id);
+
+  const snapshot = flow.beginCountdown();
+  if (!snapshot) return;
   cancelCountdown();
   renderFlow(snapshot);
   scheduleCountdown(countdownRunId);
