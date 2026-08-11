@@ -6,6 +6,7 @@ import {
   createSubmissionId,
   RankingClient,
   RankingError,
+  isRetryableRankingError,
   RANKING_CLIENT_VERSION,
   RANKING_GAME_SLUGS,
   RANKING_LIMIT,
@@ -428,6 +429,52 @@ test('通信失敗を画面側で判別できるエラーへ変換する', async
   await assert.rejects(
     client.getTopRanking(GAME_MODE_IDS.SIXTY_SECONDS),
     (error) => error instanceof RankingError && error.code === 'request-failed'
+  );
+});
+
+test('HTTP応答を一時失敗と恒久拒否に分類できる', async () => {
+  for (const [status, retryable] of [[400, false], [429, true], [500, true]]) {
+    const client = makeClient({
+      fetchImpl: async () => jsonResponse({ message: 'failed' }, { ok: false, status })
+    });
+
+    await assert.rejects(
+      client.getTopRanking(GAME_MODE_IDS.SIXTY_SECONDS),
+      (error) => {
+        assert.equal(error instanceof RankingError, true);
+        assert.equal(error.code, 'request-failed');
+        assert.equal(error.status, status);
+        assert.equal(error.retryable, retryable);
+        assert.equal(isRetryableRankingError(error), retryable);
+        return true;
+      }
+    );
+  }
+});
+
+test('タイムアウトとネットワーク切断は再試行可能として返す', async () => {
+  const timeoutClient = makeClient({
+    fetchImpl: async () => {
+      const error = new Error('aborted');
+      error.name = 'AbortError';
+      throw error;
+    }
+  });
+  await assert.rejects(
+    timeoutClient.getTopRanking(GAME_MODE_IDS.SIXTY_SECONDS),
+    (error) => error instanceof RankingError
+      && error.code === 'timeout'
+      && error.retryable === true
+  );
+
+  const networkClient = makeClient({
+    fetchImpl: async () => { throw new Error('offline'); }
+  });
+  await assert.rejects(
+    networkClient.getTopRanking(GAME_MODE_IDS.SIXTY_SECONDS),
+    (error) => error instanceof RankingError
+      && error.code === 'network'
+      && error.retryable === true
   );
 });
 

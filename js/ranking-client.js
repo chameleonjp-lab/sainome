@@ -25,11 +25,18 @@ export function isValidRankingClientVersion(value) {
 }
 
 export class RankingError extends Error {
-  constructor(code, message, cause) {
+  constructor(code, message, cause, { retryable = false, status = null } = {}) {
     super(message, cause ? { cause } : undefined);
     this.name = 'RankingError';
     this.code = code;
+    this.retryable = retryable === true;
+    this.status = Number.isInteger(status) ? status : null;
   }
+}
+
+export function isRetryableRankingError(error) {
+  return error instanceof RankingError
+    && (error.retryable === true || error.code === 'network' || error.code === 'timeout');
 }
 
 function requireModeSlug(modeId) {
@@ -259,7 +266,7 @@ export class RankingClient {
     } catch (error) {
       if (authRequired) {
         if (error instanceof SupabaseAuthError) {
-          throw new RankingError('auth-required', error.message, error);
+          throw new RankingError('auth-required', error.message, error, { retryable: false });
         }
         throw error;
       }
@@ -268,7 +275,12 @@ export class RankingClient {
       session = null;
     }
     if (authRequired && !session?.accessToken) {
-      throw new RankingError('auth-required', 'ランキング受付には匿名認証が必要です');
+      throw new RankingError(
+        'auth-required',
+        'ランキング受付には匿名認証が必要です',
+        undefined,
+        { retryable: false }
+      );
     }
 
     const controller = new AbortController();
@@ -297,17 +309,41 @@ export class RankingClient {
       }
       if (!response.ok) {
         if (authRequired && response.status === 401) {
-          throw new RankingError('auth-required', 'ランキング認証の有効期限が切れています');
+          throw new RankingError(
+            'auth-required',
+            'ランキング認証の有効期限が切れています',
+            undefined,
+            { retryable: false, status: response.status }
+          );
         }
-        throw new RankingError('request-failed', 'ランキング通信に失敗しました');
+        const retryable = response.status === 408
+          || response.status === 425
+          || response.status === 429
+          || response.status >= 500;
+        throw new RankingError(
+          'request-failed',
+          'ランキング通信に失敗しました',
+          undefined,
+          { retryable, status: response.status }
+        );
       }
       return data;
     } catch (error) {
       if (error instanceof RankingError) throw error;
       if (error?.name === 'AbortError') {
-        throw new RankingError('timeout', 'ランキング通信が時間切れになりました', error);
+        throw new RankingError(
+          'timeout',
+          'ランキング通信が時間切れになりました',
+          error,
+          { retryable: true }
+        );
       }
-      throw new RankingError('network', 'ランキングへ接続できませんでした', error);
+      throw new RankingError(
+        'network',
+        'ランキングへ接続できませんでした',
+        error,
+        { retryable: true }
+      );
     } finally {
       clearTimeout(timeoutId);
     }

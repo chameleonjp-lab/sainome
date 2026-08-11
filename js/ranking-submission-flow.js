@@ -1,5 +1,7 @@
 import {
   isValidRankingSubmissionId,
+  isRetryableRankingError,
+  RankingError,
   RANKING_CLIENT_VERSION,
   RANKING_GAME_SLUGS,
   RANKING_SUBMISSION_CONTRACT_VERSION
@@ -60,6 +62,18 @@ export class SingleFlight {
       this.active = false;
     }
   }
+}
+
+export function classifyRankingFailure(error) {
+  if (isRetryableRankingError(error)) return 'transient';
+  if (
+    error instanceof RankingError
+    && error.code === 'request-failed'
+    && [400, 409, 422].includes(error.status)
+  ) {
+    return 'permanent';
+  }
+  return 'transient';
 }
 
 export function updateIfCurrentRankingSubmission({ submission, isCurrent, update }) {

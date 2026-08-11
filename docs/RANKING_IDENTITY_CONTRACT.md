@@ -14,7 +14,7 @@
 - 第2工程では本番Supabase、公開キー、既存の`shared-v1`保存形式を変更しない。
 - 表示名は公開用の文字列であり、本人を識別するIDではない。同じ表示名を複数の利用者が使える。
 
-第3工程のDraft実装では、`supabase/migrations/20260810120000_sainome_ranking_v2.sql`を追加し、クライアントは`js/supabase-auth.js`とv2 RPCへ切り替える。移行の`accepting_runs`は`false`、`ranking_enable_not_before`は`infinity`、`public.games.is_active`は`false`のままであり、本番受付を開く移行は別途行わない。ブラウザの認証・RPC・保存キューの自動検査は実装済みだが、DB移行の本番適用、キャッシュ測定、Turnstile/IP制限、Advisor差分確認は未実施である。
+第3工程のDraft実装では、`supabase/migrations/20260810120000_sainome_ranking_v2.sql`と`supabase/migrations/20260811090000_sainome_unicode_name_contract.sql`を追加し、クライアントは`js/supabase-auth.js`とv2 RPCへ切り替える。両移行は受付停止状態で本番へ適用済みで、`accepting_runs`は`false`、`ranking_enable_not_before`は`infinity`、`public.games.is_active`は`false`のままである。ブラウザの認証・RPC・保存キューの自動検査も実装済みだが、キャッシュ測定、Turnstile/IP制限、Advisor警告のallowlist整理、受付有効化は未完了である。
 
 ## 2. `player-name-v1`
 

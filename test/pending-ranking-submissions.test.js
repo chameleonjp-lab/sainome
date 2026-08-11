@@ -60,10 +60,13 @@ function recordFor(submission, version = PENDING_RANKING_STORAGE_VERSION) {
 
 function createAtomicMemoryStorage(initial = [], options = {}) {
   const records = new Map(initial.map((record) => [record.submissionId, { ...record }]));
+  const quarantined = new Map();
   let transactionTail = Promise.resolve();
   let failList = Boolean(options.failList);
   let failAdd = Boolean(options.failAdd);
   let failDelete = Boolean(options.failDelete);
+  let failQuarantine = Boolean(options.failQuarantine);
+  let failRecoveryDelete = Boolean(options.failRecoveryDelete);
 
   function exclusive(action) {
     const current = transactionTail.then(action, action);
@@ -95,13 +98,56 @@ function createAtomicMemoryStorage(initial = [], options = {}) {
       records.delete(entry.submissionId);
       return { status: 'removed', record: { ...existing } };
     }),
+    listQuarantined: async () => [...quarantined.values()].map((record) => ({ ...record })),
+    quarantineIfMatch: (entry) => exclusive(async () => {
+      if (failQuarantine) throw new Error('quarantine failed');
+      const quarantineId = `pending:${entry.submissionId}`;
+      const existingQuarantine = quarantined.get(quarantineId);
+      const existing = records.get(entry.submissionId);
+      if (existingQuarantine) {
+        if (existingQuarantine.serialized !== entry.serialized) {
+          return { status: 'conflict', record: { ...existingQuarantine } };
+        }
+        records.delete(entry.submissionId);
+        return { status: 'already-quarantined', record: { ...existingQuarantine } };
+      }
+      if (!existing) return { status: 'not-found', record: null };
+      if (existing.serialized !== entry.serialized) {
+        return { status: 'conflict', record: { ...existing } };
+      }
+      const record = {
+        quarantineId,
+        source: 'pending-submission',
+        submissionId: entry.submissionId,
+        serialized: entry.serialized,
+        reason: entry.reason,
+        code: entry.code,
+        quarantinedAt: entry.quarantinedAt
+      };
+      quarantined.set(quarantineId, record);
+      records.delete(entry.submissionId);
+      return { status: 'quarantined', record: { ...record } };
+    }),
+    deleteQuarantinedIfMatch: (entry) => exclusive(async () => {
+      if (failRecoveryDelete) throw new Error('recovery delete failed');
+      const existing = quarantined.get(entry.quarantineId);
+      if (!existing) return { status: 'not-found', record: null };
+      if (existing.serialized !== entry.serialized) {
+        return { status: 'conflict', record: { ...existing } };
+      }
+      quarantined.delete(entry.quarantineId);
+      return { status: 'removed', record: { ...existing } };
+    }),
     peek: (submissionId) => records.get(submissionId) ?? null,
     entries: () => [...records.values()].map((record) => ({ ...record })),
+    quarantineEntries: () => [...quarantined.values()].map((record) => ({ ...record })),
     putRaw: (record) => records.set(record.submissionId, { ...record }),
     setFailures: (next = {}) => {
       if ('list' in next) failList = next.list;
       if ('add' in next) failAdd = next.add;
       if ('delete' in next) failDelete = next.delete;
+      if ('quarantine' in next) failQuarantine = next.quarantine;
+      if ('recoveryDelete' in next) failRecoveryDelete = next.recoveryDelete;
     }
   };
 }
@@ -221,6 +267,103 @@ test('壊れた1件は上書きせず保持し、別の正常な結果を保存�
   assert.deepEqual(storage.peek(brokenId), brokenRecord);
   assert.equal((await pending.refresh()).count, 1);
   assert.equal(pending.getSnapshot().corruptedCount, 1);
+});
+
+test('壊れた保存データは非破壊で書き出せ、明示した完全一致対象だけ削除できる', async () => {
+  const brokenId = 'c'.repeat(16);
+  const brokenRecord = { submissionId: brokenId, serialized: '{broken-json' };
+  const storage = createAtomicMemoryStorage([brokenRecord]);
+  const pending = new PendingRankingSubmissions({ storage });
+
+  const exported = JSON.parse(await pending.exportRecoveryData());
+
+  assert.equal(exported.exportVersion, 'sainome-ranking-recovery-v1');
+  assert.deepEqual(exported.corrupted, [{
+    type: 'corrupted',
+    submissionId: brokenId,
+    serialized: brokenRecord.serialized,
+    reason: 'saved-submission-unreadable'
+  }]);
+  assert.deepEqual(storage.peek(brokenId), brokenRecord);
+
+  const removed = await pending.deleteRecoveryRecord(exported.corrupted[0]);
+  assert.deepEqual(removed, { ok: true, removed: true, code: 'removed' });
+  assert.equal(storage.peek(brokenId), null);
+});
+
+test('保全データの削除に失敗した場合も元の内容を保持する', async () => {
+  const brokenRecord = { submissionId: ALTERNATE_IDS[2], serialized: '{broken-json' };
+  const storage = createAtomicMemoryStorage([brokenRecord], { failDelete: true });
+  const pending = new PendingRankingSubmissions({ storage });
+  const snapshot = await pending.refresh();
+
+  const failed = await pending.deleteRecoveryRecord(snapshot.corruptedItems[0]);
+
+  assert.deepEqual(failed, { ok: false, removed: false, code: 'storage-unavailable' });
+  assert.deepEqual(storage.peek(brokenRecord.submissionId), brokenRecord);
+});
+
+test('旧shared-v1記録は未検証のまま表示し、変換や自動再送をしない', async () => {
+  const legacyId = ALTERNATE_IDS[5];
+  const legacyRecord = {
+    submissionId: legacyId,
+    serialized: JSON.stringify({
+      version: 'shared-v1',
+      submission: { displayName: '旧データ', score: 3200 }
+    })
+  };
+  const storage = createAtomicMemoryStorage([legacyRecord]);
+  const pending = new PendingRankingSubmissions({ storage });
+
+  const snapshot = await pending.refresh();
+  assert.equal(snapshot.count, 0);
+  assert.equal(snapshot.unverifiedCount, 1);
+  assert.equal(snapshot.corruptedCount, 0);
+  assert.deepEqual(storage.peek(legacyId), legacyRecord);
+
+  const conflict = await pending.enqueue(createSubmission({ submissionId: legacyId }));
+  assert.equal(conflict.ok, false);
+  assert.equal(conflict.code, 'submission-conflict');
+
+  const exported = JSON.parse(await pending.exportRecoveryData());
+  assert.equal(exported.unverified[0].contractVersion, 'shared-v1');
+  const removed = await pending.deleteRecoveryRecord(exported.unverified[0]);
+  assert.equal(removed.removed, true);
+  assert.equal(storage.peek(legacyId), null);
+});
+
+test('恒久拒否の未送信記録は原子的に隔離し、再送対象から外す', async () => {
+  const submission = createSubmission({ submissionId: ALTERNATE_IDS[0] });
+  const storage = createAtomicMemoryStorage([recordFor(submission)]);
+  const pending = new PendingRankingSubmissions({ storage });
+
+  const isolated = await pending.quarantine(submission, {
+    reason: 'ranking-submit-permanent-rejection',
+    code: 'request-failed'
+  });
+
+  assert.equal(isolated.ok, true);
+  assert.equal(isolated.isolated, true);
+  assert.equal(isolated.persisted, true);
+  const snapshot = await pending.refresh();
+  assert.equal(snapshot.count, 0);
+  assert.equal(snapshot.quarantineCount, 1);
+  assert.equal(storage.peek(submission.submissionId), null);
+  assert.equal(storage.quarantineEntries()[0].serialized, recordFor(submission).serialized);
+});
+
+test('隔離保存に失敗した場合は未送信記録を残す', async () => {
+  const submission = createSubmission({ submissionId: ALTERNATE_IDS[1] });
+  const storage = createAtomicMemoryStorage([recordFor(submission)], { failQuarantine: true });
+  const pending = new PendingRankingSubmissions({ storage });
+
+  const isolated = await pending.quarantine(submission);
+
+  assert.equal(isolated.ok, false);
+  assert.equal(isolated.code, 'storage-unavailable');
+  assert.equal((await pending.refresh()).count, 1);
+  assert.deepEqual(storage.peek(submission.submissionId), recordFor(submission));
+  assert.equal(storage.quarantineEntries().length, 0);
 });
 
 test('保存不能でも現在の画面内では結果を保持し、既存の保存値を変更しない', async () => {

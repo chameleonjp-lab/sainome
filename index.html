@@ -81,6 +81,11 @@
         <section id="pending-ranking-panel" class="pending-ranking-panel" aria-label="未送信のランキング記録" hidden>
           <p id="pending-ranking-status" role="status" aria-live="polite"></p>
           <button id="pending-ranking-retry" type="button">未送信記録を再送</button>
+          <div class="pending-ranking-recovery-actions">
+            <button id="pending-ranking-export" type="button" hidden>保全データを書き出す</button>
+          </div>
+          <p id="pending-ranking-recovery-status" class="pending-ranking-recovery-status" role="status" aria-live="polite" hidden></p>
+          <ul id="pending-ranking-recovery-list" class="pending-ranking-recovery-list" hidden></ul>
         </section>
         <a
           id="home-lab-link"
