@@ -225,6 +225,7 @@ export class WebGLSainome {
     this.isVisible = !document.hidden;
     this.contextLost = false;
     this.renderActive = false;
+    this.diagnosticsFrameCount = 0;
     this.screenPhase = SCREEN_PHASES.HOME;
     this.animationFrameTasks = new Set();
     this.simulationPause = new SimulationPause();
@@ -449,6 +450,73 @@ export class WebGLSainome {
     this.emitSession(snapshot, true);
     this.emitStateSnapshot();
     return true;
+  }
+
+  getDiagnosticsContextLossExtension() {
+    try {
+      const context = this.renderer?.getContext?.();
+      const extension = context?.getExtension?.('WEBGL_lose_context');
+      return { context, extension };
+    } catch {
+      return { context: null, extension: null };
+    }
+  }
+
+  forceContextLossForDiagnostics({ restoreAfterMs = null } = {}) {
+    const { context, extension } = this.getDiagnosticsContextLossExtension();
+    if (!context || typeof extension?.loseContext !== 'function') {
+      return Object.freeze({ ok: false, reason: 'extension-unavailable' });
+    }
+
+    try {
+      extension.loseContext();
+      if (Number.isFinite(restoreAfterMs) && restoreAfterMs >= 0) {
+        window.setTimeout(() => {
+          if (this.renderer?.getContext?.() !== context) return;
+          try {
+            extension.restoreContext?.();
+          } catch {
+            // The normal recovery panel remains available when restoration fails.
+          }
+        }, restoreAfterMs);
+      }
+      return Object.freeze({ ok: true, restoreAfterMs });
+    } catch {
+      return Object.freeze({ ok: false, reason: 'lose-context-failed' });
+    }
+  }
+
+  restoreContextForDiagnostics() {
+    const { extension } = this.getDiagnosticsContextLossExtension();
+    if (typeof extension?.restoreContext !== 'function') {
+      return Object.freeze({ ok: false, reason: 'extension-unavailable' });
+    }
+
+    try {
+      extension.restoreContext();
+      return Object.freeze({ ok: true });
+    } catch {
+      return Object.freeze({ ok: false, reason: 'restore-context-failed' });
+    }
+  }
+
+  getDiagnosticsSnapshot() {
+    const { context } = this.getDiagnosticsContextLossExtension();
+    const rendererInfo = this.renderer?.info ?? {};
+    const memoryInfo = rendererInfo.memory ?? {};
+    const renderInfo = rendererInfo.render ?? {};
+    return Object.freeze({
+      contextLost: this.contextLost || context?.isContextLost?.() === true,
+      screenPhase: this.screenPhase,
+      frameCount: this.diagnosticsFrameCount,
+      scheduledFrames: this.renderLoop.getSnapshot().scheduled,
+      diceCount: this.dice.size,
+      sceneChildren: this.scene.children.length,
+      animationTasks: this.animationFrameTasks.size,
+      geometries: memoryInfo.geometries ?? null,
+      textures: memoryInfo.textures ?? null,
+      renderCalls: renderInfo.calls ?? null
+    });
   }
 
   getStateSnapshot() {
@@ -1221,6 +1289,7 @@ export class WebGLSainome {
 
   animate() {
     if (!this.renderActive) return;
+    this.diagnosticsFrameCount += 1;
     const now = this.getGameTime();
     if (this.isVisible && !this.contextLost) {
       const sessionState = this.session.tick(now);

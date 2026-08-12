@@ -45,6 +45,7 @@ import {
   GameStateStorage
 } from './game-state-storage.js';
 import { MotionPreferences } from './motion-preferences.js';
+import { isReleaseDiagnosticsEnabled } from './release-diagnostics.js';
 
 const app = document.querySelector('#app');
 const motionPreferences = new MotionPreferences();
@@ -121,12 +122,18 @@ const webglRecoveryPanel = document.querySelector('#webgl-recovery-panel');
 const webglRecoveryStatus = document.querySelector('#webgl-recovery-status');
 const webglRecoveryRecreate = document.querySelector('#webgl-recovery-recreate');
 const webglRecoveryHome = document.querySelector('#webgl-recovery-home');
+const releaseDiagnosticsPanel = document.querySelector('#release-diagnostics-panel');
+const releaseDiagnosticsLoseButton = document.querySelector('#release-diagnostics-lose-button');
+const releaseDiagnosticsRestoreButton = document.querySelector('#release-diagnostics-restore-button');
+const releaseDiagnosticsOutput = document.querySelector('#release-diagnostics-output');
+const releaseDiagnosticsStatus = document.querySelector('#release-diagnostics-status');
 
 const WEBGL_UNAVAILABLE_MESSAGE =
   'この端末またはブラウザでは、3D表示に必要な機能（WebGL 2）が利用できません。ブラウザの設定で3D表示を有効にするか、対応環境でお試しください。';
 const WEBGL_LOAD_FAILURE_MESSAGE =
   '3D表示を開始できませんでした。通信状態を確認して、もう一度お試しください。';
 const WEBGL_RECOVERY_WAIT_MS = 5_000;
+const releaseDiagnosticsEnabled = isReleaseDiagnosticsEnabled();
 
 const flow = new GameFlow();
 if (tutorialSlideElements.length !== TUTORIAL_SLIDE_COUNT) {
@@ -179,6 +186,7 @@ let webglRecoveryTimerId = null;
 let webglRecoveryRunId = 0;
 let webglRecoveryVisible = false;
 let webglRecoveryActionPending = false;
+let releaseDiagnosticsTimerId = null;
 
 const MAX_MANUAL_PENDING_RETRIES = 10;
 const pendingRankingRetryFlight = new SingleFlight();
@@ -193,6 +201,68 @@ function createPendingRankingChannel() {
   } catch {
     return null;
   }
+}
+
+function formatReleaseDiagnosticValue(value) {
+  return value === null || value === undefined ? '—' : String(value);
+}
+
+function renderReleaseDiagnostics() {
+  if (!releaseDiagnosticsEnabled || !releaseDiagnosticsOutput) return;
+  const snapshot = game?.getDiagnosticsSnapshot?.();
+  const canUseGame = Boolean(snapshot);
+  if (releaseDiagnosticsLoseButton) releaseDiagnosticsLoseButton.disabled = !canUseGame;
+  if (releaseDiagnosticsRestoreButton) releaseDiagnosticsRestoreButton.disabled = !canUseGame;
+
+  if (!snapshot) {
+    releaseDiagnosticsOutput.textContent = 'ゲーム開始後に診断値を表示します';
+    return;
+  }
+
+  releaseDiagnosticsOutput.textContent = [
+    `画面: ${snapshot.screenPhase}`,
+    `WebGL消失: ${snapshot.contextLost ? 'はい' : 'いいえ'}`,
+    `描画フレーム: ${snapshot.frameCount}`,
+    `描画予約: ${snapshot.scheduledFrames ? 'あり' : 'なし'}`,
+    `サイコロ / シーン: ${snapshot.diceCount} / ${snapshot.sceneChildren}`,
+    `GPU形状 / テクスチャ: ${formatReleaseDiagnosticValue(snapshot.geometries)} / ${formatReleaseDiagnosticValue(snapshot.textures)}`,
+    `直近の描画呼び出し: ${formatReleaseDiagnosticValue(snapshot.renderCalls)}`,
+    `アニメーション予約: ${snapshot.animationTasks}`
+  ].join('\n');
+}
+
+function setupReleaseDiagnostics() {
+  if (!releaseDiagnosticsPanel) return;
+  releaseDiagnosticsPanel.hidden = !releaseDiagnosticsEnabled;
+  if (!releaseDiagnosticsEnabled) return;
+
+  releaseDiagnosticsLoseButton?.addEventListener('click', () => {
+    if (!isWebGLRecoveryScreen()) {
+      releaseDiagnosticsStatus.textContent = 'ゲーム中に実行してください';
+      return;
+    }
+    const result = game?.forceContextLossForDiagnostics?.();
+    releaseDiagnosticsStatus.textContent = result?.ok
+      ? 'WebGLを消失させました。5秒後の退避表示、または「WebGLを復元」を確認してください'
+      : 'この端末ではWebGL強制消失を実行できません';
+    renderReleaseDiagnostics();
+  });
+
+  releaseDiagnosticsRestoreButton?.addEventListener('click', () => {
+    const result = game?.restoreContextForDiagnostics?.();
+    releaseDiagnosticsStatus.textContent = result?.ok
+      ? 'WebGLの復元を要求しました。ゲームが同じ状態へ戻るか確認してください'
+      : 'WebGL復元を実行できません';
+    renderReleaseDiagnostics();
+  });
+
+  renderReleaseDiagnostics();
+  releaseDiagnosticsTimerId = window.setInterval(renderReleaseDiagnostics, 1_000);
+  window.addEventListener('pagehide', () => {
+    if (releaseDiagnosticsTimerId === null) return;
+    window.clearInterval(releaseDiagnosticsTimerId);
+    releaseDiagnosticsTimerId = null;
+  }, { once: true });
 }
 
 function resetHudDisplay(mode = selectedMode) {
@@ -1725,6 +1795,7 @@ pendingRankingChannel?.addEventListener('message', () => {
   void renderPendingRankingPanel();
 });
 
+setupReleaseDiagnostics();
 applyModeLabels(selectedMode);
 resetHudDisplay(selectedMode);
 renderSoundToggle();

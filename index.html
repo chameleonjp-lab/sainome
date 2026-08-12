@@ -208,6 +208,24 @@
       </section>
     </section>
 
+    <aside
+      id="release-diagnostics-panel"
+      class="release-diagnostics"
+      aria-labelledby="release-diagnostics-title"
+      hidden
+    >
+      <div class="release-diagnostics-heading">
+        <strong id="release-diagnostics-title">実機試験モード</strong>
+        <span>通常URLでは表示されません</span>
+      </div>
+      <div class="release-diagnostics-actions">
+        <button id="release-diagnostics-lose-button" type="button">WebGLを消失</button>
+        <button id="release-diagnostics-restore-button" type="button">WebGLを復元</button>
+      </div>
+      <pre id="release-diagnostics-output" aria-live="polite"></pre>
+      <p id="release-diagnostics-status" role="status" aria-live="polite"></p>
+    </aside>
+
     <footer class="app-footer">
       <aside id="play-note" class="prototype-note" hidden>
         <strong id="play-note-title">60秒</strong>
