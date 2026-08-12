@@ -1615,8 +1615,9 @@ soundToggle.addEventListener('click', async () => {
     let snapshot = await soundEffects.setEnabled(targetEnabled);
 
     if (targetEnabled && !snapshot.running) {
-      snapshot = await soundEffects.setEnabled(false);
-      soundStatus.textContent = 'この環境では効果音を開始できませんでした';
+      soundStatus.textContent = snapshot.available
+        ? '効果音は一時中断中です。次の操作で再開します'
+        : 'この環境では効果音を開始できませんでした';
     } else {
       soundStatus.textContent = targetEnabled
         ? '効果音をオンにしました'
@@ -1624,7 +1625,7 @@ soundToggle.addEventListener('click', async () => {
     }
 
     renderSoundToggle(snapshot);
-    if (snapshot.enabled) soundEffects.playFlick();
+    if (snapshot.enabled && snapshot.running) soundEffects.playFlick();
   } finally {
     soundTogglePending = false;
     soundToggle.disabled = false;

@@ -47,13 +47,16 @@ export class SoundEffects {
     this.activeSounds = new Set();
     this.lastClearAt = -Infinity;
     this.hidden = false;
+    this.contextStateChangeHandler = null;
+    this.unlockPromise = null;
   }
 
   getSnapshot() {
     return Object.freeze({
       enabled: this.enabled,
       available: !this.audioUnavailable,
-      running: this.context?.state === 'running'
+      running: this.context?.state === 'running',
+      state: this.context?.state ?? null
     });
   }
 
@@ -71,31 +74,62 @@ export class SoundEffects {
   }
 
   ensureContext() {
+    if (this.context?.state === 'closed') {
+      this.releaseContext(this.context);
+    }
     if (this.context) return this.context;
 
+    let context = null;
     try {
-      this.context = this.contextFactory?.() ?? null;
+      context = this.contextFactory?.() ?? null;
     } catch {
-      this.context = null;
+      context = null;
     }
-    if (!this.context) {
+    if (!context || context.state === 'closed') {
       this.audioUnavailable = true;
       return null;
     }
 
-    this.masterGain = this.context.createGain();
-    this.masterGain.gain.setValueAtTime(0.42, this.context.currentTime);
-    this.masterGain.connect(this.context.destination);
-    return this.context;
+    this.context = context;
+    try {
+      this.masterGain = context.createGain();
+      this.masterGain.gain.setValueAtTime(0.42, context.currentTime);
+      this.masterGain.connect(context.destination);
+      this.bindContextStateChanges(context);
+      this.noiseBuffer = null;
+      this.lastClearAt = -Infinity;
+      this.audioUnavailable = false;
+      return context;
+    } catch {
+      this.releaseContext(context);
+      this.audioUnavailable = true;
+      return null;
+    }
   }
 
   async unlock() {
+    if (this.unlockPromise) return this.unlockPromise;
+
+    const unlockPromise = this.unlockAudioContext();
+    this.unlockPromise = unlockPromise;
+    try {
+      return await unlockPromise;
+    } finally {
+      if (this.unlockPromise === unlockPromise) {
+        this.unlockPromise = null;
+      }
+    }
+  }
+
+  async unlockAudioContext() {
     if (!this.enabled || this.hidden) return false;
     const context = this.ensureContext();
     if (!context) return false;
 
     try {
-      if (context.state === 'suspended') await context.resume();
+      if (context.state === 'suspended' || context.state === 'interrupted') {
+        await context.resume();
+      }
       if (!this.enabled || this.hidden) {
         await this.suspend();
         return false;
@@ -122,10 +156,37 @@ export class SoundEffects {
 
   getPlayableContext() {
     if (!this.enabled) return null;
-    const context = this.ensureContext();
+    const context = this.context;
     if (!context) return null;
-    if (context.state === 'suspended') void this.unlock();
     return context.state === 'running' ? context : null;
+  }
+
+  bindContextStateChanges(context) {
+    const handler = () => {
+      if (this.context !== context) return;
+      if (context.state !== 'running') this.stopActiveSounds();
+      if (context.state === 'closed') this.releaseContext(context);
+    };
+    this.contextStateChangeHandler = handler;
+    if (typeof context.addEventListener === 'function') {
+      context.addEventListener('statechange', handler);
+    } else {
+      context.onstatechange = handler;
+    }
+  }
+
+  releaseContext(context) {
+    if (this.context !== context) return;
+    if (typeof context.removeEventListener === 'function') {
+      context.removeEventListener('statechange', this.contextStateChangeHandler);
+    } else if (context.onstatechange === this.contextStateChangeHandler) {
+      context.onstatechange = null;
+    }
+    this.stopActiveSounds();
+    this.context = null;
+    this.masterGain = null;
+    this.noiseBuffer = null;
+    this.contextStateChangeHandler = null;
   }
 
   trackSound(node, linkedNodes = []) {
