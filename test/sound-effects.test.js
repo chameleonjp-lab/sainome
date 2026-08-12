@@ -57,6 +57,9 @@ class FakeAudioContext {
     this.destination = new FakeNode(this);
     this.started = 0;
     this.stopped = 0;
+    this.resumeCalls = 0;
+    this.suspendCalls = 0;
+    this.stateChangeListeners = new Set();
   }
 
   createGain() { return new FakeGain(this); }
@@ -68,8 +71,32 @@ class FakeAudioContext {
     return { getChannelData: () => samples };
   }
 
-  async resume() { this.state = 'running'; }
-  async suspend() { this.state = 'suspended'; }
+  addEventListener(type, listener) {
+    if (type === 'statechange') this.stateChangeListeners.add(listener);
+  }
+
+  removeEventListener(type, listener) {
+    if (type === 'statechange') this.stateChangeListeners.delete(listener);
+  }
+
+  changeState(state) {
+    this.state = state;
+    for (const listener of this.stateChangeListeners) listener();
+  }
+
+  async resume() {
+    this.resumeCalls += 1;
+    this.changeState('running');
+  }
+
+  async suspend() {
+    this.suspendCalls += 1;
+    this.changeState('suspended');
+  }
+
+  close() {
+    this.changeState('closed');
+  }
 }
 
 function memoryStorage(initial = {}) {
@@ -214,4 +241,77 @@ test('音声の開始中に画面が隠れた場合も再生状態を残さな�
 
   assert.equal(snapshot.running, false);
   assert.equal(context.state, 'suspended');
+});
+
+test('iOSのinterrupted状態は自動再開せず、次の明示操作で一度だけ再開する', async () => {
+  const context = new FakeAudioContext();
+  const sounds = new SoundEffects({
+    storage: memoryStorage(),
+    contextFactory: () => context,
+    random: () => 0.5
+  });
+  await sounds.setEnabled(true);
+  sounds.playRoll();
+  context.changeState('interrupted');
+
+  assert.equal(sounds.getSnapshot().enabled, true);
+  assert.equal(sounds.getSnapshot().state, 'interrupted');
+  assert.equal(sounds.activeSounds.size, 0);
+  assert.equal(sounds.playFlick(), false);
+  assert.equal(context.resumeCalls, 1);
+
+  const firstUnlock = sounds.unlock();
+  const secondUnlock = sounds.unlock();
+  assert.equal(await firstUnlock, true);
+  assert.equal(await secondUnlock, true);
+  assert.equal(context.resumeCalls, 2);
+  assert.equal(sounds.getSnapshot().enabled, true);
+  assert.equal(sounds.playFlick(), true);
+});
+
+test('closed状態では設定を変えず、次の明示操作で新しい音声コンテキストを作る', async () => {
+  const firstContext = new FakeAudioContext();
+  const secondContext = new FakeAudioContext();
+  let contextCount = 0;
+  const sounds = new SoundEffects({
+    storage: memoryStorage(),
+    contextFactory: () => {
+      contextCount += 1;
+      return contextCount === 1 ? firstContext : secondContext;
+    },
+    random: () => 0.5
+  });
+
+  await sounds.setEnabled(true);
+  firstContext.close();
+  assert.equal(sounds.getSnapshot().enabled, true);
+  assert.equal(sounds.getSnapshot().state, null);
+  assert.equal(sounds.playFlick(), false);
+
+  assert.equal(await sounds.unlock(), true);
+  assert.equal(contextCount, 2);
+  assert.equal(sounds.getSnapshot().enabled, true);
+  assert.equal(sounds.getSnapshot().state, 'running');
+  assert.equal(sounds.playFlick(), true);
+});
+
+test('画面復帰だけでは音声を再開せず、明示操作まで設定を保持する', async () => {
+  const context = new FakeAudioContext();
+  const sounds = new SoundEffects({
+    storage: memoryStorage(),
+    contextFactory: () => context
+  });
+  await sounds.setEnabled(true);
+  sounds.handleVisibility(true);
+  await new Promise((resolve) => setImmediate(resolve));
+  const resumeCallsAfterHide = context.resumeCalls;
+
+  sounds.handleVisibility(false);
+  assert.equal(context.resumeCalls, resumeCallsAfterHide);
+  assert.equal(sounds.getSnapshot().enabled, true);
+  assert.equal(sounds.getSnapshot().running, false);
+
+  assert.equal(await sounds.unlock(), true);
+  assert.equal(context.resumeCalls, resumeCallsAfterHide + 1);
+  assert.equal(sounds.getSnapshot().enabled, true);
 });

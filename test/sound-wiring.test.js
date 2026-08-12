@@ -33,3 +33,9 @@ test('画面が隠れたら効果音を止める', () => {
   assert.match(main, /visibilitychange/);
   assert.match(main, /soundEffects\.handleVisibility\(document\.hidden\)/);
 });
+
+test('音声の中断・終了後も設定を勝手にオフへ戻さない', () => {
+  assert.match(main, /snapshot\.available/);
+  assert.match(main, /snapshot\.enabled && snapshot\.running/);
+  assert.doesNotMatch(main, /snapshot = await soundEffects\.setEnabled\(false\)/);
+});
