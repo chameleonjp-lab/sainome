@@ -173,6 +173,68 @@ button:disabled { opacity: .55; }
   font-size: .8rem;
 }
 
+.release-diagnostics {
+  position: fixed;
+  z-index: 30;
+  right: max(10px, env(safe-area-inset-right));
+  bottom: max(10px, env(safe-area-inset-bottom));
+  width: min(360px, calc(100vw - 20px));
+  max-height: min(42svh, 360px);
+  display: grid;
+  gap: 8px;
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid rgba(153, 215, 255, .42);
+  border-radius: 14px;
+  background: rgba(8, 14, 23, .96);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, .46);
+  color: #dceeff;
+  touch-action: manipulation;
+}
+.release-diagnostics[hidden] { display: none; }
+.release-diagnostics-heading {
+  display: grid;
+  gap: 2px;
+}
+.release-diagnostics-heading strong {
+  color: #a8dcff;
+  font-size: .76rem;
+}
+.release-diagnostics-heading span {
+  color: #9eabb8;
+  font-size: .64rem;
+}
+.release-diagnostics-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.release-diagnostics-actions button {
+  min-height: 38px;
+  padding: 6px 8px;
+  border: 1px solid rgba(168, 220, 255, .34);
+  border-radius: 9px;
+  background: rgba(168, 220, 255, .10);
+  color: #e7f5ff;
+  font-size: .68rem;
+  font-weight: 800;
+}
+.release-diagnostics-actions button:active {
+  background: rgba(168, 220, 255, .22);
+}
+.release-diagnostics pre {
+  margin: 0;
+  color: #d9e8f5;
+  font: 600 .64rem/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre-wrap;
+}
+.release-diagnostics p {
+  margin: 0;
+  color: #b5c4d0;
+  font-size: .64rem;
+  line-height: 1.45;
+}
+
 .screen-panel {
   position: absolute;
   inset: 0;

@@ -38,6 +38,7 @@
 - WebGL消失時の自動復元、資源再構築失敗時の3D表示再生成、保存地点を残したホーム退避
 - 音声コンテキストの中断・終了を検知し、次の明示操作で一度だけ音声を復帰。音声設定は勝手に変更しない
 - 端末が動きを減らす設定の場合、装飾用の点滅・拡縮・無限アニメーションと振動を止め、盤面変化の表示は残す
+- 実機試験用URLでWebGL強制消失と描画資源の診断値を確認できる（通常URLでは非表示）
 
 ## 遊び方
 
@@ -89,6 +90,12 @@
 - iPhoneを中心に、タブレットとパソコンにも対応します。
 - 実装変更はブランチとDraft PRで管理します。
 
+## 第11工程の実機試験
+
+公開候補版の実機試験では、通常のゲームURLへ`?sainome-test=release`を付けると、画面右下に試験用パネルが表示されます。ゲーム中に「WebGLを消失」を押すと、実機が対応している場合は標準のWebGL復旧処理を開始します。「WebGLを復元」を押した場合の同じ画面への復帰と、押さずに5秒待った場合の「3D表示を再生成」「ホームへ」の退避を確認できます。
+
+パネルには、WebGLの消失状態、描画フレーム数、描画予約、サイコロ数、シーン内の物体数、GPU形状・テクスチャ数、アニメーション予約数を表示します。10回の再戦前後で値が増え続けないかを見るための補助情報です。これは安全性の仕組みではなく、通常URLでは表示されません。
+
 ## ファイル構成
 
 ```text
@@ -105,6 +112,7 @@ js/input-direction.js
 js/spawn-rules.js
 js/sound-effects.js
 js/motion-preferences.js
+js/release-diagnostics.js
 js/best-records.js
 js/result-share.js
 js/player-profile.js
@@ -133,6 +141,8 @@ test/sound-effects.test.js
 test/sound-wiring.test.js
 test/motion-preferences.test.js
 test/motion-wiring.test.js
+test/release-diagnostics.test.js
+test/release-diagnostics-wiring.test.js
 test/best-records.test.js
 test/best-record-wiring.test.js
 test/result-share.test.js
