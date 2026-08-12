@@ -179,9 +179,17 @@ function createPlayer() {
 }
 
 export class WebGLSainome {
-  constructor(canvas, callbacks = {}, initialModeId = DEFAULT_GAME_MODE_ID) {
+  constructor(
+    canvas,
+    callbacks = {},
+    initialModeId = DEFAULT_GAME_MODE_ID,
+    options = {}
+  ) {
     this.canvas = canvas;
     this.callbacks = callbacks;
+    this.shouldReduceMotion = typeof options.shouldReduceMotion === 'function'
+      ? options.shouldReduceMotion
+      : () => false;
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x0b1018);
     this.scene.fog = new THREE.Fog(0x0b1018, 10, 19);
@@ -1233,13 +1241,19 @@ export class WebGLSainome {
         this.emitStateSnapshot();
       }
       const elapsed = this.clock.getElapsedTime();
+      const reducedMotion = this.shouldReduceMotion();
+      if (reducedMotion) this.player.rotation.x = 0;
       if (!this.busy) {
         const activeDie = this.activeKey ? this.dice.get(this.activeKey) : null;
         if (!activeDie || activeDie.state === 'normal') {
           const baseY = activeDie ? activeDie.mesh.position.y + (PLAYER_Y - DICE_Y) : GROUND_PLAYER_Y;
-          this.player.position.y = baseY + Math.sin(elapsed * 4.2) * 0.025;
+          this.player.position.y = reducedMotion
+            ? baseY
+            : baseY + Math.sin(elapsed * 4.2) * 0.025;
         }
-        this.player.rotation.x = Math.sin(elapsed * 3.2) * 0.018;
+        if (!reducedMotion) {
+          this.player.rotation.x = Math.sin(elapsed * 3.2) * 0.018;
+        }
       }
       this.renderer.render(this.scene, this.camera);
     }

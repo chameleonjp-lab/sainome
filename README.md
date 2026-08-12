@@ -37,6 +37,7 @@
 - プレイ中の安全地点を版付きIndexedDBへ保存し、再読み込み後に盤面・得点・時間・生成状態・乱数を復元
 - WebGL消失時の自動復元、資源再構築失敗時の3D表示再生成、保存地点を残したホーム退避
 - 音声コンテキストの中断・終了を検知し、次の明示操作で一度だけ音声を復帰。音声設定は勝手に変更しない
+- 端末が動きを減らす設定の場合、装飾用の点滅・拡縮・無限アニメーションと振動を止め、盤面変化の表示は残す
 
 ## 遊び方
 
@@ -50,6 +51,8 @@
 8. 床へ降りたときは、隣の通常サイコロまたは半分沈んだサイコロへ移動すると上へ戻れます。
 
 画面下の「効果音 オフ」を押すと、フリック、サイコロの転がり、消去、生成の音を有効にできます。選択は端末へ保存されます。iOSなどで音声が中断・終了した場合は、次の明示操作で一度だけ復帰を試みます。音声機能を開始できない環境でも、ゲームは無音のまま続けられます。
+
+端末の「動きを減らす」設定が有効な場合は、装飾用の点滅、拡縮、無限アニメーション、振動を止めます。得点、残り時間、消去、盤面の変化はそのまま表示します。
 
 ## ゲームモードと得点
 
@@ -101,6 +104,7 @@ js/simulation-pause.js
 js/input-direction.js
 js/spawn-rules.js
 js/sound-effects.js
+js/motion-preferences.js
 js/best-records.js
 js/result-share.js
 js/player-profile.js
@@ -127,6 +131,8 @@ test/webgl-support.test.js
 test/spawn-rules.test.js
 test/sound-effects.test.js
 test/sound-wiring.test.js
+test/motion-preferences.test.js
+test/motion-wiring.test.js
 test/best-records.test.js
 test/best-record-wiring.test.js
 test/result-share.test.js
