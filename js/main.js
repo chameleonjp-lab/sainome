@@ -44,8 +44,13 @@ import {
   GAME_STATE_VERSION,
   GameStateStorage
 } from './game-state-storage.js';
+import { MotionPreferences } from './motion-preferences.js';
 
 const app = document.querySelector('#app');
+const motionPreferences = new MotionPreferences();
+motionPreferences.subscribe((reducedMotion) => {
+  app.dataset.reducedMotion = String(reducedMotion);
+});
 let canvas = document.querySelector('#game-canvas');
 const stage = document.querySelector('#stage');
 const loading = document.querySelector('#loading');
@@ -757,6 +762,7 @@ function setStartPending(pending) {
 }
 
 function pulse(element, className) {
+  if (motionPreferences.reducedMotion) return;
   element.classList.remove(className);
   void element.offsetWidth;
   element.classList.add(className);
@@ -1118,7 +1124,7 @@ const gameCallbacks = {
   onChain: ({ chain, isChain }) => {
     chainCount.textContent = String(chain);
     chainCount.parentElement.classList.toggle('chain-active', chain > 0);
-    if (chain > 0) {
+    if (chain > 0 && !motionPreferences.reducedMotion) {
       stage.classList.remove('chain-hit');
       void stage.offsetWidth;
       stage.classList.add('chain-hit');
@@ -1132,11 +1138,15 @@ const gameCallbacks = {
     message.textContent = text;
   },
   onImpact: () => {
-    stage.classList.remove('impact');
-    void stage.offsetWidth;
-    stage.classList.add('impact');
-    window.setTimeout(() => stage.classList.remove('impact'), 180);
-    if (navigator.vibrate) navigator.vibrate(18);
+    if (!motionPreferences.reducedMotion) {
+      stage.classList.remove('impact');
+      void stage.offsetWidth;
+      stage.classList.add('impact');
+      window.setTimeout(() => stage.classList.remove('impact'), 180);
+    }
+    if (!motionPreferences.reducedMotion && navigator.vibrate) {
+      navigator.vibrate(18);
+    }
   },
   onScore: () => {
     pulse(scorePanel, 'score-hit');
@@ -1192,7 +1202,9 @@ async function createGameInstance(initialModeId = DEFAULT_GAME_MODE_ID) {
       .then(({ WebGLSainome }) => WebGLSainome);
   }
   const WebGLSainome = await gameLoadPromise;
-  game = new WebGLSainome(canvas, gameCallbacks, initialModeId);
+  game = new WebGLSainome(canvas, gameCallbacks, initialModeId, {
+    shouldReduceMotion: () => motionPreferences.reducedMotion
+  });
   loading.classList.add('hidden');
   return game;
 }
