@@ -29,6 +29,14 @@
       <canvas id="game-canvas" tabindex="-1"></canvas>
       <div id="loading" class="loading" role="status">3D盤面を準備中…</div>
       <div id="message" class="message" aria-live="polite">盤面に沿って斜めにフリック</div>
+      <section id="webgl-recovery-panel" class="webgl-recovery-panel" aria-labelledby="webgl-recovery-title" hidden>
+        <strong id="webgl-recovery-title">3D表示を復旧できません</strong>
+        <p id="webgl-recovery-status" role="status" aria-live="polite"></p>
+        <div class="webgl-recovery-actions">
+          <button id="webgl-recovery-recreate" class="primary-button" type="button">3D表示を再生成</button>
+          <button id="webgl-recovery-home" class="secondary-button" type="button">ホームへ</button>
+        </div>
+      </section>
 
       <section id="home-screen" class="screen-panel home-screen" aria-labelledby="game-title">
         <p id="home-kicker" class="screen-kicker">60秒で、つないで、沈める</p>

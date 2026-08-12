@@ -66,6 +66,23 @@ test('再読み込み後に保存状態を確認して続きから再開でき�
   assert.match(css, /\.game-recovery-panel\s*\{/);
 });
 
+test('WebGL復旧失敗時に再生成とホーム退避を選べる', () => {
+  for (const id of [
+    'webgl-recovery-panel',
+    'webgl-recovery-status',
+    'webgl-recovery-recreate',
+    'webgl-recovery-home'
+  ]) {
+    assert.match(html, new RegExp(`\\bid="${id}"`));
+  }
+  assert.match(main, /WEBGL_RECOVERY_WAIT_MS/);
+  assert.match(main, /beginWebGLRecovery/);
+  assert.match(main, /recreateWebGLGame/);
+  assert.match(main, /leaveWebGLRecoveryForHome/);
+  assert.match(main, /disposeGameInstance\(\{ replaceCanvas: true \}\)/);
+  assert.match(css, /\.webgl-recovery-panel\s*\{/);
+});
+
 test('HTMLから読むローカルファイルはすべて存在する', () => {
   const paths = [...html.matchAll(/(?:src|href)="\.\/([^"?#]+)"/g)]
     .map((match) => match[1]);

@@ -17,6 +17,31 @@ test('WebGLの描画停止中はゲーム時間と操作を止め、復帰後に
   assert.match(source, /this\.simulationPause\.getPausedDuration\(now\)/);
 });
 
+test('WebGL復元時は描画資源を再構築し、失敗時は退避処理へ渡す', () => {
+  assert.match(source, /rebuildRendererResources\(\)/);
+  assert.match(source, /this\.renderer\.resetState\?\.\(\)/);
+  assert.match(source, /this\.renderer\.render\(this\.scene, this\.camera\)/);
+  assert.match(source, /onContextRecoveryFailed/);
+  assert.match(source, /onContextRestored/);
+  assert.match(source, /dispose\(\) \{/);
+  assert.match(source, /removeEventListener\('webglcontextlost'/);
+});
+
+test('WebGL消失時はカウントを止め、復元不能なら再生成またはホームへ退避する', () => {
+  const main = readFileSync(
+    new URL('../js/main.js', import.meta.url),
+    'utf8'
+  );
+
+  assert.match(main, /onContextLost:[\s\S]*?cancelCountdown\(\)/);
+  assert.match(main, /onContextRestored:[\s\S]*?handleWebGLContextRestored/);
+  assert.match(main, /onContextRecoveryFailed:[\s\S]*?handleWebGLRecoveryFailed/);
+  assert.match(main, /function recreateWebGLGame\(\)[\s\S]*?gameStateStorage\.load\(\)/);
+  assert.match(main, /hideWebGLRecovery\(\);[\s\S]*?if \(phase === SCREEN_PHASES\.COUNTDOWN\)[\s\S]*?scheduleCountdown/);
+  assert.match(main, /function leaveWebGLRecoveryForHome\(\)[\s\S]*?flow\.goHome\(\)/);
+  assert.match(main, /if \(document\.hidden \|\| webglRecoveryVisible/);
+});
+
 test('WebGL開始前に利用可能性を確認し、読み込み失敗時はホーム画面へ案内する', () => {
   const main = readFileSync(
     new URL('../js/main.js', import.meta.url),
@@ -29,6 +54,16 @@ test('WebGL開始前に利用可能性を確認し、読み込み失敗時はホ
   assert.match(main, /loading\.classList\.add\('hidden'\)/);
   assert.match(main, /WebGL 2/);
   assert.match(main, /flow\.goHome\(\)/);
+});
+
+test('消失したWebGLインスタンスは次回開始時に再利用しない', () => {
+  const main = readFileSync(
+    new URL('../js/main.js', import.meta.url),
+    'utf8'
+  );
+
+  assert.match(main, /if \(game\?\.contextLost\)/);
+  assert.match(main, /disposeGameInstance\(\{ replaceCanvas: true \}\)/);
 });
 
 test('60秒モードの追加生成は空きマス不足時も残数を保持する', () => {
@@ -45,7 +80,7 @@ test('3カウント中に画面を隠すと待機し、復帰後に残りから�
   );
 
   assert.match(main, /function pauseCountdownTimer\(\)[\s\S]*?clearTimeout\(countdownTimerId\)/);
-  assert.match(main, /if \(document\.hidden \|\| countdownTimerId !== null\) return;/);
+  assert.match(main, /if \(document\.hidden \|\| webglRecoveryVisible \|\| countdownTimerId !== null\) return;/);
   assert.match(main, /countdownTimerId = null;[\s\S]*?runId !== countdownRunId \|\| document\.hidden/);
   assert.match(
     main,
