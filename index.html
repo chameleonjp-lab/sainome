@@ -18,8 +18,8 @@
 <body>
   <main id="app" class="app" data-screen="home">
     <header class="hud" aria-label="ゲームの状況">
-      <div class="brand"><span id="mode-brand">60 SECOND PUZZLE</span><strong>サイノメ</strong></div>
-      <div id="time-panel" class="hud-item"><span>TIME</span><strong id="remaining-time">60</strong></div>
+      <div class="brand"><span id="mode-brand">180 SECOND PUZZLE</span><strong>サイノメ</strong></div>
+      <div id="time-panel" class="hud-item"><span>TIME</span><strong id="remaining-time">180</strong></div>
       <div id="score-panel" class="hud-item hud-score"><span>SCORE</span><strong id="score-count">0</strong></div>
       <div class="hud-item"><span>CHAIN</span><strong id="chain-count">0</strong></div>
       <div class="hud-item"><span>CLEAR</span><strong id="clear-count">0</strong></div>
@@ -29,6 +29,12 @@
       <canvas id="game-canvas" tabindex="-1"></canvas>
       <div id="loading" class="loading" role="status">3D盤面を準備中…</div>
       <div id="message" class="message" aria-live="polite">盤面に沿って斜めにフリック</div>
+      <div id="direction-controls" class="direction-controls" role="group" aria-label="斜め方向の移動ボタン">
+        <button class="direction-control direction-control-left" type="button" data-direction="left" aria-label="左上へ移動">↖</button>
+        <button class="direction-control direction-control-up" type="button" data-direction="up" aria-label="右上へ移動">↗</button>
+        <button class="direction-control direction-control-down" type="button" data-direction="down" aria-label="左下へ移動">↙</button>
+        <button class="direction-control direction-control-right" type="button" data-direction="right" aria-label="右下へ移動">↘</button>
+      </div>
       <section id="webgl-recovery-panel" class="webgl-recovery-panel" aria-labelledby="webgl-recovery-title" hidden>
         <strong id="webgl-recovery-title">3D表示を復旧できません</strong>
         <p id="webgl-recovery-status" role="status" aria-live="polite"></p>
@@ -39,7 +45,7 @@
       </section>
 
       <section id="home-screen" class="screen-panel home-screen" aria-labelledby="game-title">
-        <p id="home-kicker" class="screen-kicker">60秒で、つないで、沈める</p>
+        <p id="home-kicker" class="screen-kicker">180秒で、消して、増やして、つなげる</p>
         <h1 id="game-title">サイノメ</h1>
         <p class="screen-lead">サイコロを転がし、上面と同じ数以上を縦横につなげて得点を競います。</p>
         <label class="player-name-field" for="player-name-input">
@@ -59,21 +65,8 @@
           <small id="player-name-help">1〜20文字。ランキングに公開され、次回も同じ名前を使います</small>
         </label>
         <p id="player-name-error" class="player-name-error" role="alert" hidden></p>
-        <fieldset id="mode-picker" class="mode-picker">
-          <legend>プレイ時間を選ぶ</legend>
-          <div class="mode-options">
-            <label class="mode-choice">
-              <input type="radio" name="game-mode" value="60-seconds" checked>
-              <span><strong>60秒</strong><small>30秒後から2個追加</small></span>
-            </label>
-            <label class="mode-choice">
-              <input type="radio" name="game-mode" value="180-seconds">
-              <span><strong>180秒</strong><small>3個以上消すと生成</small></span>
-            </label>
-          </div>
-        </fieldset>
         <p class="home-best-record">
-          <span>選択中モードの自己ベスト</span>
+          <span>180秒の自己ベスト</span>
           <strong id="home-best-score" aria-live="polite">記録なし</strong>
         </p>
         <ol class="quick-rules" aria-label="遊び方">
@@ -136,13 +129,11 @@
             <p class="tutorial-tip">沈みきる前に同じ目を足すと連鎖します。上面が1のサイコロを沈下中の隣へ動かすと、盤面の1がまとめて消えます。</p>
           </article>
 
-          <article class="tutorial-slide" data-tutorial-slide data-title="モードを選ぶ" hidden>
+          <article class="tutorial-slide" data-tutorial-slide data-title="消すほど増える" hidden>
             <div class="mode-rule-grid">
-              <div><strong>60秒</strong><span>30秒後から<br>空きマスへ2個</span></div>
               <div><strong>180秒</strong><span>3個以上消すと<br>1〜4個生成</span></div>
             </div>
-            <p>60秒は短い得点勝負。180秒は消すほど盤面へサイコロが増えます。</p>
-            <p id="tutorial-mode-label" class="tutorial-selected-mode">選択中：60秒</p>
+            <p>一度に3個以上消すと、消した数に応じて盤面へサイコロが増えます。次の連鎖に使える場所を残すことが大切です。</p>
           </article>
         </div>
 
@@ -162,7 +153,7 @@
       </section>
 
       <section id="result-screen" class="screen-panel result-screen" aria-labelledby="result-title" hidden>
-        <p id="result-kicker" class="screen-kicker">60秒モード · TIME UP</p>
+        <p id="result-kicker" class="screen-kicker">180秒モード · TIME UP</p>
         <h2 id="result-title">結果</h2>
         <div class="result-score">
           <span>SCORE</span>
@@ -194,7 +185,7 @@
         <p id="result-share-status" class="result-share-status" role="status" aria-live="polite"></p>
         <section class="result-ranking" aria-labelledby="result-ranking-title">
           <header>
-            <h3 id="result-ranking-title">60秒ランキング</h3>
+            <h3 id="result-ranking-title">180秒ランキング</h3>
             <span>上位10名</span>
           </header>
           <p id="result-ranking-status" class="result-ranking-status" role="status" aria-live="polite">
@@ -228,8 +219,8 @@
 
     <footer class="app-footer">
       <aside id="play-note" class="prototype-note" hidden>
-        <strong id="play-note-title">60秒</strong>
-        <span id="play-note-text">斜めフリックで移動。同じ目を、目の数以上つなげる。</span>
+        <strong id="play-note-title">180秒</strong>
+        <span id="play-note-text">3個以上を一度に消すと、消去数に応じてサイコロが現れる。</span>
       </aside>
       <button
         id="sound-toggle"

@@ -100,6 +100,52 @@ button:disabled { opacity: .55; }
   touch-action: none;
 }
 #game-canvas { display: block; width: 100%; height: 100%; min-height: 420px; outline: none; }
+.direction-controls {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity .18s ease;
+}
+.app[data-screen="playing"] .direction-controls {
+  opacity: 1;
+  visibility: visible;
+}
+.direction-control {
+  position: absolute;
+  width: clamp(48px, 13vw, 58px);
+  height: clamp(48px, 13vw, 58px);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(245,196,81,.52);
+  border-radius: 50%;
+  background: rgba(10,13,20,.76);
+  box-shadow: 0 8px 22px rgba(0,0,0,.34), inset 0 1px rgba(255,255,255,.09);
+  color: #ffe3a0;
+  font-size: clamp(1.65rem, 7vw, 2.15rem);
+  font-weight: 950;
+  line-height: 1;
+  pointer-events: auto;
+  touch-action: manipulation;
+  transition: transform .12s ease, background .12s ease, border-color .12s ease;
+}
+.direction-control-left,
+.direction-control-up { top: clamp(58px, 17%, 128px); }
+.direction-control-down,
+.direction-control-right { bottom: clamp(58px, 17%, 128px); }
+.direction-control-left,
+.direction-control-down { left: clamp(7px, 2.5vw, 18px); }
+.direction-control-up,
+.direction-control-right { right: clamp(7px, 2.5vw, 18px); }
+.direction-control:active,
+.direction-control.is-active {
+  border-color: rgba(255,230,168,.95);
+  background: rgba(245,196,81,.28);
+  transform: scale(1.12);
+}
 .loading {
   position: absolute;
   inset: 0;
@@ -319,58 +365,6 @@ button:disabled { opacity: .55; }
   font-weight: 800;
   text-align: left;
 }
-.mode-picker {
-  width: min(100%, 460px);
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-.mode-picker legend {
-  width: 100%;
-  margin-bottom: 7px;
-  color: #a8a294;
-  font-size: .68rem;
-  font-weight: 900;
-  letter-spacing: .08em;
-}
-.mode-options {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-.mode-choice {
-  position: relative;
-  display: block;
-  touch-action: manipulation;
-}
-.mode-choice input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-}
-.mode-choice span {
-  display: grid;
-  gap: 3px;
-  min-height: 58px;
-  align-content: center;
-  padding: 8px 10px;
-  border: 1px solid rgba(255,255,255,.13);
-  border-radius: 14px;
-  background: rgba(255,255,255,.045);
-  color: #d6d1c5;
-  transition: border-color .16s ease, background .16s ease, transform .16s ease;
-}
-.mode-choice strong { color: #f2eee4; font-size: 1rem; }
-.mode-choice small { color: #999487; font-size: .64rem; font-weight: 750; }
-.mode-choice input:checked + span {
-  border-color: rgba(245,196,81,.76);
-  background: rgba(245,196,81,.13);
-  box-shadow: inset 0 0 0 1px rgba(245,196,81,.16);
-}
-.mode-choice input:checked + span strong { color: var(--accent); }
-.mode-choice input:focus-visible + span { outline: 3px solid #fff3b5; outline-offset: 3px; }
-.mode-choice input:disabled + span { opacity: .56; }
 .home-best-record {
   width: min(100%, 460px);
   display: flex;
@@ -695,10 +689,9 @@ button:disabled { opacity: .55; }
   letter-spacing: .08em;
 }
 .mode-rule-grid {
-  width: min(100%, 370px);
+  width: min(100%, 250px);
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 9px;
+  grid-template-columns: 1fr;
 }
 .mode-rule-grid div {
   display: grid;
@@ -712,14 +705,6 @@ button:disabled { opacity: .55; }
 }
 .mode-rule-grid strong { color: var(--accent); font-size: 1.24rem; }
 .mode-rule-grid span { color: #bcb7aa; font-size: .72rem; font-weight: 750; line-height: 1.5; }
-.tutorial-slide .tutorial-selected-mode {
-  padding: 7px 13px;
-  border-radius: 999px;
-  background: rgba(245,196,81,.13);
-  color: var(--accent);
-  font-size: .75rem;
-  font-weight: 900;
-}
 .tutorial-dots {
   display: flex;
   gap: 7px;
@@ -982,7 +967,6 @@ button:disabled { opacity: .55; }
   .screen-panel { gap: 9px; padding-block: 16px; }
   .screen-panel h1 { font-size: clamp(2.2rem, 10vw, 3.6rem); }
   .quick-rules li { min-height: 60px; }
-  .mode-choice span { min-height: 50px; }
   .home-screen, .tutorial-screen, .result-screen { align-content: start; }
   .tutorial-deck { min-height: 220px; }
   .tutorial-slide { gap: 9px; padding-block: 13px; }

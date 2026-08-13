@@ -3,7 +3,9 @@ export const GAME_MODE_IDS = Object.freeze({
   ONE_EIGHTY_SECONDS: '180-seconds'
 });
 
-export const DEFAULT_GAME_MODE_ID = GAME_MODE_IDS.SIXTY_SECONDS;
+// 新しいプレイは180秒へ一本化する。60秒は、端末に残る途中経過・
+// 未送信結果・過去記録を読み取れるよう互換用の定義だけを残す。
+export const DEFAULT_GAME_MODE_ID = GAME_MODE_IDS.ONE_EIGHTY_SECONDS;
 
 export const GAME_MODES = Object.freeze({
   [GAME_MODE_IDS.SIXTY_SECONDS]: Object.freeze({
