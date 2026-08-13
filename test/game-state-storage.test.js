@@ -5,9 +5,11 @@ import { indexedDB } from 'fake-indexeddb';
 
 import {
   deserializePersistedGameState,
+  FallbackGameStateStorage,
   GAME_STATE_VERSION,
   GameStateStorage,
   IndexedDbGameStateStorage,
+  LocalStorageGameStateStorage,
   serializePersistedGameState
 } from '../js/game-state-storage.js';
 import { GAME_MODE_IDS } from '../js/game-modes.js';
@@ -194,4 +196,53 @@ test('保存領域のI/O失敗は破損データと区別して扱う', async ()
   assert.equal((await storage.load()).status, 'unavailable');
   assert.equal((await storage.save(createState())).code, 'storage-unavailable');
   assert.equal((await storage.clear()).status, 'unavailable');
+});
+
+test('IndexedDBの実行時失敗後はlocalStorageへ切り替えて保存と復元を続ける', async () => {
+  const values = new Map();
+  const localStorage = {
+    getItem(key) { return values.has(key) ? values.get(key) : null; },
+    setItem(key, value) { values.set(key, String(value)); },
+    removeItem(key) { values.delete(key); }
+  };
+  const fallback = new LocalStorageGameStateStorage({ localStorage });
+  const failure = new Error('IndexedDB open failed');
+  const primary = {
+    async load() { throw failure; },
+    async save() { throw failure; },
+    async clearIfMatch() { throw failure; }
+  };
+  const storage = new GameStateStorage({
+    adapter: new FallbackGameStateStorage({ primary, fallback })
+  });
+  const state = createState();
+
+  assert.equal((await storage.load()).status, 'empty');
+  const saved = await storage.save(state);
+  assert.equal(saved.ok, true);
+  assert.equal((await storage.load()).status, 'available');
+  const removed = await storage.clear({ expectedSerialized: saved.serialized });
+  assert.equal(removed.status, 'removed');
+  assert.equal((await storage.load()).status, 'empty');
+});
+
+test('IndexedDBが失敗しlocalStorageにも対象がない削除は成功扱いにしない', async () => {
+  const fallback = new LocalStorageGameStateStorage({
+    localStorage: {
+      getItem() { return null; },
+      setItem() {},
+      removeItem() {}
+    }
+  });
+  const primary = {
+    async load() { throw new Error('IndexedDB unavailable'); },
+    async save() { throw new Error('IndexedDB unavailable'); },
+    async clearIfMatch() { throw new Error('IndexedDB unavailable'); }
+  };
+  const storage = new GameStateStorage({
+    adapter: new FallbackGameStateStorage({ primary, fallback })
+  });
+
+  const result = await storage.clear({ expectedSerialized: 'saved-state' });
+  assert.equal(result.status, 'unavailable');
 });
