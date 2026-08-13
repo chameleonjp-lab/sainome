@@ -411,18 +411,79 @@ export class LocalStorageGameStateStorage {
   }
 }
 
+export class FallbackGameStateStorage {
+  constructor({ primary, fallback } = {}) {
+    for (const [name, storage] of [['primary', primary], ['fallback', fallback]]) {
+      if (!storage
+        || typeof storage.load !== 'function'
+        || typeof storage.save !== 'function'
+        || typeof storage.clearIfMatch !== 'function') {
+        throw new TypeError(`${name} storage is invalid`);
+      }
+    }
+    this.primary = primary;
+    this.fallback = fallback;
+    this.usingFallback = false;
+    this.primaryError = null;
+  }
+
+  async load() {
+    if (this.usingFallback) return this.fallback.load();
+    try {
+      return await this.primary.load();
+    } catch (error) {
+      this.usingFallback = true;
+      this.primaryError = error;
+      return this.fallback.load();
+    }
+  }
+
+  async save(serialized) {
+    if (this.usingFallback) return this.fallback.save(serialized);
+    try {
+      return await this.primary.save(serialized);
+    } catch (error) {
+      this.usingFallback = true;
+      this.primaryError = error;
+      return this.fallback.save(serialized);
+    }
+  }
+
+  async clearIfMatch(expectedSerialized = null) {
+    if (this.usingFallback) return this.fallback.clearIfMatch(expectedSerialized);
+    try {
+      return await this.primary.clearIfMatch(expectedSerialized);
+    } catch (error) {
+      this.usingFallback = true;
+      this.primaryError = error;
+      const result = await this.fallback.clearIfMatch(expectedSerialized);
+      if (result.status === 'not-found') {
+        return { status: 'unavailable', error };
+      }
+      return result;
+    }
+  }
+}
+
 function createDefaultAdapter() {
+  let fallback = null;
   try {
-    if (globalThis.indexedDB) return new IndexedDbGameStateStorage();
+    if (globalThis.localStorage) fallback = new LocalStorageGameStateStorage();
   } catch {
-    // Fall through to localStorage when IndexedDB cannot be opened.
+    fallback = null;
   }
+
   try {
-    if (globalThis.localStorage) return new LocalStorageGameStateStorage();
+    if (globalThis.indexedDB) {
+      const primary = new IndexedDbGameStateStorage();
+      return fallback
+        ? new FallbackGameStateStorage({ primary, fallback })
+        : primary;
+    }
   } catch {
-    return null;
+    // Fall through to localStorage when IndexedDB is unavailable.
   }
-  return null;
+  return fallback;
 }
 
 export class GameStateStorage {
