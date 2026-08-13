@@ -930,6 +930,8 @@ function formatSavedGameSummary(state) {
 }
 
 function renderGameRecovery() {
+  gameRecoveryResume.textContent = '続きから再開';
+  gameRecoveryDiscard.textContent = '保存を削除';
   if (!savedGameRecovery) {
     gameRecoveryPanel.hidden = true;
     gameRecoveryStatus.textContent = '';
@@ -939,6 +941,14 @@ function renderGameRecovery() {
   }
 
   gameRecoveryPanel.hidden = false;
+  if (savedGameRecovery.unavailable) {
+    gameRecoveryResume.textContent = '保存を再確認';
+    gameRecoveryResume.disabled = gameStateOperationPending;
+    gameRecoveryDiscard.disabled = true;
+    gameRecoveryStatus.textContent =
+      '保存領域を確認できないため、新しいプレイを開始できません。保存を再確認してください';
+    return;
+  }
   if (savedGameRecovery.invalid) {
     gameRecoveryResume.disabled = true;
     gameRecoveryDiscard.disabled = gameStateOperationPending;
@@ -949,6 +959,7 @@ function renderGameRecovery() {
   gameRecoveryResume.disabled = gameStateOperationPending;
   gameRecoveryDiscard.disabled = gameStateOperationPending;
   gameRecoveryStatus.textContent = formatSavedGameSummary(savedGameRecovery.state);
+}
 }
 
 function enqueueGameStateOperation(action) {
@@ -1039,6 +1050,8 @@ async function loadGameRecovery() {
       }
     } else if (loaded.status === 'invalid' && loaded.serialized) {
       savedGameRecovery = { invalid: true, serialized: loaded.serialized };
+    } else if (loaded.status === 'unavailable') {
+      savedGameRecovery = { unavailable: true };
     } else {
       savedGameRecovery = null;
     }
@@ -1135,11 +1148,18 @@ async function resumeSavedGame() {
     if (loaded.status !== 'available') {
       if (loaded.status === 'invalid' && loaded.serialized) {
         savedGameRecovery = { invalid: true, serialized: loaded.serialized };
+        gameRecoveryLoaded = true;
+      } else if (loaded.status === 'unavailable') {
+        savedGameRecovery = { unavailable: true };
+        gameRecoveryLoaded = false;
       } else {
         savedGameRecovery = null;
+        gameRecoveryLoaded = true;
       }
       renderGameRecovery();
-      showHomeStartError('前回のプレイを復元できませんでした。保存データは削除していません。');
+      showHomeStartError(loaded.status === 'unavailable'
+        ? '保存領域を確認できないため、新しいゲームを開始しません。保存を再確認してください'
+        : '前回のプレイを復元できませんでした。保存データは削除していません。');
       return;
     }
 
@@ -1592,9 +1612,11 @@ async function startRound() {
   if (savedGameRecovery) {
     setStartPending(false);
     renderGameRecovery();
-    showHomeStartError(savedGameRecovery.invalid
-      ? '確認できない保存データがあるため、新しい保存を上書きしません。先に保存を削除してください'
-      : '前回のプレイ保存があります。「続きから再開」するか、保存を明示的に削除してから新しいゲームを始めてください');
+    showHomeStartError(savedGameRecovery.unavailable
+      ? '保存領域を確認できないため、新しいゲームを開始しません。保存を再確認してください'
+      : savedGameRecovery.invalid
+        ? '確認できない保存データがあるため、新しい保存を上書きしません。先に保存を削除してください'
+        : '前回のプレイ保存があります。「続きから再開」するか、保存を明示的に削除してから新しいゲームを始めてください');
     return;
   }
 

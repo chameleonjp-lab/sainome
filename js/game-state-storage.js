@@ -425,44 +425,113 @@ export class FallbackGameStateStorage {
     this.fallback = fallback;
     this.usingFallback = false;
     this.primaryError = null;
+    this.fallbackStateKnown = false;
+  }
+
+  unavailable(error = this.primaryError) {
+    return { status: 'unavailable', error };
+  }
+
+  async loadFallback() {
+    try {
+      const record = await this.fallback.load();
+      if (record === undefined && !this.fallbackStateKnown) {
+        return this.unavailable();
+      }
+      this.fallbackStateKnown = record !== undefined;
+      return record;
+    } catch (error) {
+      return this.unavailable(error);
+    }
   }
 
   async load() {
-    if (this.usingFallback) return this.fallback.load();
+    if (this.usingFallback && !this.fallbackStateKnown) {
+      try {
+        const record = await this.primary.load();
+        this.usingFallback = false;
+        this.primaryError = null;
+        return record;
+      } catch (error) {
+        this.primaryError = error;
+      }
+    }
+    if (this.usingFallback) return this.loadFallback();
     try {
       return await this.primary.load();
     } catch (error) {
       this.usingFallback = true;
       this.primaryError = error;
-      return this.fallback.load();
+      return this.loadFallback();
     }
   }
 
   async save(serialized) {
-    if (this.usingFallback) return this.fallback.save(serialized);
+    if (this.usingFallback && !this.fallbackStateKnown) {
+      return this.unavailable();
+    }
+    if (this.usingFallback) {
+      try {
+        const record = await this.fallback.save(serialized);
+        this.fallbackStateKnown = true;
+        return record;
+      } catch (error) {
+        return this.unavailable(error);
+      }
+    }
     try {
       return await this.primary.save(serialized);
     } catch (error) {
       this.usingFallback = true;
       this.primaryError = error;
-      return this.fallback.save(serialized);
+      try {
+        const record = await this.fallback.save(serialized);
+        this.fallbackStateKnown = true;
+        return record;
+      } catch (fallbackError) {
+        return this.unavailable(fallbackError);
+      }
     }
   }
 
   async clearIfMatch(expectedSerialized = null) {
-    if (this.usingFallback) return this.fallback.clearIfMatch(expectedSerialized);
+    if (this.usingFallback && !this.fallbackStateKnown) {
+      return this.unavailable();
+    }
+    if (this.usingFallback) {
+      try {
+        const result = await this.fallback.clearIfMatch(expectedSerialized);
+        if (result.status === 'not-found') {
+          return this.unavailable();
+        }
+        if (result.status === 'removed') {
+          this.fallbackStateKnown = false;
+        }
+        return result;
+      } catch (error) {
+        return this.unavailable(error);
+      }
+    }
     try {
       return await this.primary.clearIfMatch(expectedSerialized);
     } catch (error) {
       this.usingFallback = true;
       this.primaryError = error;
-      const result = await this.fallback.clearIfMatch(expectedSerialized);
-      if (result.status === 'not-found') {
-        return { status: 'unavailable', error };
+      try {
+        const result = await this.fallback.clearIfMatch(expectedSerialized);
+        if (result.status === 'not-found') {
+          return this.unavailable();
+        }
+        if (result.status === 'removed') {
+          this.fallbackStateKnown = false;
+        }
+        return result;
+      } catch (fallbackError) {
+        return this.unavailable(fallbackError);
       }
-      return result;
     }
   }
+}
 }
 
 function createDefaultAdapter() {
@@ -502,6 +571,9 @@ export class GameStateStorage {
       record = await this.adapter.load();
     } catch (error) {
       return Object.freeze({ status: 'unavailable', error });
+    }
+    if (record?.status === 'unavailable') {
+      return Object.freeze({ status: 'unavailable', error: record.error });
     }
     if (!record) return Object.freeze({ status: 'empty' });
     try {
