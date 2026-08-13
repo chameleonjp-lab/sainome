@@ -532,7 +532,6 @@ export class FallbackGameStateStorage {
     }
   }
 }
-}
 
 function createDefaultAdapter() {
   let fallback = null;

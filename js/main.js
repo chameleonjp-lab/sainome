@@ -960,7 +960,6 @@ function renderGameRecovery() {
   gameRecoveryDiscard.disabled = gameStateOperationPending;
   gameRecoveryStatus.textContent = formatSavedGameSummary(savedGameRecovery.state);
 }
-}
 
 function enqueueGameStateOperation(action) {
   const operation = gameStateOperation.then(action, action);
