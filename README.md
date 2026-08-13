@@ -26,8 +26,8 @@
 - ランキング受付前の結果をIndexedDBトランザクションで端末へ保全し、手動で同じ番号を再送
 - ランキング名のゲーム内の保存・送信経路を同じ検査へ統一し、不正な旧ランキング行だけを非表示
 - ランキング名を双方向隔離して表示し、新DB復旧後の`is_current_user`による本人判定に対応
-- 本番Supabaseのランキング契約とUnicode 15.1名前検査を受付停止状態で適用し、キャッシュ・Advisor・Turnstile/IP確認が終わるまで受付を停止
-- 登録成功後の順位再読込を得点再送から分離し、通信失敗の恒久拒否を隔離して後続記録を続行
+- 本番Supabaseのランキング契約、Unicode 15.1名前検査、停止後の既発行番号を確定させない補強を受付停止状態で適用し、キャッシュ・Advisor・Turnstile/IP確認が終わるまで受付を停止
+- 登録成功後の順位再読込を得点再送から分離し、失効・内容不一致は保全領域へ隔離、早すぎる送信・受付停止は未送信のまま残して後続記録を続行
 - 破損データと旧`shared-v1`記録を自動変換せず保全し、非破壊エクスポートと確認付き削除を提供
 - iPhone向けの盤面に沿った斜め4方向フリック
 - プレイ中だけ盤面外へ表示し、タップでも動ける斜め4方向ボタン
@@ -156,6 +156,7 @@ test/indexeddb-ranking-storage.test.js
 test/pending-ranking-submissions.test.js
 test/ranking-submission-flow.test.js
 test/pending-ranking-wiring.test.js
+test/sainome-ranking-submission-contract-migration.test.js
 test/sainome-ranking-v2-migration.test.js
 test/tutorial-slides.test.js
 test/ui-flow.test.js
@@ -163,6 +164,7 @@ contracts/player-name-v1.json
 docs/RANKING_IDENTITY_CONTRACT.md
 supabase/migrations/20260810120000_sainome_ranking_v2.sql
 supabase/migrations/20260811090000_sainome_unicode_name_contract.sql
+supabase/migrations/20260813032103_harden_sainome_ranking_submission_contract.sql
 ```
 
 描画にはCDNからThree.jsを読み込みます。効果音はブラウザの音声機能で生成するため、外部の音声ファイルは読み込みません。ランキング通信には公開用のSupabase接続情報だけを使い、秘密鍵は含めません。公開用のビルド作業はなく、静的ファイルをそのまま公開できます。`npm test`でサイコロの面、接続判定、新規180秒プレイ、旧60秒データの互換処理、生成数、得点、終了確定、効果音、名前保存、ランキング通信、チュートリアル、画面遷移を確認できます。

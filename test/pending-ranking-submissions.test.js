@@ -339,7 +339,7 @@ test('恒久拒否の未送信記録は原子的に隔離し、再送対象か�
 
   const isolated = await pending.quarantine(submission, {
     reason: 'ranking-submit-permanent-rejection',
-    code: 'request-failed'
+    code: 'PT410'
   });
 
   assert.equal(isolated.ok, true);
@@ -350,6 +350,23 @@ test('恒久拒否の未送信記録は原子的に隔離し、再送対象か�
   assert.equal(snapshot.quarantineCount, 1);
   assert.equal(storage.peek(submission.submissionId), null);
   assert.equal(storage.quarantineEntries()[0].serialized, recordFor(submission).serialized);
+  assert.equal(storage.quarantineEntries()[0].code, 'PT410');
+});
+
+test('揮発隔離でも理由と機械判定コードを保存上限へ収める', async () => {
+  const pending = new PendingRankingSubmissions({ storage: null });
+  const submission = createSubmission({ submissionId: ALTERNATE_IDS[1] });
+  await pending.enqueue(submission);
+
+  const isolated = await pending.quarantine(submission, {
+    reason: 'r'.repeat(140),
+    code: 'c'.repeat(100)
+  });
+
+  assert.equal(isolated.ok, true);
+  const snapshot = await pending.refresh();
+  assert.equal(snapshot.quarantinedItems[0].reason.length, 120);
+  assert.equal(snapshot.quarantinedItems[0].code.length, 80);
 });
 
 test('隔離保存に失敗した場合は未送信記録を残す', async () => {

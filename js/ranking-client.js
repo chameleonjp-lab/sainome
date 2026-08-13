@@ -25,12 +25,19 @@ export function isValidRankingClientVersion(value) {
 }
 
 export class RankingError extends Error {
-  constructor(code, message, cause, { retryable = false, status = null } = {}) {
+  constructor(code, message, cause, {
+    retryable = false,
+    status = null,
+    rpcName = null,
+    serverCode = null
+  } = {}) {
     super(message, cause ? { cause } : undefined);
     this.name = 'RankingError';
     this.code = code;
     this.retryable = retryable === true;
     this.status = Number.isInteger(status) ? status : null;
+    this.rpcName = typeof rpcName === 'string' ? rpcName : null;
+    this.serverCode = typeof serverCode === 'string' ? serverCode : null;
   }
 }
 
@@ -320,11 +327,19 @@ export class RankingClient {
           || response.status === 425
           || response.status === 429
           || response.status >= 500;
+        const serverError = data && typeof data === 'object' && !Array.isArray(data)
+          ? data
+          : {};
         throw new RankingError(
           'request-failed',
           'ランキング通信に失敗しました',
           undefined,
-          { retryable, status: response.status }
+          {
+            retryable,
+            status: response.status,
+            rpcName: functionName,
+            serverCode: serverError.code
+          }
         );
       }
       return data;

@@ -678,6 +678,8 @@ export class PendingRankingSubmissions {
     reason = 'permanent-rejection',
     code = 'request-rejected'
   } = {}) {
+    const normalizedReason = String(reason).slice(0, 120);
+    const normalizedCode = String(code).slice(0, 80);
     let submission;
     let serialized;
     try {
@@ -718,8 +720,8 @@ export class PendingRankingSubmissions {
       }, 'quarantined', {
         quarantineId: `pending:${submission.submissionId}`,
         source: 'pending-submission',
-        reason,
-        code,
+        reason: normalizedReason,
+        code: normalizedCode,
         quarantinedAt: Date.now()
       });
       this.volatileItems.delete(submission.submissionId);
@@ -747,8 +749,8 @@ export class PendingRankingSubmissions {
       result = await this.storage.quarantineIfMatch({
         submissionId: submission.submissionId,
         serialized,
-        reason,
-        code,
+        reason: normalizedReason,
+        code: normalizedCode,
         quarantinedAt: Date.now()
       });
       this.storageAvailable = true;

@@ -69,6 +69,15 @@ export function classifyRankingFailure(error) {
   if (
     error instanceof RankingError
     && error.code === 'request-failed'
+    && error.rpcName === 'submit_score_once'
+    && error.status === 410
+    && error.serverCode === 'PT410'
+  ) {
+    return 'permanent';
+  }
+  if (
+    error instanceof RankingError
+    && error.code === 'request-failed'
     && [400, 409, 422].includes(error.status)
   ) {
     return 'permanent';

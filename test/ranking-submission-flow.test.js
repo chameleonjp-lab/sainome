@@ -83,6 +83,25 @@ test('ランキング失敗を通信再試行と恒久拒否へ分類する', ()
   assert.equal(classifyRankingFailure(new Error('offline')), 'transient');
 });
 
+test('失効した確定番号だけを恒久拒否とし、受付停止や早すぎる送信は再送可能にする', () => {
+  const requestFailure = (status, serverCode, rpcName = 'submit_score_once') =>
+    new RankingError('request-failed', 'rejected', undefined, {
+      retryable: status === 425 || status >= 500,
+      status,
+      rpcName,
+      serverCode
+    });
+
+  assert.equal(classifyRankingFailure(requestFailure(410, 'PT410')), 'permanent');
+  assert.equal(classifyRankingFailure(requestFailure(409, 'PT409')), 'permanent');
+  assert.equal(classifyRankingFailure(requestFailure(422, '22023')), 'permanent');
+  assert.equal(classifyRankingFailure(requestFailure(425, 'PT425')), 'transient');
+  assert.equal(classifyRankingFailure(requestFailure(503, 'PT503')), 'transient');
+  assert.equal(classifyRankingFailure(requestFailure(403, '42501')), 'transient');
+  assert.equal(classifyRankingFailure(requestFailure(410, 'PT410', 'issue_sainome_play_v2')), 'transient');
+  assert.equal(classifyRankingFailure(requestFailure(410, 'UNKNOWN')), 'transient');
+});
+
 test('遅れて完了した古いプレイは新しい結果画面を更新しない', async () => {
   let activeRunId = 1;
   const updates = [];
