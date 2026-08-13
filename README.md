@@ -40,6 +40,7 @@
 - 音声コンテキストの中断・終了を検知し、次の明示操作で一度だけ音声を復帰。音声設定は勝手に変更しない
 - 端末が動きを減らす設定の場合、装飾用の点滅・拡縮・無限アニメーションと振動を止め、盤面変化の表示は残す
 - 実機試験用URLでWebGL強制消失と描画資源の診断値を確認できる（通常URLでは非表示）
+- GitHub ActionsでPR・main更新時にロック済み依存関係、全自動テスト、JavaScript構文を確認する
 
 ## 遊び方
 
@@ -99,6 +100,7 @@
 ## ファイル構成
 
 ```text
+.github/workflows/quality.yml
 index.html
 css/style.css
 js/dice.js
@@ -147,6 +149,7 @@ test/best-records.test.js
 test/best-record-wiring.test.js
 test/result-share.test.js
 test/result-share-wiring.test.js
+test/quality-workflow.test.js
 test/player-profile.test.js
 test/player-name-contract.test.js
 test/supabase-auth.test.js
@@ -167,4 +170,4 @@ supabase/migrations/20260811090000_sainome_unicode_name_contract.sql
 supabase/migrations/20260813032103_harden_sainome_ranking_submission_contract.sql
 ```
 
-描画にはCDNからThree.jsを読み込みます。効果音はブラウザの音声機能で生成するため、外部の音声ファイルは読み込みません。ランキング通信には公開用のSupabase接続情報だけを使い、秘密鍵は含めません。公開用のビルド作業はなく、静的ファイルをそのまま公開できます。`npm test`でサイコロの面、接続判定、新規180秒プレイ、旧60秒データの互換処理、生成数、得点、終了確定、効果音、名前保存、ランキング通信、チュートリアル、画面遷移を確認できます。
+描画にはCDNからThree.jsを読み込みます。効果音はブラウザの音声機能で生成するため、外部の音声ファイルは読み込みません。ランキング通信には公開用のSupabase接続情報だけを使い、秘密鍵は含めません。公開用のビルド作業はなく、静的ファイルをそのまま公開できます。`npm test`でサイコロの面、接続判定、新規180秒プレイ、旧60秒データの互換処理、生成数、得点、終了確定、効果音、名前保存、ランキング通信、チュートリアル、画面遷移を確認できます。構文だけを再確認する場合は`npm run check:syntax`を使います。GitHub Actionsの`quality.yml`はPRとmain更新で同じ検査を実行します。

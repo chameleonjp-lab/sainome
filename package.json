@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "check:syntax": "node --check js/*.js"
   },
   "devDependencies": {
     "fake-indexeddb": "^6.2.4"
