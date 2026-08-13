@@ -554,7 +554,7 @@ async function retryStoredRankingSubmissions() {
           if (classifyRankingFailure(error) === 'permanent') {
             const isolated = await pendingRankingSubmissions.quarantine(submission, {
               reason: 'ranking-submit-permanent-rejection',
-              code: error?.code ?? 'request-rejected'
+              code: error?.serverCode ?? error?.code ?? 'request-rejected'
             });
             if (isolated.ok) {
               quarantinedCount += 1;
@@ -696,7 +696,7 @@ async function syncResultRanking(submission, { submit = true } = {}) {
       if (classifyRankingFailure(error) === 'permanent') {
         const quarantined = await pendingRankingSubmissions.quarantine(submission, {
           reason: 'ranking-submit-permanent-rejection',
-          code: error?.code ?? 'request-rejected'
+          code: error?.serverCode ?? error?.code ?? 'request-rejected'
         });
         isolated = quarantined.ok;
         if (isolated) {

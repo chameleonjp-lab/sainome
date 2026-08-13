@@ -47,5 +47,9 @@ test('恒久拒否を隔離し、再送と順位再読込を別操作に分け�
   assert.match(main, /const MAX_MANUAL_PENDING_RETRIES = 10;/);
   assert.match(main, /classifyRankingFailure\(error\)/);
   assert.match(main, /pendingRankingSubmissions\.quarantine\(submission/);
+  assert.equal(
+    (main.match(/code: error\?\.serverCode \?\? error\?\.code \?\? 'request-rejected'/g) ?? []).length,
+    2
+  );
   assert.match(main, /syncResultRanking\(latestRankingSubmission, \{ submit: false \}\)/);
 });

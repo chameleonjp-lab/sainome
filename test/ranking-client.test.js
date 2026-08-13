@@ -452,6 +452,61 @@ test('HTTP応答を一時失敗と恒久拒否に分類できる', async () => {
   }
 });
 
+test('PostgRESTの拒否コードだけを画面へ出さず機械判定用に保持する', async () => {
+  const client = makeClient({
+    fetchImpl: async () => jsonResponse({
+      code: 'PT410',
+      message: 'submission has expired',
+      details: 'terminal submission',
+      hint: 'start a new play'
+    }, { ok: false, status: 410 })
+  });
+
+  await assert.rejects(
+    client.submitScore({
+      displayName: 'プレイヤー',
+      modeId: GAME_MODE_IDS.SIXTY_SECONDS,
+      score: 3200,
+      submissionId: SUBMISSION_ID
+    }),
+    (error) => {
+      assert.equal(error instanceof RankingError, true);
+      assert.equal(error.message, 'ランキング通信に失敗しました');
+      assert.equal(error.status, 410);
+      assert.equal(error.rpcName, 'submit_score_once');
+      assert.equal(error.serverCode, 'PT410');
+      assert.equal('serverMessage' in error, false);
+      assert.equal('serverDetails' in error, false);
+      assert.equal('serverHint' in error, false);
+      return true;
+    }
+  );
+});
+
+test('PostgRESTの拒否コードが文字列でなければ保持しない', async () => {
+  const client = makeClient({
+    fetchImpl: async () => jsonResponse({
+      code: 410,
+      message: ['invalid'],
+      details: { value: 'invalid' },
+      hint: false
+    }, { ok: false, status: 410 })
+  });
+
+  await assert.rejects(
+    client.submitScore({
+      displayName: 'プレイヤー',
+      modeId: GAME_MODE_IDS.SIXTY_SECONDS,
+      score: 3200,
+      submissionId: SUBMISSION_ID
+    }),
+    (error) => {
+      assert.equal(error.serverCode, null);
+      return true;
+    }
+  );
+});
+
 test('タイムアウトとネットワーク切断は再試行可能として返す', async () => {
   const timeoutClient = makeClient({
     fetchImpl: async () => {
