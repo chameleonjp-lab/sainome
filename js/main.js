@@ -3,9 +3,13 @@ import {
   GameFlow,
   SCREEN_PHASES
 } from './ui-flow.js';
-import { directionFromDiagonalSwipe } from './input-direction.js';
+import {
+  DEFAULT_SWIPE_DISTANCE,
+  directionFromDiagonalSwipe
+} from './input-direction.js';
 import {
   DEFAULT_GAME_MODE_ID,
+  GAME_MODE_IDS,
   getGameMode
 } from './game-modes.js';
 import {
@@ -75,7 +79,6 @@ const tutorialButton = document.querySelector('#tutorial-button');
 const tutorialHomeButton = document.querySelector('#tutorial-home-button');
 const tutorialPreviousButton = document.querySelector('#tutorial-previous-button');
 const tutorialNextButton = document.querySelector('#tutorial-next-button');
-const tutorialModeLabel = document.querySelector('#tutorial-mode-label');
 const playerNameInput = document.querySelector('#player-name-input');
 const playerNameError = document.querySelector('#player-name-error');
 const homeBestScore = document.querySelector('#home-best-score');
@@ -100,7 +103,7 @@ const resultRankingRetry = document.querySelector('#result-ranking-retry');
 const homeError = document.querySelector('#home-error');
 const modeBrand = document.querySelector('#mode-brand');
 const homeKicker = document.querySelector('#home-kicker');
-const modeInputs = [...document.querySelectorAll('input[name="game-mode"]')];
+const directionButtons = [...document.querySelectorAll('[data-direction]')];
 const resultKicker = document.querySelector('#result-kicker');
 const playNoteTitle = document.querySelector('#play-note-title');
 const playNoteText = document.querySelector('#play-note-text');
@@ -276,19 +279,17 @@ function resetHudDisplay(mode = selectedMode) {
   clearCount.textContent = '0';
 }
 
-function readSelectedMode() {
-  const checked = modeInputs.find((input) => input.checked);
-  return getGameMode(checked?.value ?? DEFAULT_GAME_MODE_ID);
+function getNewGameMode() {
+  return getGameMode(DEFAULT_GAME_MODE_ID);
 }
 
 function applyModeLabels(mode) {
   modeBrand.textContent = mode.brand;
   homeKicker.textContent = mode.kicker;
   playNoteTitle.textContent = mode.label;
-  playNoteText.textContent = mode.id === DEFAULT_GAME_MODE_ID
-    ? '斜めフリックで移動。同じ目を、目の数以上つなげる。'
-    : '3個以上を一度に消すと、消去数に応じてサイコロが現れる。';
-  tutorialModeLabel.textContent = `選択中：${mode.label}`;
+  playNoteText.textContent = mode.id === GAME_MODE_IDS.ONE_EIGHTY_SECONDS
+    ? '3個以上を一度に消すと、消去数に応じてサイコロが現れる。'
+    : '斜めフリックで移動。同じ目を、目の数以上つなげる。';
   const bestScore = bestRecords.getBest(mode.id);
   homeBestScore.textContent = bestScore === null
     ? '記録なし'
@@ -809,7 +810,7 @@ async function retryAcceptedResultCleanup(submission) {
 function setResultSharePending(pending) {
   resultSharePending = pending;
   resultShareButton.disabled = pending;
-  replayButton.disabled = pending;
+  replayButton.disabled = pending || startPending;
   resultHomeButton.disabled = pending;
   resultShareButton.textContent = pending ? '共有中…' : '結果をシェア';
 }
@@ -817,14 +818,13 @@ function setResultSharePending(pending) {
 function setStartPending(pending) {
   startPending = pending;
   startButton.disabled = pending;
-  replayButton.disabled = pending;
+  replayButton.disabled = pending || resultSharePending;
   tutorialButton.disabled = pending;
   tutorialHomeButton.disabled = pending;
   tutorialNextButton.disabled = pending;
   gameRecoveryResume.disabled = pending || gameStateOperationPending;
   gameRecoveryDiscard.disabled = pending || gameStateOperationPending;
   playerNameInput.disabled = pending;
-  for (const input of modeInputs) input.disabled = pending;
   startButton.textContent = pending ? '3D盤面を準備中…' : 'ゲーム開始';
   replayButton.textContent = pending ? '準備中…' : 'もう一度';
   app.setAttribute('aria-busy', String(pending));
@@ -992,6 +992,25 @@ async function clearGameState(expectedSerialized = null) {
     result = await enqueueGameStateOperation(() =>
       gameStateStorage.clear({ expectedSerialized })
     );
+  } catch (error) {
+    console.error(error);
+    result = { status: 'unavailable', error };
+  }
+  if (result.status === 'removed' || result.status === 'not-found') {
+    savedGameRecovery = null;
+    renderGameRecovery();
+  }
+  return result;
+}
+
+async function clearFinishedGameState() {
+  let result;
+  try {
+    result = await enqueueGameStateOperation(() => {
+      const expectedSerialized = savedGameRecovery?.serialized ?? null;
+      if (!expectedSerialized) return { status: 'not-found' };
+      return gameStateStorage.clear({ expectedSerialized });
+    });
   } catch (error) {
     console.error(error);
     result = { status: 'unavailable', error };
@@ -1240,9 +1259,10 @@ const gameCallbacks = {
     handleWebGLRecoveryFailed();
   },
   onFinish: (result) => {
-    void clearGameState();
     const next = flow.finish(result);
     if (!next) return;
+    setStartPending(true);
+    const gameStateCleanup = clearFinishedGameState();
     const playTicket = activePlayTicket;
     activePlayTicket = null;
     latestRecordOutcome = bestRecords.recordResult(next.result);
@@ -1262,7 +1282,15 @@ const gameCallbacks = {
     resultRankingStatus.textContent = '記録を端末へ保存しています…';
     setResultRankingRetryAction(null);
     void preserveFinishedRanking(provisional);
-    window.setTimeout(() => replayButton.focus(), 0);
+    void gameStateCleanup.finally(() => {
+      setStartPending(false);
+      if (
+        flow.getSnapshot().screen === SCREEN_PHASES.RESULT
+        && latestRankingSubmission === provisional
+      ) {
+        window.setTimeout(() => replayButton.focus(), 0);
+      }
+    });
   }
 };
 
@@ -1389,6 +1417,14 @@ async function leaveWebGLRecoveryForHome() {
 }
 
 function renderFlow(snapshot = flow.getSnapshot()) {
+  if (
+    snapshot.screen === SCREEN_PHASES.HOME
+    && selectedMode.id !== DEFAULT_GAME_MODE_ID
+  ) {
+    selectedMode = getNewGameMode();
+    applyModeLabels(selectedMode);
+    resetHudDisplay(selectedMode);
+  }
   app.dataset.screen = snapshot.screen;
   game?.setScreenPhase(snapshot.screen);
   if (!isWebGLRecoveryScreen(snapshot.screen)) hideWebGLRecovery();
@@ -1540,7 +1576,7 @@ async function startRound() {
   }
   if (!canStartWebGLGame()) return;
   void soundEffects.unlock();
-  const roundMode = readSelectedMode();
+  const roundMode = getNewGameMode();
   setStartPending(true);
   homeError.hidden = true;
 
@@ -1553,10 +1589,12 @@ async function startRound() {
     return;
   }
 
-  if (savedGameRecovery?.invalid) {
+  if (savedGameRecovery) {
     setStartPending(false);
     renderGameRecovery();
-    showHomeStartError('確認できない保存データがあるため、新しい保存を上書きしません。先に保存を削除してください');
+    showHomeStartError(savedGameRecovery.invalid
+      ? '確認できない保存データがあるため、新しい保存を上書きしません。先に保存を削除してください'
+      : '前回のプレイ保存があります。「続きから再開」するか、保存を明示的に削除してから新しいゲームを始めてください');
     return;
   }
 
@@ -1568,15 +1606,6 @@ async function startRound() {
       window.setTimeout(() => startButton.focus(), 0);
     }
     return;
-  }
-
-  if (savedGameRecovery) {
-    const cleared = await clearGameState(savedGameRecovery.serialized);
-    if (cleared.status !== 'removed' && cleared.status !== 'not-found') {
-      setStartPending(false);
-      showHomeStartError('前回のプレイ保存を削除できないため、新しいゲームを開始しません');
-      return;
-    }
   }
 
   // サーバー発行番号は3カウントより前に取得する。失敗してもゲームは開始するが、
@@ -1610,11 +1639,24 @@ async function startRound() {
 
 function requestMove(direction) {
   if (!game || webglRecoveryVisible || !flow.canMove()) return;
+  const button = directionButtons.find(
+    (candidate) => candidate.dataset.direction === direction
+  );
+  if (button && !motionPreferences.reducedMotion) {
+    button.classList.remove('is-active');
+    void button.offsetWidth;
+    button.classList.add('is-active');
+    window.setTimeout(() => button.classList.remove('is-active'), 180);
+  }
   game.move(direction);
 }
 
 stage.addEventListener('pointerdown', (event) => {
-  if (webglRecoveryVisible || !flow.canMove()) return;
+  if (
+    event.target.closest('[data-direction]')
+    || webglRecoveryVisible
+    || !flow.canMove()
+  ) return;
   void soundEffects.unlock();
   pointerStart = { x: event.clientX, y: event.clientY, id: event.pointerId };
   stage.setPointerCapture?.(event.pointerId);
@@ -1622,12 +1664,18 @@ stage.addEventListener('pointerdown', (event) => {
 
 stage.addEventListener('pointerup', (event) => {
   if (!pointerStart || pointerStart.id !== event.pointerId) return;
+  const deltaX = event.clientX - pointerStart.x;
+  const deltaY = event.clientY - pointerStart.y;
   const direction = directionFromDiagonalSwipe(
-    event.clientX - pointerStart.x,
-    event.clientY - pointerStart.y
+    deltaX,
+    deltaY
   );
   pointerStart = null;
-  if (direction) requestMove(direction);
+  if (direction) {
+    requestMove(direction);
+  } else if (Math.hypot(deltaX, deltaY) >= DEFAULT_SWIPE_DISTANCE) {
+    message.textContent = '斜め方向へフリックするか、矢印をタップします';
+  }
 });
 
 stage.addEventListener('pointercancel', () => {
@@ -1648,6 +1696,13 @@ document.addEventListener('keydown', (event) => {
   void soundEffects.unlock();
   requestMove(direction);
 });
+
+for (const button of directionButtons) {
+  button.addEventListener('click', () => {
+    void soundEffects.unlock();
+    requestMove(button.dataset.direction);
+  });
+}
 
 startButton.addEventListener('click', startRound);
 replayButton.addEventListener('click', startRound);
@@ -1717,7 +1772,7 @@ tutorialButton.addEventListener('click', () => {
   if (startPending) return;
   const snapshot = flow.openTutorial();
   if (!snapshot) return;
-  selectedMode = readSelectedMode();
+  selectedMode = getNewGameMode();
   applyModeLabels(selectedMode);
   tutorial.reset();
   renderFlow(snapshot);
@@ -1743,21 +1798,12 @@ tutorialNextButton.addEventListener('click', () => {
 });
 resultHomeButton.addEventListener('click', () => {
   cancelCountdown();
-  selectedMode = readSelectedMode();
+  selectedMode = getNewGameMode();
   applyModeLabels(selectedMode);
   resetHudDisplay(selectedMode);
   renderFlow(flow.goHome());
   window.setTimeout(() => startButton.focus(), 0);
 });
-
-for (const input of modeInputs) {
-  input.addEventListener('change', () => {
-    if (!input.checked || flow.getSnapshot().screen !== SCREEN_PHASES.HOME) return;
-    selectedMode = readSelectedMode();
-    applyModeLabels(selectedMode);
-    resetHudDisplay(selectedMode);
-  });
-}
 
 playerNameInput.addEventListener('input', () => {
   if (!playerNameError.hidden) showPlayerNameError();

@@ -9,13 +9,13 @@ import {
 import { GAME_MODE_IDS } from '../js/game-modes.js';
 
 test('60秒モードは開始直後に入力を受け付ける', () => {
-  const session = new GameSession();
+  const session = new GameSession({ modeId: GAME_MODE_IDS.SIXTY_SECONDS });
 
   const state = session.start(1_000);
 
   assert.equal(state.phase, 'running');
   assert.equal(state.modeId, GAME_MODE_IDS.SIXTY_SECONDS);
-  assert.equal(state.remainingMs, DEFAULT_GAME_DURATION_MS);
+  assert.equal(state.remainingMs, 60_000);
   assert.equal(state.score, 0);
   assert.equal(session.isAcceptingInput(), true);
 });
@@ -68,7 +68,7 @@ test('180秒モードは180秒到達時まで入力を受け付ける', () => {
 });
 
 test('60秒未満では進行中のまま残り時間を減らす', () => {
-  const session = new GameSession();
+  const session = new GameSession({ modeId: GAME_MODE_IDS.SIXTY_SECONDS });
   session.start(5_000);
 
   const state = session.tick(64_999);
@@ -79,7 +79,7 @@ test('60秒未満では進行中のまま残り時間を減らす', () => {
 });
 
 test('60秒到達時に新しい入力を止めて終了待ちへ移る', () => {
-  const session = new GameSession();
+  const session = new GameSession({ modeId: GAME_MODE_IDS.SIXTY_SECONDS });
   session.start(5_000);
 
   const state = session.tick(65_000);
@@ -90,7 +90,7 @@ test('60秒到達時に新しい入力を止めて終了待ちへ移る', () => 
 });
 
 test('時刻が逆戻りしても残り時間は増えない', () => {
-  const session = new GameSession();
+  const session = new GameSession({ modeId: GAME_MODE_IDS.SIXTY_SECONDS });
   session.start(10_000);
   session.tick(20_000);
 
