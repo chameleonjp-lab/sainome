@@ -86,7 +86,7 @@ test('再読み込み後に保存状態を確認して続きから再開でき�
   assert.match(main, /GameStateStorage/);
   assert.match(main, /resumeSavedGame/);
   assert.match(main, /discardSavedGame/);
-  assert.match(main, /loaded\.status === 'unavailable'[\\s\\S]*?savedGameRecovery = \{ unavailable: true \}/);
+  assert.match(main, /loaded\.status === 'unavailable'[\s\S]*?savedGameRecovery = \{ unavailable: true \}/);
   assert.match(main, /保存領域を確認できないため/);
   const startFunction = main.match(/async function startRound\(\)[\s\S]*?\n\}/u)?.[0] ?? '';
   assert.match(startFunction, /if \(savedGameRecovery\) \{/);

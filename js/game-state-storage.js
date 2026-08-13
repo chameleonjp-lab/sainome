@@ -590,10 +590,18 @@ export class GameStateStorage {
   async save(state) {
     if (!this.adapter) return Object.freeze({ ok: false, code: 'storage-unavailable' });
     const serialized = serializePersistedGameState(state);
+    let result;
     try {
-      await this.adapter.save(serialized);
+      result = await this.adapter.save(serialized);
     } catch (error) {
       return Object.freeze({ ok: false, code: 'storage-unavailable', error });
+    }
+    if (result?.status === 'unavailable') {
+      return Object.freeze({
+        ok: false,
+        code: 'storage-unavailable',
+        error: result.error
+      });
     }
     return Object.freeze({ ok: true, serialized });
   }
