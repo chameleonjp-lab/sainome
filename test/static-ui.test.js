@@ -90,6 +90,10 @@ test('再読み込み後に保存状態を確認して続きから再開でき�
   assert.match(main, /保存領域を確認できないため/);
   assert.match(main, /async function loadGameRecovery\(\{ force = false \} = \{\}\)/);
   assert.match(main, /await loadGameRecovery\(\{ force: true \}\)/);
+  assert.match(main, /createGameStateChannel/);
+  assert.match(main, /sainome-game-state-v1/);
+  assert.match(main, /flow\.getSnapshot\(\)\.screen !== SCREEN_PHASES\.HOME/);
+  assert.match(main, /gameStateChannel\?\.close\(\)/);
   const startFunction = main.match(/async function startRound\(\)[\s\S]*?\n\}/u)?.[0] ?? '';
   assert.match(startFunction, /if \(savedGameRecovery\) \{/);
   assert.match(startFunction, /続きから再開/);
