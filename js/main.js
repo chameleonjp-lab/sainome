@@ -1032,7 +1032,8 @@ async function clearFinishedGameState() {
   return result;
 }
 
-async function loadGameRecovery() {
+async function loadGameRecovery({ force = false } = {}) {
+  if (force) gameRecoveryLoaded = false;
   if (gameRecoveryLoaded) return;
   if (gameRecoveryLoadPromise) return gameRecoveryLoadPromise;
 
@@ -1600,7 +1601,7 @@ async function startRound() {
   homeError.hidden = true;
 
   try {
-    await loadGameRecovery();
+    await loadGameRecovery({ force: true });
   } catch (error) {
     console.error(error);
     setStartPending(false);
