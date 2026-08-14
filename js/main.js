@@ -149,6 +149,7 @@ const playerProfile = new PlayerProfile();
 const pendingRankingSubmissions = new PendingRankingSubmissions();
 const gameStateStorage = new GameStateStorage();
 const pendingRankingChannel = createPendingRankingChannel();
+const gameStateChannel = createGameStateChannel();
 let rankingClient = null;
 try {
   rankingClient = new RankingClient({
@@ -203,6 +204,24 @@ function createPendingRankingChannel() {
       : null;
   } catch {
     return null;
+  }
+}
+
+function createGameStateChannel() {
+  try {
+    return typeof globalThis.BroadcastChannel === 'function'
+      ? new globalThis.BroadcastChannel('sainome-game-state-v1')
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function notifyGameStateChange() {
+  try {
+    gameStateChannel?.postMessage('changed');
+  } catch {
+    // The local state remains authoritative when cross-tab notification is unavailable.
   }
 }
 
@@ -985,7 +1004,9 @@ function requestGameStateSave(snapshot) {
   void enqueueGameStateOperation(async () => {
     const result = await gameStateStorage.save(persisted);
     if (result.ok) {
+      const hadSavedGame = Boolean(savedGameRecovery?.serialized);
       savedGameRecovery = { state: persisted, serialized: result.serialized };
+      if (!hadSavedGame) notifyGameStateChange();
     } else {
       message.textContent = 'プレイ状態を端末へ保存できません。画面を閉じないでください';
     }
@@ -1009,6 +1030,7 @@ async function clearGameState(expectedSerialized = null) {
   if (result.status === 'removed' || result.status === 'not-found') {
     savedGameRecovery = null;
     renderGameRecovery();
+    notifyGameStateChange();
   }
   return result;
 }
@@ -1028,6 +1050,7 @@ async function clearFinishedGameState() {
   if (result.status === 'removed' || result.status === 'not-found') {
     savedGameRecovery = null;
     renderGameRecovery();
+    notifyGameStateChange();
   }
   return result;
 }
@@ -1862,6 +1885,23 @@ document.addEventListener('visibilitychange', () => {
 pendingRankingChannel?.addEventListener('message', () => {
   void renderPendingRankingPanel();
 });
+gameStateChannel?.addEventListener('message', () => {
+  if (
+    flow.getSnapshot().screen !== SCREEN_PHASES.HOME
+    || startPending
+    || gameStateOperationPending
+  ) return;
+  void loadGameRecovery({ force: true }).catch((error) => {
+    console.error(error);
+  });
+});
+window.addEventListener('pagehide', () => {
+  try {
+    gameStateChannel?.close();
+  } catch {
+    // Closing an unavailable channel is harmless.
+  }
+}, { once: true });
 
 setupReleaseDiagnostics();
 applyModeLabels(selectedMode);
