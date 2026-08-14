@@ -217,12 +217,37 @@ test('IndexedDBの実行時失敗後はlocalStorageへ切り替えて保存と�
   });
   const state = createState();
 
-  assert.equal((await storage.load()).status, 'empty');
+  assert.equal((await storage.load()).status, 'unavailable');
   const saved = await storage.save(state);
-  assert.equal(saved.ok, true);
-  assert.equal((await storage.load()).status, 'available');
-  const removed = await storage.clear({ expectedSerialized: saved.serialized });
-  assert.equal(removed.status, 'removed');
+  assert.equal(saved.ok, false);
+  assert.equal(saved.code, 'storage-unavailable');
+  assert.equal((await storage.load()).status, 'unavailable');
+});
+
+test('保存先の復旧前は、空のlocalStorageを保存なしとみなさない', async () => {
+  const values = new Map();
+  const fallback = new LocalStorageGameStateStorage({
+    localStorage: {
+      getItem(key) { return values.has(key) ? values.get(key) : null; },
+      setItem(key, value) { values.set(key, String(value)); },
+      removeItem(key) { values.delete(key); }
+    }
+  });
+  let primaryAvailable = false;
+  const primary = {
+    async load() {
+      if (!primaryAvailable) throw new Error('IndexedDB unavailable');
+      return undefined;
+    },
+    async save() { throw new Error('IndexedDB unavailable'); },
+    async clearIfMatch() { throw new Error('IndexedDB unavailable'); }
+  };
+  const storage = new GameStateStorage({
+    adapter: new FallbackGameStateStorage({ primary, fallback })
+  });
+
+  assert.equal((await storage.load()).status, 'unavailable');
+  primaryAvailable = true;
   assert.equal((await storage.load()).status, 'empty');
 });
 
@@ -245,4 +270,31 @@ test('IndexedDBが失敗しlocalStorageにも対象がない削除は成功扱�
 
   const result = await storage.clear({ expectedSerialized: 'saved-state' });
   assert.equal(result.status, 'unavailable');
+});
+
+
+test('IndexedDBへの保存失敗時は保存対象をlocalStorageへ退避する', async () => {
+  const values = new Map();
+  const fallback = new LocalStorageGameStateStorage({
+    localStorage: {
+      getItem(key) { return values.has(key) ? values.get(key) : null; },
+      setItem(key, value) { values.set(key, String(value)); },
+      removeItem(key) { values.delete(key); }
+    }
+  });
+  const primary = {
+    async load() { throw new Error('IndexedDB unavailable'); },
+    async save() { throw new Error('IndexedDB unavailable'); },
+    async clearIfMatch() { throw new Error('IndexedDB unavailable'); }
+  };
+  const storage = new GameStateStorage({
+    adapter: new FallbackGameStateStorage({ primary, fallback })
+  });
+  const saved = await storage.save(createState());
+
+  assert.equal(saved.ok, true);
+  assert.equal((await storage.load()).status, 'available');
+  const removed = await storage.clear({ expectedSerialized: saved.serialized });
+  assert.equal(removed.status, 'removed');
+  assert.equal((await storage.load()).status, 'unavailable');
 });
