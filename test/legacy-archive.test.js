@@ -7,8 +7,10 @@ import {
   SIXTY_SECOND_SPAWN_AT_MS
 } from '../archive/60-second/spawn-rules.js';
 import { GAME_MODE_IDS } from '../archive/60-second/game-modes.js';
+import { SainomeGame } from '../archive/60-second/game.js';
 
 test('60秒版アーカイブは現行の生成ルールへ依存せず読み込める', () => {
+  assert.equal(new SainomeGame().timeLeft, 60);
   assert.equal(
     getSixtySecondSpawnBatchCount(SIXTY_SECOND_SPAWN_AT_MS),
     2
