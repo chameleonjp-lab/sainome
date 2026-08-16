@@ -18,8 +18,8 @@
 <body>
   <main id="app" class="app" data-screen="home">
     <header class="hud" aria-label="ゲームの状況">
-      <div class="brand"><span id="mode-brand">180 SECOND PUZZLE</span><strong>サイノメ</strong></div>
-      <div id="time-panel" class="hud-item"><span>TIME</span><strong id="remaining-time">180</strong></div>
+      <div class="brand"><span id="mode-brand">300 SECOND PUZZLE</span><strong>サイノメ</strong></div>
+      <div id="time-panel" class="hud-item"><span>TIME</span><strong id="remaining-time">300</strong></div>
       <div id="score-panel" class="hud-item hud-score"><span>SCORE</span><strong id="score-count">0</strong></div>
       <div class="hud-item"><span>CHAIN</span><strong id="chain-count">0</strong></div>
       <div class="hud-item"><span>CLEAR</span><strong id="clear-count">0</strong></div>
@@ -45,7 +45,7 @@
       </section>
 
       <section id="home-screen" class="screen-panel home-screen" aria-labelledby="game-title">
-        <p id="home-kicker" class="screen-kicker">180秒で、消して、増やして、つなげる</p>
+        <p id="home-kicker" class="screen-kicker">300秒で、消して、増やして、つなげる</p>
         <h1 id="game-title">サイノメ</h1>
         <p class="screen-lead">サイコロを転がし、上面と同じ数以上を縦横につなげて得点を競います。</p>
         <label class="player-name-field" for="player-name-input">
@@ -66,7 +66,7 @@
         </label>
         <p id="player-name-error" class="player-name-error" role="alert" hidden></p>
         <p class="home-best-record">
-          <span>180秒の自己ベスト</span>
+          <span>300秒の自己ベスト</span>
           <strong id="home-best-score" aria-live="polite">記録なし</strong>
         </p>
         <ol class="quick-rules" aria-label="遊び方">
@@ -106,7 +106,7 @@
       <section id="tutorial-screen" class="screen-panel tutorial-screen" aria-labelledby="tutorial-title" hidden>
         <div class="tutorial-topline">
           <p class="screen-kicker">HOW TO PLAY</p>
-          <p id="tutorial-progress" class="tutorial-progress" aria-live="polite">1 / 3</p>
+          <p id="tutorial-progress" class="tutorial-progress" aria-live="polite">1 / 5</p>
         </div>
         <h2 id="tutorial-title" tabindex="-1">斜めにフリック</h2>
 
@@ -121,24 +121,39 @@
             <p class="tutorial-tip">パソコンでは矢印キーかW・A・S・Dで動かせます。</p>
           </article>
 
-          <article class="tutorial-slide" data-tutorial-slide data-title="同じ目をつなぐ" hidden>
+          <article class="tutorial-slide" data-tutorial-slide data-title="目のルール" hidden>
             <div class="match-visual" aria-hidden="true">
               <span>3</span><span>3</span><span>3</span><b>消去</b>
             </div>
-            <p>上面の目と同じ個数以上を、盤面のマスに沿って隣り合うようにつなぐと消えます。2なら2個、3なら3個です。</p>
-            <p class="tutorial-tip">沈みきる前に同じ目を足すと連鎖します。上面が1のサイコロを沈下中の隣へ動かすと、盤面の1がまとめて消えます。</p>
+            <p>上面の目と同じ個数以上を、盤面のマスに沿って縦横につなぐと消えます。2なら2個、3なら3個です。</p>
+            <p class="tutorial-tip">斜めにはつながりません。沈みきる前に同じ目を足すと連鎖します。</p>
           </article>
 
-          <article class="tutorial-slide" data-tutorial-slide data-title="消すほど増える" hidden>
-            <div class="mode-rule-grid">
-              <div><strong>180秒</strong><span>3個以上消すと<br>1〜4個生成</span></div>
+          <article class="tutorial-slide" data-tutorial-slide data-title="1の特殊消去" hidden>
+            <div class="match-visual" aria-hidden="true">
+              <span>1</span><span>1</span><span>1</span><b>特殊</b>
             </div>
-            <p>一度に3個以上消すと、消した数に応じて盤面へサイコロが増えます。次の連鎖に使える場所を残すことが大切です。</p>
+            <p>上面が1のサイコロは、通常の個数つなぎでは消えません。沈下中のサイコロへ1を隣接させると、盤面の1をまとめて消せます。</p>
+            <p class="tutorial-tip">消去中の場所へ近づくタイミングを見極めましょう。</p>
+          </article>
+
+          <article class="tutorial-slide" data-tutorial-slide data-title="300秒モード" hidden>
+            <div class="mode-rule-grid">
+              <div><strong>300秒</strong><span>最初は6個<br>1・2・3が各2個</span></div>
+            </div>
+            <p>ゲーム開始時は1・2・3のサイコロが2個ずつ。盤面中央のサイコロからスタートします。</p>
+          </article>
+
+          <article class="tutorial-slide" data-tutorial-slide data-title="消した分だけ増える" hidden>
+            <div class="mode-rule-grid">
+              <div><strong>1個消去</strong><span>1個生成<br>安全な空きマスへ</span></div>
+            </div>
+            <p>消したサイコロ1個につき新しい1個が、プレイヤーと隣接マスを避けたランダムな空きマスに現れます。消すほど盤面が変わるので、次の連鎖の場所を残しましょう。</p>
           </article>
         </div>
 
         <div id="tutorial-dots" class="tutorial-dots" aria-hidden="true">
-          <span class="is-active"></span><span></span><span></span>
+          <span class="is-active"></span><span></span><span></span><span></span><span></span>
         </div>
         <div class="tutorial-actions">
           <button id="tutorial-home-button" class="secondary-button" type="button">ホームへ</button>
@@ -153,7 +168,7 @@
       </section>
 
       <section id="result-screen" class="screen-panel result-screen" aria-labelledby="result-title" hidden>
-        <p id="result-kicker" class="screen-kicker">180秒モード · TIME UP</p>
+        <p id="result-kicker" class="screen-kicker">300秒モード · TIME UP</p>
         <h2 id="result-title">結果</h2>
         <div class="result-score">
           <span>SCORE</span>
@@ -185,7 +200,7 @@
         <p id="result-share-status" class="result-share-status" role="status" aria-live="polite"></p>
         <section class="result-ranking" aria-labelledby="result-ranking-title">
           <header>
-            <h3 id="result-ranking-title">180秒ランキング</h3>
+            <h3 id="result-ranking-title">300秒ランキング</h3>
             <span>上位10名</span>
           </header>
           <p id="result-ranking-status" class="result-ranking-status" role="status" aria-live="polite">
@@ -219,8 +234,8 @@
 
     <footer class="app-footer">
       <aside id="play-note" class="prototype-note" hidden>
-        <strong id="play-note-title">180秒</strong>
-        <span id="play-note-text">3個以上を一度に消すと、消去数に応じてサイコロが現れる。</span>
+        <strong id="play-note-title">300秒</strong>
+        <span id="play-note-text">消したサイコロと同じ数が、ランダムな安全な空きマスに現れる。</span>
       </aside>
       <button
         id="sound-toggle"

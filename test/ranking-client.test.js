@@ -81,9 +81,16 @@ function issueResponse({
   modeId = GAME_MODE_IDS.SIXTY_SECONDS,
   submissionId = SUBMISSION_ID,
   issuedAt = '2026-08-10T00:00:00.000Z',
-  earliestSubmitAt = '2026-08-10T00:01:03.000Z',
+  earliestSubmitAt = null,
   expiresAt = '2026-08-11T00:00:00.000Z'
 } = {}) {
+  const defaultDelay = modeId === GAME_MODE_IDS.SIXTY_SECONDS
+    ? 63_000
+    : modeId === GAME_MODE_IDS.ONE_EIGHTY_SECONDS
+      ? 183_000
+      : 303_000;
+  const resolvedEarliestSubmitAt = earliestSubmitAt
+    ?? new Date(Date.parse(issuedAt) + defaultDelay).toISOString();
   return {
     issued: true,
     result_submission_id: submissionId,
@@ -92,7 +99,7 @@ function issueResponse({
     result_client_version: RANKING_CLIENT_VERSION,
     result_contract_version: RANKING_SUBMISSION_CONTRACT_VERSION,
     issued_at: issuedAt,
-    earliest_submit_at: earliestSubmitAt,
+    earliest_submit_at: resolvedEarliestSubmitAt,
     expires_at: expiresAt
   };
 }
@@ -172,11 +179,25 @@ test('開始前に匿名認証済みのサーバー発行チケットを受け�
   });
 });
 
+test('300秒の開始発行は303秒後から受け付ける', async () => {
+  const client = makeClient({
+    fetchImpl: async () => jsonResponse([issueResponse({
+      modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS
+    })])
+  });
+  const ticket = await client.issuePlay({
+    displayName: 'プレイヤー',
+    modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS
+  });
+  assert.equal(ticket.gameSlug, 'sainome_300_seconds');
+  assert.equal(ticket.earliestSubmitAt - ticket.issuedAt, 303_000);
+});
+
 test('開始発行の応答時刻・slug・版が改ざんされると拒否する', async () => {
   const invalidResponses = [
     issueResponse({ earliestSubmitAt: '2026-08-10T00:01:02.000Z' }),
     issueResponse({ expiresAt: '2026-08-11T00:00:01.000Z' }),
-    issueResponse({ modeId: GAME_MODE_IDS.ONE_EIGHTY_SECONDS }),
+    issueResponse({ modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS }),
     { ...issueResponse(), result_contract_version: 'other-contract' }
   ];
 
@@ -256,7 +277,7 @@ test('保存済み番号の再送では新しい匿名UIDを作らない', async
   assert.equal(createValue, false);
 });
 
-test('180秒ランキングを60秒とは別の記録として上位10件取得する', async () => {
+test('300秒ランキングを60秒とは別の記録として上位10件取得する', async () => {
   const requests = [];
   const rows = Array.from({ length: 12 }, (_, index) => rankingRow({
     rank: index + 1,
@@ -272,13 +293,13 @@ test('180秒ランキングを60秒とは別の記録として上位10件取得�
     }
   });
 
-  const ranking = await client.getTopRanking(GAME_MODE_IDS.ONE_EIGHTY_SECONDS);
+  const ranking = await client.getTopRanking(GAME_MODE_IDS.THREE_HUNDRED_SECONDS);
 
   assert.equal(ranking.length, RANKING_LIMIT);
   assert.equal(requests[0].url, `${URL}/rest/v1/rpc/get_sainome_ranking_v2`);
   assert.equal('Authorization' in requests[0].options.headers, false);
   assert.deepEqual(JSON.parse(requests[0].options.body), {
-    p_game_slug: RANKING_GAME_SLUGS[GAME_MODE_IDS.ONE_EIGHTY_SECONDS],
+    p_game_slug: RANKING_GAME_SLUGS[GAME_MODE_IDS.THREE_HUNDRED_SECONDS],
     p_limit: RANKING_LIMIT
   });
   assert.deepEqual(ranking[0], {
@@ -354,7 +375,7 @@ test('本人判定が複数行にあるランキング応答を拒否する', as
 test('再送済みの応答を重複登録として扱える', async () => {
   const client = makeClient({
     fetchImpl: async () => jsonResponse([submitResponse({
-      modeId: GAME_MODE_IDS.ONE_EIGHTY_SECONDS,
+      modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS,
       submittedScore: 4000,
       bestScore: 5000,
       playCount: 2,
@@ -366,7 +387,7 @@ test('再送済みの応答を重複登録として扱える', async () => {
 
   const result = await client.submitScore({
     displayName: 'プレイヤー',
-    modeId: GAME_MODE_IDS.ONE_EIGHTY_SECONDS,
+    modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS,
     score: 4000,
     submissionId: SUBMISSION_ID
   });
@@ -380,7 +401,7 @@ test('受付応答は要求したUUID・契約版・クライアント版・slug
     { result_submission_id: 'x'.repeat(16) },
     { result_contract_version: 'other-contract' },
     { result_client_version: 'other-client' },
-    { result_game_slug: RANKING_GAME_SLUGS[GAME_MODE_IDS.ONE_EIGHTY_SECONDS] },
+    { result_game_slug: RANKING_GAME_SLUGS[GAME_MODE_IDS.THREE_HUNDRED_SECONDS] },
     { result_display_name: '別の名前' },
     { result_submitted_score: 3201 }
   ];

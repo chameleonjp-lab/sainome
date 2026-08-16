@@ -306,8 +306,8 @@ function applyModeLabels(mode) {
   modeBrand.textContent = mode.brand;
   homeKicker.textContent = mode.kicker;
   playNoteTitle.textContent = mode.label;
-  playNoteText.textContent = mode.id === GAME_MODE_IDS.ONE_EIGHTY_SECONDS
-    ? '3個以上を一度に消すと、消去数に応じてサイコロが現れる。'
+  playNoteText.textContent = mode.id === GAME_MODE_IDS.THREE_HUNDRED_SECONDS
+    ? '消したサイコロと同じ数が、ランダムな安全な空きマスに現れる。'
     : '斜めフリックで移動。同じ目を、目の数以上つなげる。';
   const bestScore = bestRecords.getBest(mode.id);
   homeBestScore.textContent = bestScore === null

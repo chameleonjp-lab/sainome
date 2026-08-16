@@ -7,12 +7,12 @@ import {
   getGameMode
 } from '../js/game-modes.js';
 
-test('新しいプレイの既定モードは180秒になる', () => {
+test('新しいプレイの既定モードは300秒になる', () => {
   const mode = getGameMode();
 
   assert.equal(mode.id, DEFAULT_GAME_MODE_ID);
-  assert.equal(mode.id, GAME_MODE_IDS.ONE_EIGHTY_SECONDS);
-  assert.equal(mode.durationMs, 180_000);
+  assert.equal(mode.id, GAME_MODE_IDS.THREE_HUNDRED_SECONDS);
+  assert.equal(mode.durationMs, 300_000);
 });
 
 test('保存済み記録との互換用に60秒モードを読み取れる', () => {
@@ -22,11 +22,11 @@ test('保存済み記録との互換用に60秒モードを読み取れる', () 
   assert.equal(mode.label, '60秒');
 });
 
-test('180秒モードは3分の制限時間を持つ', () => {
-  const mode = getGameMode(GAME_MODE_IDS.ONE_EIGHTY_SECONDS);
+test('300秒モードは5分の制限時間を持つ', () => {
+  const mode = getGameMode(GAME_MODE_IDS.THREE_HUNDRED_SECONDS);
 
-  assert.equal(mode.durationMs, 180_000);
-  assert.equal(mode.label, '180秒');
+  assert.equal(mode.durationMs, 300_000);
+  assert.equal(mode.label, '300秒');
 });
 
 test('存在しないモードは開始できない', () => {

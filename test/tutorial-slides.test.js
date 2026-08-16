@@ -18,21 +18,20 @@ test('説明は1枚目から始まる', () => {
   });
 });
 
-test('次へ進むと最後の3枚目で止まる', () => {
+test('次へ進むと最後の5枚目で止まる', () => {
   const slides = new TutorialSlides();
 
-  slides.next();
-  const last = slides.next();
+  for (let index = 0; index < 4; index += 1) slides.next();
+  const last = slides.getSnapshot();
 
-  assert.equal(last.index, 2);
+  assert.equal(last.index, 4);
   assert.equal(last.isLast, true);
   assert.deepEqual(slides.next(), last);
 });
 
 test('前へ戻ると最初の1枚目で止まる', () => {
   const slides = new TutorialSlides();
-  slides.next();
-  slides.next();
+  for (let index = 0; index < 4; index += 1) slides.next();
 
   slides.previous();
   const first = slides.previous();
@@ -44,8 +43,7 @@ test('前へ戻ると最初の1枚目で止まる', () => {
 
 test('開き直すと1枚目へ戻る', () => {
   const slides = new TutorialSlides();
-  slides.next();
-  slides.next();
+  for (let index = 0; index < 4; index += 1) slides.next();
 
   const reset = slides.reset();
 

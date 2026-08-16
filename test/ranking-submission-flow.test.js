@@ -218,7 +218,7 @@ test('受付応答の登録番号・契約版・内容が違う場合は削除�
     { submissionId: IDS[1] },
     { contractVersion: 'other-contract' },
     { clientVersion: 'other-client' },
-    { gameSlug: 'sainome_180_seconds' },
+    { gameSlug: 'sainome_300_seconds' },
     { displayName: '別の名前' },
     { submittedScore: RESULT.score + 1 }
   ];
