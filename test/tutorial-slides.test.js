@@ -32,9 +32,8 @@ test('次へ進むと最後の5枚目で止まる', () => {
 test('前へ戻ると最初の1枚目で止まる', () => {
   const slides = new TutorialSlides();
   for (let index = 0; index < 4; index += 1) slides.next();
-
-  slides.previous();
-  const first = slides.previous();
+  for (let index = 0; index < 4; index += 1) slides.previous();
+  const first = slides.getSnapshot();
 
   assert.equal(first.index, 0);
   assert.equal(first.isFirst, true);
