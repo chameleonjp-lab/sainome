@@ -9,8 +9,8 @@ import {
   ONE_EIGHTY_SECOND_MAX_SPAWN_COUNT,
   SIXTY_SECOND_SPAWN_AT_MS,
   SIXTY_SECOND_SPAWN_COUNT
-} from '../js/spawn-rules.js';
-import { GAME_MODE_IDS } from '../js/game-modes.js';
+} from './spawn-rules.js';
+import { GAME_MODE_IDS } from './game-modes.js';
 
 test('60秒モードは開始30秒未満では追加生成しない', () => {
   assert.equal(
