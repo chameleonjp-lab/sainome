@@ -111,7 +111,6 @@ js/best-records.js
 js/result-share.js
 js/player-profile.js
 js/player-name-unicode-15-1.js
-js/supabase-auth.js
 js/ranking-client.js
 js/pending-ranking-submissions.js
 js/ranking-submission-flow.js
@@ -145,7 +144,6 @@ test/result-share-wiring.test.js
 test/quality-workflow.test.js
 test/player-profile.test.js
 test/player-name-contract.test.js
-test/supabase-auth.test.js
 test/ranking-client.test.js
 test/ranking-wiring.test.js
 test/indexeddb-ranking-storage.test.js

@@ -1,5 +1,10 @@
 # ランキング名・利用者識別契約
 
+
+> **現行方式（2026年8月17日更新）**  
+> サイノメの現行ランキング連携は、入力済みの正規化表示名とSupabaseのPublishable keyだけを使います。Supabase Auth（匿名ログインを含む）は使用しません。現行の前向き移行は`20260817210000_sainome_name_only_ranking.sql`で、300秒モードだけを受け付けます。サーバー発行のプレイ番号、303秒の受付開始、24時間の失効、受付ゲート、重複防止は維持します。同じ名前を使えば別人になりすませるため、本人確認が必要な用途には使えません。  
+> 以下で「Anonymous Auth」「UID」と記した節は、現行方式へ切り替える前の設計履歴です。
+
 - 作成日：2026年8月9日
 - 名前契約：`player-name-v1`
 - ランキング受付契約：`sainome-play-v2`
@@ -118,7 +123,10 @@ UID対応行を一意作成してロックし、上限判定と発行行INSERT�
 
 上限到達時は未使用番号を自動取消・削除しない。理由を表示してランキング対象外のゲームとして続行できるようにする。
 
-### Anonymous Auth
+### 旧設計: Anonymous Auth（現行では使用しない）
+
+> この節は旧設計の記録です。現行クライアントはこの認証処理を呼び出さず、現行移行では発行・確定・読取RPCを`anon`へ許可します。
+
 
 - 既存セッションがあれば再利用し、セッションがない時だけ`signInAnonymously`を呼ぶ。プレイごとに匿名利用者を作らない。
 - 本番でランキング受付を有効にする条件としてTurnstileを必須にし、匿名サインインへ取得済みトークンを渡す。匿名利用者作成のIP上限を初期30件/時/IPに設定し、本番の実値を移行検証記録へ残す。
@@ -174,7 +182,10 @@ UID対応行を一意作成してロックし、上限判定と発行行INSERT�
 
 ## 4. 利用者対応とランキング読取
 
-### 非公開の利用者対応
+### 旧設計: 非公開の利用者対応（UID方式）
+
+> この節はAnonymous AuthとUIDを使う旧設計の記録です。現行の名前キー方式では、正規化表示名をプレイヤーキーとして扱います。
+
 
 既存の表示名をキーにした集計では、同じ名前の別UIDが一人へ統合される。private schemaに次の制約を持つ対応を置く。
 
@@ -229,6 +240,8 @@ UID対応行を一意作成してロックし、上限判定と発行行INSERT�
 
 ## 6. 残るリスク
 
+> 現行方式ではAnonymous Authを使わないため、同じ表示名のなりすましを防げません。これは既存の共有ゲームと同じ名前入力方式を選んだことによる仕様上の制約です。
+
 この契約で確認できるのは、「DBが認識したUIDが、対象モード用に発行された番号を、許可時間内に一度だけ使った」ことまでである。公開ブラウザコードは変更できるため、正規番号の取得後に待機して偽の得点を直接送る攻撃は防げない。ゲーム内の共通検査を通らない生のHTTP要求も、最終的には第3工程のDB検査で拒否する。
 
 同一originのXSSや第三者スクリプトにaccess tokenまたはrefresh tokenを奪われた場合、攻撃者はそのUIDの所有者として操作できる。Turnstile、IP制限、UID単位制限は乱用量を抑えるが、人間一人を証明しない。Anonymous Auth利用者は自動清掃されないため、利用者行の保持・削除方針も別途必要である。
@@ -259,7 +272,7 @@ UID対応行を一意作成してロックし、上限判定と発行行INSERT�
 
 - [Unicode Technical Standard #39 Version 15.1.0](https://www.unicode.org/reports/tr39/tr39-28.html)
 - [Unicode Emoji Version 15.1 data](https://www.unicode.org/Public/emoji/15.1/)
-- [Supabase Anonymous Sign-Ins](https://supabase.com/docs/guides/auth/auth-anonymous)
+- [Supabase Anonymous Sign-Ins（旧設計の参考）](https://supabase.com/docs/guides/auth/auth-anonymous)
 - [Supabase Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security)
 - [Supabase Database Functions](https://supabase.com/docs/guides/database/functions)
 - [PostgreSQL String Functions](https://www.postgresql.org/docs/current/functions-string.html)
