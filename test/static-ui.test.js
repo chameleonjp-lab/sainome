@@ -29,7 +29,7 @@ test('main.jsが識別子で参照する要素はHTMLに存在する', () => {
   }
 });
 
-test('3枚の説明と3個の位置表示がそろっている', () => {
+test('5枚の説明と5個の位置表示がそろっている', () => {
   const slides = [...html.matchAll(/\bdata-tutorial-slide\b/g)];
   const dotsMarkup = html.match(
     /id="tutorial-dots"[\s\S]*?<\/div>/
@@ -40,11 +40,11 @@ test('3枚の説明と3個の位置表示がそろっている', () => {
   assert.equal(dots.length, TUTORIAL_SLIDE_COUNT);
 });
 
-test('新しいプレイは180秒だけを案内し、60秒の選択肢を表示しない', () => {
+test('新しいプレイは300秒だけを案内し、60秒の選択肢を表示しない', () => {
   assert.doesNotMatch(html, /name="game-mode"/);
   assert.doesNotMatch(html, /60秒は短い得点勝負/);
-  assert.match(html, /id="remaining-time">180</);
-  assert.match(html, /180秒の自己ベスト/);
+  assert.match(html, /id="remaining-time">300</);
+  assert.match(html, /300秒の自己ベスト/);
   assert.match(main, /function getNewGameMode\(\)[\s\S]*?return getGameMode\(DEFAULT_GAME_MODE_ID\)/);
   assert.match(main, /snapshot\.screen === SCREEN_PHASES\.HOME[\s\S]*?selectedMode = getNewGameMode\(\)/);
 });

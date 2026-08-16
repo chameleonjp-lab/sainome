@@ -38,14 +38,14 @@ test('初回記録を保存し、表示用の結果を返す', () => {
   assert.equal(saved.records[GAME_MODE_IDS.SIXTY_SECONDS].score, 1200);
 });
 
-test('60秒と180秒の自己ベストを分ける', () => {
+test('60秒と300秒の自己ベストを分ける', () => {
   const records = new BestRecords({ storage: memoryStorage() });
 
   records.recordResult({ modeId: GAME_MODE_IDS.SIXTY_SECONDS, score: 800 });
-  records.recordResult({ modeId: GAME_MODE_IDS.ONE_EIGHTY_SECONDS, score: 4200 });
+  records.recordResult({ modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS, score: 4200 });
 
   assert.equal(records.getBest(GAME_MODE_IDS.SIXTY_SECONDS), 800);
-  assert.equal(records.getBest(GAME_MODE_IDS.ONE_EIGHTY_SECONDS), 4200);
+  assert.equal(records.getBest(GAME_MODE_IDS.THREE_HUNDRED_SECONDS), 4200);
 });
 
 test('自己ベスト更新時は増加分を返す', () => {
@@ -94,7 +94,7 @@ test('壊れた項目だけを無視し、正しい別モードの記録を復�
       version: 1,
       records: {
         [GAME_MODE_IDS.SIXTY_SECONDS]: { score: 'broken' },
-        [GAME_MODE_IDS.ONE_EIGHTY_SECONDS]: { score: 5000 },
+        [GAME_MODE_IDS.THREE_HUNDRED_SECONDS]: { score: 5000 },
         'unknown-mode': { score: 999999 }
       }
     })
@@ -102,7 +102,7 @@ test('壊れた項目だけを無視し、正しい別モードの記録を復�
   const records = new BestRecords({ storage });
 
   assert.equal(records.getBest(GAME_MODE_IDS.SIXTY_SECONDS), null);
-  assert.equal(records.getBest(GAME_MODE_IDS.ONE_EIGHTY_SECONDS), 5000);
+  assert.equal(records.getBest(GAME_MODE_IDS.THREE_HUNDRED_SECONDS), 5000);
 });
 
 test('壊れたJSONと安全に扱えない数値を記録として使わない', () => {
@@ -117,13 +117,13 @@ test('壊れたJSONと安全に扱えない数値を記録として使わない'
         version: 1,
         records: {
           [GAME_MODE_IDS.SIXTY_SECONDS]: { score: Number.MAX_VALUE },
-          [GAME_MODE_IDS.ONE_EIGHTY_SECONDS]: { score: 12.5 }
+          [GAME_MODE_IDS.THREE_HUNDRED_SECONDS]: { score: 12.5 }
         }
       })
     })
   });
   assert.equal(unsafe.getBest(GAME_MODE_IDS.SIXTY_SECONDS), null);
-  assert.equal(unsafe.getBest(GAME_MODE_IDS.ONE_EIGHTY_SECONDS), null);
+  assert.equal(unsafe.getBest(GAME_MODE_IDS.THREE_HUNDRED_SECONDS), null);
 });
 
 test('複数タブ相当の古い状態から保存しても高い記録と別モードを失わない', () => {
@@ -140,7 +140,7 @@ test('複数タブ相当の古い状態から保存しても高い記録と別�
     score: 1200
   });
   secondTab.recordResult({
-    modeId: GAME_MODE_IDS.ONE_EIGHTY_SECONDS,
+    modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS,
     score: 4800
   });
 
@@ -148,7 +148,7 @@ test('複数タブ相当の古い状態から保存しても高い記録と別�
   assert.equal(lowerFromSecondTab.status, BEST_OUTCOMES.LOWER);
   assert.equal(lowerFromSecondTab.bestScore, 1600);
   assert.equal(restored.getBest(GAME_MODE_IDS.SIXTY_SECONDS), 1600);
-  assert.equal(restored.getBest(GAME_MODE_IDS.ONE_EIGHTY_SECONDS), 4800);
+  assert.equal(restored.getBest(GAME_MODE_IDS.THREE_HUNDRED_SECONDS), 4800);
 });
 
 test('保存を拒否されても現在のプレイ中は自己ベストを保持する', () => {

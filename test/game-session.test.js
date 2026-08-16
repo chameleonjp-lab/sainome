@@ -42,29 +42,29 @@ test('盤面準備中は開始命令まで時間と入力を進めない', () =>
   assert.equal(afterOneMs.remainingMs, DEFAULT_GAME_DURATION_MS - 1);
 });
 
-test('180秒モードは180秒到達時まで入力を受け付ける', () => {
+test('300秒モードは300秒到達時まで入力を受け付ける', () => {
   const session = new GameSession({
-    modeId: GAME_MODE_IDS.ONE_EIGHTY_SECONDS
+    modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS
   });
 
-  const prepared = session.tick(181_000);
+  const prepared = session.tick(301_000);
   assert.equal(prepared.phase, 'idle');
-  assert.equal(prepared.remainingMs, 180_000);
+  assert.equal(prepared.remainingMs, 300_000);
   assert.equal(prepared.elapsedMs, 0);
 
   session.start(1_000);
 
-  const beforeEnd = session.tick(180_999);
+  const beforeEnd = session.tick(300_999);
   assert.equal(beforeEnd.phase, 'running');
   assert.equal(beforeEnd.remainingMs, 1);
 
-  const timeUp = session.tick(181_000);
+  const timeUp = session.tick(301_000);
   assert.equal(timeUp.phase, 'finishing');
   assert.equal(timeUp.remainingMs, 0);
 
   const result = session.finishWhenSettled(false);
-  assert.equal(result.modeId, GAME_MODE_IDS.ONE_EIGHTY_SECONDS);
-  assert.equal(result.durationMs, 180_000);
+  assert.equal(result.modeId, GAME_MODE_IDS.THREE_HUNDRED_SECONDS);
+  assert.equal(result.durationMs, 300_000);
 });
 
 test('60秒未満では進行中のまま残り時間を減らす', () => {
@@ -200,11 +200,11 @@ test('再開始すると時間と得点と結果を初期化する', () => {
 });
 
 test('保存したプレイ状態を現在時刻へ接続して再開する', () => {
-  const session = new GameSession({ modeId: GAME_MODE_IDS.ONE_EIGHTY_SECONDS });
+  const session = new GameSession({ modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS });
   const restored = session.restore({
     phase: 'running',
-    modeId: GAME_MODE_IDS.ONE_EIGHTY_SECONDS,
-    durationMs: 180_000,
+    modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS,
+    durationMs: 300_000,
     elapsedMs: 12_345,
     score: 1_200,
     clearedDice: 4,
@@ -215,7 +215,7 @@ test('保存したプレイ状態を現在時刻へ接続して再開する', ()
 
   assert.equal(restored.phase, 'running');
   assert.equal(restored.elapsedMs, 12_345);
-  assert.equal(restored.remainingMs, 167_655);
+  assert.equal(restored.remainingMs, 287_655);
   assert.equal(restored.score, 1_200);
   assert.equal(session.tick(50_001).elapsedMs, 12_346);
 });
@@ -232,7 +232,7 @@ test('不正な得点条件と時間は拒否する', () => {
   assert.throws(() => new GameSession({ durationMs: 0 }), /positive integer/);
   assert.throws(
     () => new GameSession({
-      modeId: GAME_MODE_IDS.ONE_EIGHTY_SECONDS,
+      modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS,
       durationMs: 60_000
     }),
     /must match/

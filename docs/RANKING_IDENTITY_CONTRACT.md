@@ -14,7 +14,7 @@
 - 既存の`shared-v1`保存形式は変更せず、`sainome-play-v2`へ変換しない。
 - 表示名は公開用の文字列であり、本人を識別するIDではない。同じ表示名を複数の利用者が使える。
 
-`supabase/migrations/20260810120000_sainome_ranking_v2.sql`、`supabase/migrations/20260811090000_sainome_unicode_name_contract.sql`、`supabase/migrations/20260813032103_harden_sainome_ranking_submission_contract.sql`は受付停止状態で本番へ適用済みである。最後の移行は本番履歴`20260813033722`として、停止後の未確定番号を確定処理でも拒否する。`accepting_runs`は`false`、`ranking_enable_not_before`は`infinity`、対象ゲームの`public.games.is_active`は`false`のままである。クライアントの拒否分類変更はこの移行と同じDraftへ追加済みだが、公開サイトへの反映はPRのマージと配備を待つ。キャッシュ測定、Turnstile/IP制限、Advisor警告のallowlist整理、受付有効化は未完了である。
+`supabase/migrations/20260810120000_sainome_ranking_v2.sql`、`supabase/migrations/20260811090000_sainome_unicode_name_contract.sql`、`supabase/migrations/20260813032103_harden_sainome_ranking_submission_contract.sql`は受付停止状態で本番へ適用済みである。`20260816090000_sainome_300_seconds.sql`では新規300秒slugを追加する。最後の移行は本番履歴`20260813033722`として、停止後の未確定番号を確定処理でも拒否する。`accepting_runs`は`false`、`ranking_enable_not_before`は`infinity`、対象ゲームの`public.games.is_active`は`false`のままである。クライアントの拒否分類変更はこの移行と同じDraftへ追加済みだが、公開サイトへの反映はPRのマージと配備を待つ。キャッシュ測定、Turnstile/IP制限、Advisor警告のallowlist整理、受付有効化は未完了である。
 
 ## 2. `player-name-v1`
 
@@ -85,7 +85,7 @@ Unicode版を上げる時は、範囲データ、契約JSON、ブラウザ検査
 
 `issue_sainome_play_v2(p_display_name text, p_game_slug text, p_client_version text, p_contract_version text)`
 
-許可値は、正規形の表示名、`sainome_60_seconds`または`sainome_180_seconds`、`sainome-web-2`、`sainome-play-v2`である。RPCはAuthorizationヘッダーのJWTから`auth.uid()`を取得し、所有者UIDを引数、端末保存、要求本文から受け取らない。
+許可値は、正規形の表示名、`sainome_60_seconds`、`sainome_180_seconds`、`sainome_300_seconds`（新規発行は300秒、旧2モードは既存記録の保全用）、`sainome-web-2`、`sainome-play-v2`である。RPCはAuthorizationヘッダーのJWTから`auth.uid()`を取得し、所有者UIDを引数、端末保存、要求本文から受け取らない。
 
 成功は必ず一行で、次の列を返す。0行、複数行、列不足、型不一致、要求と一致しない値はクライアント側でも失敗にする。受付不能は成功0行ではなくDBエラーにする。
 
@@ -98,7 +98,7 @@ Unicode版を上げる時は、範囲データ、契約JSON、ブラウザ検査
 | `result_client_version` | text | `sainome-web-2`と完全一致 |
 | `result_contract_version` | text | `sainome-play-v2`と完全一致 |
 | `issued_at` | timestamptz | DB時刻 |
-| `earliest_submit_at` | timestamptz | 60秒モードは`issued_at + 63 seconds`、180秒モードは`issued_at + 183 seconds` |
+| `earliest_submit_at` | timestamptz | 300秒モードは`issued_at + 303 seconds`（旧記録の既存時間窓は変換しない） |
 | `expires_at` | timestamptz | `issued_at + 24 hours` |
 
 3秒は3カウント分である。クライアントは`issued_at < earliest_submit_at < expires_at`も検査し、成功応答を受け取った後にだけ3カウントを始める。認証、発行、通信に失敗してもゲーム自体は遊べるが、そのプレイは明示的にランキング対象外とし、終了後に番号を遡及発行しない。
@@ -193,7 +193,7 @@ UID対応行を一意作成してロックし、上限判定と発行行INSERT�
 
 `get_sainome_ranking_v2(p_game_slug text, p_limit integer)`
 
-slugは2モードだけ、limitは1〜10だけを許可し、順位順の0〜10行を返す。並びは`best_score DESC`、その得点へ最初に到達したDB時刻、最後に内部`player_key`の順で決定的にする。各行は次の列だけを持つ。
+新規300秒モードを含む許可slugだけ、limitは1〜10だけを許可し、順位順の0〜10行を返す。並びは`best_score DESC`、その得点へ最初に到達したDB時刻、最後に内部`player_key`の順で決定的にする。各行は次の列だけを持つ。
 
 | 列 | 型 | 条件 |
 |---|---|---|
@@ -206,7 +206,7 @@ slugは2モードだけ、limitは1〜10だけを許可し、順位順の0〜10�
 
 実行権限は`PUBLIC`から取り消し、`anon`と`authenticated`へ付与する。未認証の`anon`要求は全行を`is_current_user=false`とする。`authenticated`要求だけ、DBがJWTのUIDと内部キーを比較する。応答中の`true`は常に最大一行で、本人が上位10名外なら0行、本人を上位10名へ入れた自動検査では正確に一行とする。
 
-既存の`get_best_score_ranking`を含む全ての旧ランキング読取RPCでは、2つのサイノメslugを明示的に拒否する。サイノメv2の行はprivate専用集計にだけ置き、`get_sainome_ranking_v2`以外から返さない。これにより`verification_status='unverified'`と本人判定を省く旧応答への迂回を閉じる。
+既存の`get_best_score_ranking`を含む全ての旧ランキング読取RPCでは、3つのサイノメslugを明示的に拒否する。サイノメv2の行はprivate専用集計にだけ置き、`get_sainome_ranking_v2`以外から返さない。これにより`verification_status='unverified'`と本人判定を省く旧応答への迂回を閉じる。
 
 通常の右から左へ書く名前が順位や得点へ影響しないよう、ブラウザでは名前を`bdi dir="auto"`で隔離する。
 
@@ -239,7 +239,7 @@ slugは2モードだけ、limitは1〜10だけを許可し、順位順の0〜10�
 
 - 名前契約JSONの`canonicalize(raw)`と`acceptCanonical(value)`を区別したDB試験
 - 未認証、期限切れJWT、別UID、別slug、別名、別版、0未満・100,000,000超の得点の拒否
-- 発行RPCの一行・全列・型・完全一致、`+63/+183秒`、24時間期限
+- 発行RPCの一行・全列・型・完全一致、`+303秒`（旧記録の値は保全用）、24時間期限
 - 早すぎる送信、未使用期限切れ、rolling 60分上限、未消費上限の拒否
 - 10/11件目と60/61件目の並行発行が上限を越えないこと
 - 受付済み完全一致再送は期限後も同じ集計結果で`was_duplicate`だけtrue、異内容再送は拒否、同時送信は一回だけ集計

@@ -19,10 +19,7 @@ import {
   GAME_MODE_IDS,
   getGameMode
 } from './game-modes.js';
-import {
-  getClearTriggeredSpawnCount,
-  getSixtySecondSpawnRemaining
-} from './spawn-rules.js';
+import { getClearTriggeredSpawnCount } from './spawn-rules.js';
 import {
   BOARD_BASE_SIZE,
   CAMERA_POSITION,
@@ -60,14 +57,19 @@ const DIRECTIONS = {
 };
 
 const INITIAL_DICE = [
-  [0, 1], [0, 3], [0, 5],
-  [1, 0], [1, 2], [1, 4], [1, 6],
-  [2, 1], [2, 3], [2, 5],
-  [3, 0], [3, 2], [3, 3], [3, 5], [3, 6],
-  [4, 1], [4, 4], [4, 6],
-  [5, 0], [5, 2], [5, 5],
-  [6, 1], [6, 3], [6, 6]
+  { row: 2, column: 2, top: 1 },
+  { row: 4, column: 4, top: 1 },
+  { row: 2, column: 4, top: 2 },
+  { row: 4, column: 2, top: 2 },
+  { row: 3, column: 3, top: 3 },
+  { row: 3, column: 5, top: 3 }
 ];
+
+const INITIAL_TURN_SEQUENCES = Object.freeze({
+  1: Object.freeze([]),
+  2: Object.freeze(['up']),
+  3: Object.freeze(['right'])
+});
 
 const DIE_BODY_GEOMETRY = new RoundedBoxGeometry(DICE_SIZE, DICE_SIZE, DICE_SIZE, 5, 0.12);
 const PIP_GEOMETRY = new THREE.SphereGeometry(0.064, 10, 7);
@@ -415,7 +417,10 @@ export class WebGLSainome {
     this.dice.clear();
     this.diceSequence = 0;
 
-    for (const [row, column] of INITIAL_DICE) this.addDie(row, column);
+    for (const { row, column, top } of INITIAL_DICE) {
+      const die = this.addDie(row, column);
+      this.setInitialTop(die, top);
+    }
     this.removeOpeningMatches();
 
     this.activeKey = boardKey(3, 3);
@@ -711,6 +716,14 @@ export class WebGLSainome {
         die,
         directions[Math.floor(this.random.next() * directions.length)]
       );
+    }
+  }
+
+  setInitialTop(die, top) {
+    Object.assign(die, BASE_ORIENTATION);
+    die.mesh.quaternion.identity();
+    for (const directionName of INITIAL_TURN_SEQUENCES[top] ?? []) {
+      this.applyQuarterTurn(die, directionName);
     }
   }
 
@@ -1139,26 +1152,20 @@ export class WebGLSainome {
   }
 
   updateSpawning(now) {
-    if (!this.session.isAcceptingInput() || this.busy) return;
-    const sessionState = this.session.getSnapshot();
-    const isOneEightySecondMode = this.mode.id
-      === GAME_MODE_IDS.ONE_EIGHTY_SECONDS;
+    if (
+      !this.session.isAcceptingInput()
+      || this.busy
+      || this.mode.id !== GAME_MODE_IDS.THREE_HUNDRED_SECONDS
+    ) return;
+
     const hasAnimatingDice = [...this.dice.values()].some(
       (die) => die.state === 'sinking'
         || die.state === 'one-clearing'
         || die.state === 'rising'
     );
-    if (
-      isOneEightySecondMode
-      && (hasAnimatingDice || this.pendingMatchResolution)
-    ) return;
+    if (hasAnimatingDice || this.pendingMatchResolution) return;
 
-    const spawnCount = isOneEightySecondMode
-      ? this.pendingSpawnCount
-      : getSixtySecondSpawnRemaining(
-        sessionState.elapsedMs,
-        this.sixtySecondSpawnedCount
-      );
+    const spawnCount = this.pendingSpawnCount;
     if (spawnCount === 0) return;
 
     const candidates = listPlayerSafeSpawnCandidates(
@@ -1170,25 +1177,17 @@ export class WebGLSainome {
     const cells = selectSpawnBatch(candidates, spawnCount, () => this.random.next());
     if (cells.length === 0) {
       if (!this.spawnBlockedNotified) {
-        this.callbacks.onMessage?.(
-          isOneEightySecondMode
-            ? '生成できる安全な空きマスがありません'
-            : '盤面がいっぱいです。サイコロを消してください'
-        );
+        this.callbacks.onMessage?.('生成できる安全な空きマスがありません');
         this.spawnBlockedNotified = true;
       }
       return;
     }
 
     this.spawnBlockedNotified = false;
-    if (isOneEightySecondMode) {
-      this.pendingSpawnCount = Math.max(
-        0,
-        this.pendingSpawnCount - cells.length
-      );
-    } else {
-      this.sixtySecondSpawnedCount += cells.length;
-    }
+    this.pendingSpawnCount = Math.max(
+      0,
+      this.pendingSpawnCount - cells.length
+    );
 
     for (const cell of cells) {
       const die = this.addDie(cell.row, cell.column, 'rising');
@@ -1197,7 +1196,7 @@ export class WebGLSainome {
       die.mesh.position.y = die.riseStartY;
     }
     this.callbacks.onSpawn?.({ count: cells.length });
-    this.callbacks.onMessage?.(`新しいサイコロが${cells.length}個現れます`);
+    this.callbacks.onMessage?.(`消した数と同じ${cells.length}個のサイコロがランダムに現れます`);
   }
 
   removeDie(die, disposeMaterial) {

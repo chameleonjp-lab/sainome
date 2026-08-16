@@ -1,4 +1,4 @@
-export const TUTORIAL_SLIDE_COUNT = 3;
+export const TUTORIAL_SLIDE_COUNT = 5;
 
 function requirePositiveInteger(value, name) {
   if (!Number.isInteger(value) || value < 1) {

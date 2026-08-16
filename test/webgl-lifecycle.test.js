@@ -66,10 +66,13 @@ test('消失したWebGLインスタンスは次回開始時に再利用しない
   assert.match(main, /disposeGameInstance\(\{ replaceCanvas: true \}\)/);
 });
 
-test('60秒モードの追加生成は空きマス不足時も残数を保持する', () => {
-  assert.match(source, /getSixtySecondSpawnRemaining/);
-  assert.match(source, /this\.sixtySecondSpawnedCount/);
-  assert.match(source, /this\.sixtySecondSpawnedCount \+= cells\.length/);
+test('300秒モードは消去数を保留し、安全な空きマスへランダムに補充する', () => {
+  assert.match(source, /GAME_MODE_IDS\.THREE_HUNDRED_SECONDS/);
+  assert.match(source, /const spawnCount = this\.pendingSpawnCount/);
+  assert.match(source, /this\.pendingSpawnCount = Math\.max\([\s\S]*?cells\.length/);
+  assert.match(source, /selectSpawnBatch\(candidates, spawnCount, \(\) => this\.random\.next\(\)\)/);
+  assert.doesNotMatch(source, /getSixtySecondSpawnRemaining/);
+  assert.doesNotMatch(source, /this\.sixtySecondSpawnedCount \+=/);
 });
 
 

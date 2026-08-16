@@ -7,7 +7,8 @@ export const RANKING_CLIENT_VERSION = 'sainome-web-2';
 export const RANKING_SUBMISSION_CONTRACT_VERSION = 'sainome-play-v2';
 export const RANKING_GAME_SLUGS = Object.freeze({
   [GAME_MODE_IDS.SIXTY_SECONDS]: 'sainome_60_seconds',
-  [GAME_MODE_IDS.ONE_EIGHTY_SECONDS]: 'sainome_180_seconds'
+  [GAME_MODE_IDS.ONE_EIGHTY_SECONDS]: 'sainome_180_seconds',
+  [GAME_MODE_IDS.THREE_HUNDRED_SECONDS]: 'sainome_300_seconds'
 });
 
 const MAX_SCORE = 100_000_000;
@@ -146,7 +147,11 @@ function parseIssueResponse(data, expected) {
   const issuedAt = parseIssuedAt(row.issued_at, '発行時刻');
   const earliestSubmitAt = parseIssuedAt(row.earliest_submit_at, '受付開始時刻');
   const expiresAt = parseIssuedAt(row.expires_at, '失効時刻');
-  const requiredDelay = expected.gameSlug === 'sainome_60_seconds' ? 63_000 : 183_000;
+  const requiredDelay = expected.gameSlug === 'sainome_60_seconds'
+    ? 63_000
+    : expected.gameSlug === 'sainome_180_seconds'
+      ? 183_000
+      : 303_000;
   if (
     row.issued !== true
     || !isValidRankingSubmissionId(row.result_submission_id)

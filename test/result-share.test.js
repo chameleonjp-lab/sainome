@@ -45,10 +45,10 @@ test('結果と自己ベスト判定をURLの前へまとめる', () => {
   assert.equal(share.copyText.endsWith(share.url), true);
 });
 
-test('180秒モードを60秒へ置き換えずに表示する', () => {
+test('300秒モードを60秒へ置き換えずに表示する', () => {
   const share = content({
     result: result({
-      modeId: GAME_MODE_IDS.ONE_EIGHTY_SECONDS,
+      modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS,
       score: 900,
       clearedDice: 3,
       maxChain: 1
@@ -56,7 +56,7 @@ test('180秒モードを60秒へ置き換えずに表示する', () => {
     recordMessage: '初回記録'
   });
 
-  assert.match(share.text, /^サイノメの180秒モードで900点！/);
+  assert.match(share.text, /^サイノメの300秒モードで900点！/);
   assert.match(share.text, /初回記録/);
 });
 

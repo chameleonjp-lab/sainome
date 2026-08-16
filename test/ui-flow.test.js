@@ -70,7 +70,7 @@ test('プレイ終了時に結果を固定して結果画面へ移る', () => {
   flow.advanceCountdown();
 
   const finished = flow.finish({
-    modeId: GAME_MODE_IDS.ONE_EIGHTY_SECONDS,
+    modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS,
     score: 3200,
     clearedDice: 12,
     maxChain: 4,
@@ -79,7 +79,7 @@ test('プレイ終了時に結果を固定して結果画面へ移る', () => {
 
   assert.equal(finished.screen, SCREEN_PHASES.RESULT);
   assert.deepEqual(finished.result, {
-    modeId: GAME_MODE_IDS.ONE_EIGHTY_SECONDS,
+    modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS,
     score: 3200,
     clearedDice: 12,
     maxChain: 4,
