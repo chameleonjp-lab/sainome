@@ -131,50 +131,49 @@ test('低水準RPCを公開せず、検査済みの操作だけを公開する',
   assert.equal(typeof client.getTopRanking, 'function');
 });
 
-test('開始前に匿名認証済みのサーバー発行チケットを受け取る', async () => {
+test('開始前に匿名認証を使わずサーバー発行チケットを受け取る', async () => {
   const requests = [];
-  let createValue = null;
+  let authCalls = 0;
   const authClient = {
-    getSession: async ({ create }) => {
-      createValue = create;
-      return AUTH_SESSION;
+    getSession: async () => {
+      authCalls += 1;
+      throw new Error('匿名認証は呼ばない');
     }
   };
   const client = makeClient({
     authClient,
     fetchImpl: async (url, options) => {
       requests.push({ url, options });
-      return jsonResponse([issueResponse()]);
+      return jsonResponse([issueResponse({
+        modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS
+      })]);
     }
   });
 
   const ticket = await client.issuePlay({
     displayName: 'プレイヤー',
-    modeId: GAME_MODE_IDS.SIXTY_SECONDS
+    modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS
   });
 
-  assert.equal(createValue, true);
+  assert.equal(authCalls, 0);
   assert.equal(requests.length, 1);
   assert.equal(requests[0].url, `${URL}/rest/v1/rpc/issue_sainome_play_v2`);
   assert.equal(requests[0].options.headers.apikey, KEY);
-  assert.equal(
-    requests[0].options.headers.Authorization,
-    `Bearer ${AUTH_SESSION.accessToken}`
-  );
+  assert.equal('Authorization' in requests[0].options.headers, false);
   assert.deepEqual(JSON.parse(requests[0].options.body), {
     p_display_name: 'プレイヤー',
-    p_game_slug: RANKING_GAME_SLUGS[GAME_MODE_IDS.SIXTY_SECONDS],
+    p_game_slug: RANKING_GAME_SLUGS[GAME_MODE_IDS.THREE_HUNDRED_SECONDS],
     p_client_version: RANKING_CLIENT_VERSION,
     p_contract_version: RANKING_SUBMISSION_CONTRACT_VERSION
   });
   assert.deepEqual(ticket, {
     submissionId: SUBMISSION_ID,
     displayName: 'プレイヤー',
-    gameSlug: RANKING_GAME_SLUGS[GAME_MODE_IDS.SIXTY_SECONDS],
+    gameSlug: RANKING_GAME_SLUGS[GAME_MODE_IDS.THREE_HUNDRED_SECONDS],
     clientVersion: RANKING_CLIENT_VERSION,
     contractVersion: RANKING_SUBMISSION_CONTRACT_VERSION,
     issuedAt: Date.parse('2026-08-10T00:00:00.000Z'),
-    earliestSubmitAt: Date.parse('2026-08-10T00:01:03.000Z'),
+    earliestSubmitAt: Date.parse('2026-08-10T00:05:03.000Z'),
     expiresAt: Date.parse('2026-08-11T00:00:00.000Z')
   });
 });
@@ -215,18 +214,21 @@ test('開始発行の応答時刻・slug・版が改ざんされると拒否す�
   }
 });
 
-test('60秒の結果をサーバー発行UUIDと匿名JWT付きで一度登録する', async () => {
+test('300秒の結果をPublishable keyだけで一度登録する', async () => {
   const requests = [];
   const client = makeClient({
     fetchImpl: async (url, options) => {
       requests.push({ url, options });
-      return jsonResponse([submitResponse({ displayName: 'サイ ノメ' })]);
+      return jsonResponse([submitResponse({
+        displayName: 'サイ ノメ',
+        modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS
+      })]);
     }
   });
 
   const result = await client.submitScore({
     displayName: 'サイ ノメ',
-    modeId: GAME_MODE_IDS.SIXTY_SECONDS,
+    modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS,
     score: 3200,
     submissionId: SUBMISSION_ID
   });
@@ -234,13 +236,10 @@ test('60秒の結果をサーバー発行UUIDと匿名JWT付きで一度登録�
   assert.equal(requests.length, 1);
   assert.equal(requests[0].url, `${URL}/rest/v1/rpc/submit_score_once`);
   assert.equal(requests[0].options.headers.apikey, KEY);
-  assert.equal(
-    requests[0].options.headers.Authorization,
-    `Bearer ${AUTH_SESSION.accessToken}`
-  );
+  assert.equal('Authorization' in requests[0].options.headers, false);
   assert.deepEqual(JSON.parse(requests[0].options.body), {
     p_display_name: 'サイ ノメ',
-    p_game_slug: RANKING_GAME_SLUGS[GAME_MODE_IDS.SIXTY_SECONDS],
+    p_game_slug: RANKING_GAME_SLUGS[GAME_MODE_IDS.THREE_HUNDRED_SECONDS],
     p_score: 3200,
     p_client_version: RANKING_CLIENT_VERSION,
     p_submission_id: SUBMISSION_ID,
@@ -252,29 +251,30 @@ test('60秒の結果をサーバー発行UUIDと匿名JWT付きで一度登録�
   assert.equal(result.contractVersion, RANKING_SUBMISSION_CONTRACT_VERSION);
 });
 
-test('保存済み番号の再送では新しい匿名UIDを作らない', async () => {
-  let createValue = null;
+test('保存済み番号の再送でも匿名セッションを作らず送信する', async () => {
+  let authCalls = 0;
   const authClient = {
-    getSession: async ({ create }) => {
-      createValue = create;
-      return null;
+    getSession: async () => {
+      authCalls += 1;
+      throw new Error('匿名認証は呼ばない');
     }
   };
   const client = makeClient({
     authClient,
-    fetchImpl: async () => { throw new Error('must not send'); }
+    fetchImpl: async () => jsonResponse([submitResponse({
+      modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS
+    })])
   });
 
-  await assert.rejects(
-    client.submitScore({
-      displayName: 'プレイヤー',
-      modeId: GAME_MODE_IDS.SIXTY_SECONDS,
-      score: 3200,
-      submissionId: SUBMISSION_ID
-    }),
-    (error) => error instanceof RankingError && error.code === 'auth-required'
-  );
-  assert.equal(createValue, false);
+  const result = await client.submitScore({
+    displayName: 'プレイヤー',
+    modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS,
+    score: 3200,
+    submissionId: SUBMISSION_ID
+  });
+
+  assert.equal(authCalls, 0);
+  assert.equal(result.accepted, true);
 });
 
 test('300秒ランキングを60秒とは別の記録として上位10件取得する', async () => {
