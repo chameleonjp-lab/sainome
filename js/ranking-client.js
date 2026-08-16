@@ -1,6 +1,5 @@
 import { GAME_MODE_IDS } from './game-modes.js';
 import { validatePlayerName } from './player-profile.js';
-import { SupabaseAuthClient, SupabaseAuthError } from './supabase-auth.js';
 
 export const RANKING_LIMIT = 10;
 export const RANKING_CLIENT_VERSION = 'sainome-web-2';
@@ -248,7 +247,6 @@ export class RankingClient {
     url,
     publishableKey,
     fetchImpl = globalThis.fetch,
-    authClient = null,
     timeoutMs = 8_000
   }) {
     this.url = normalizeEndpoint(url);
@@ -257,44 +255,12 @@ export class RankingClient {
     }
     if (typeof fetchImpl !== 'function') throw new TypeError('fetch is unavailable');
     if (!Number.isFinite(timeoutMs) || timeoutMs < 1) throw new RangeError('timeoutMs is invalid');
-    if (authClient !== null && typeof authClient.getSession !== 'function') {
-      throw new TypeError('authClient is invalid');
-    }
     this.publishableKey = publishableKey;
     this.fetchImpl = fetchImpl;
     this.timeoutMs = timeoutMs;
-    this.authClient = authClient ?? new SupabaseAuthClient({
-      url: this.url,
-      publishableKey,
-      fetchImpl,
-      timeoutMs
-    });
   }
 
-  async #rpc(functionName, parameters, { authRequired = false, createSession = false } = {}) {
-    let session = null;
-    try {
-      session = await this.authClient.getSession({ create: createSession });
-    } catch (error) {
-      if (authRequired) {
-        if (error instanceof SupabaseAuthError) {
-          throw new RankingError('auth-required', error.message, error, { retryable: false });
-        }
-        throw error;
-      }
-      // ランキングの読み取りは未認証でも可能なため、期限切れの匿名セッションを
-      // 無理に作り直さず、anon権限で読み取る。
-      session = null;
-    }
-    if (authRequired && !session?.accessToken) {
-      throw new RankingError(
-        'auth-required',
-        'ランキング受付には匿名認証が必要です',
-        undefined,
-        { retryable: false }
-      );
-    }
-
+  async #rpc(functionName, parameters) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
     const headers = {
@@ -302,7 +268,6 @@ export class RankingClient {
       Accept: 'application/json',
       'Content-Type': 'application/json'
     };
-    if (session?.accessToken) headers.Authorization = `Bearer ${session.accessToken}`;
 
     try {
       const response = await this.fetchImpl(`${this.url}/rest/v1/rpc/${functionName}`, {
@@ -320,14 +285,6 @@ export class RankingClient {
         data = null;
       }
       if (!response.ok) {
-        if (authRequired && response.status === 401) {
-          throw new RankingError(
-            'auth-required',
-            'ランキング認証の有効期限が切れています',
-            undefined,
-            { retryable: false, status: response.status }
-          );
-        }
         const retryable = response.status === 408
           || response.status === 425
           || response.status === 429
@@ -343,7 +300,7 @@ export class RankingClient {
             retryable,
             status: response.status,
             rpcName: functionName,
-            serverCode: serverError.code
+            serverCode: typeof serverError.code === 'string' ? serverError.code : null
           }
         );
       }
@@ -379,7 +336,7 @@ export class RankingClient {
       p_game_slug: expected.gameSlug,
       p_client_version: RANKING_CLIENT_VERSION,
       p_contract_version: RANKING_SUBMISSION_CONTRACT_VERSION
-    }, { authRequired: true, createSession: true });
+    });
     return parseIssueResponse(data, expected);
   }
 
@@ -410,7 +367,7 @@ export class RankingClient {
       p_client_version: expected.clientVersion,
       p_submission_id: expected.submissionId,
       p_contract_version: expected.contractVersion
-    }, { authRequired: true, createSession: false });
+    });
     return parseSubmitResponse(data, expected);
   }
 
