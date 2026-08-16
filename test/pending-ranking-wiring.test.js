@@ -53,3 +53,21 @@ test('恒久拒否を隔離し、再送と順位再読込を別操作に分け�
   );
   assert.match(main, /syncResultRanking\(latestRankingSubmission, \{ submit: false \}\)/);
 });
+
+
+test('結果画面の再挑戦は保存削除完了まで無効化する', () => {
+  const finishStart = main.indexOf('onFinish: (result) => {');
+  const finishEnd = main.indexOf('\n};', finishStart);
+  const finish = main.slice(finishStart, finishEnd);
+
+  const disableAt = finish.indexOf('setStartPending(true);');
+  const cleanupAt = finish.indexOf('clearFinishedGameState();');
+  const enableAt = finish.indexOf('setStartPending(false);', cleanupAt);
+
+  assert.equal(finishStart >= 0, true);
+  assert.equal(disableAt >= 0, true);
+  assert.equal(cleanupAt > disableAt, true);
+  assert.match(finish, /gameStateCleanup\.finally\(\(\) => \{/);
+  assert.equal(enableAt > cleanupAt, true);
+  assert.match(main, /replayButton\.disabled = pending \|\| resultSharePending;/);
+});
