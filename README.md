@@ -164,6 +164,8 @@ supabase/migrations/20260811090000_sainome_unicode_name_contract.sql
 supabase/migrations/20260813032103_harden_sainome_ranking_submission_contract.sql
 supabase/migrations/20260816090000_sainome_300_seconds.sql
 archive/60-second/README.md
+archive/60-second/dice.js
+archive/60-second/game-modes.js
 archive/60-second/game.js
 archive/60-second/spawn-rules.js
 archive/60-second/spawn-rules.test.legacy.js
