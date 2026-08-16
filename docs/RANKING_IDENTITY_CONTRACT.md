@@ -85,7 +85,7 @@ Unicode版を上げる時は、範囲データ、契約JSON、ブラウザ検査
 
 `issue_sainome_play_v2(p_display_name text, p_game_slug text, p_client_version text, p_contract_version text)`
 
-許可値は、正規形の表示名、`sainome_300_seconds`（旧60秒・180秒の記録は保全用に残す）、`sainome-web-2`、`sainome-play-v2`である。RPCはAuthorizationヘッダーのJWTから`auth.uid()`を取得し、所有者UIDを引数、端末保存、要求本文から受け取らない。
+許可値は、正規形の表示名、`sainome_60_seconds`、`sainome_180_seconds`、`sainome_300_seconds`（新規発行は300秒、旧2モードは既存記録の保全用）、`sainome-web-2`、`sainome-play-v2`である。RPCはAuthorizationヘッダーのJWTから`auth.uid()`を取得し、所有者UIDを引数、端末保存、要求本文から受け取らない。
 
 成功は必ず一行で、次の列を返す。0行、複数行、列不足、型不一致、要求と一致しない値はクライアント側でも失敗にする。受付不能は成功0行ではなくDBエラーにする。
 
@@ -206,7 +206,7 @@ UID対応行を一意作成してロックし、上限判定と発行行INSERT�
 
 実行権限は`PUBLIC`から取り消し、`anon`と`authenticated`へ付与する。未認証の`anon`要求は全行を`is_current_user=false`とする。`authenticated`要求だけ、DBがJWTのUIDと内部キーを比較する。応答中の`true`は常に最大一行で、本人が上位10名外なら0行、本人を上位10名へ入れた自動検査では正確に一行とする。
 
-既存の`get_best_score_ranking`を含む全ての旧ランキング読取RPCでは、2つのサイノメslugを明示的に拒否する。サイノメv2の行はprivate専用集計にだけ置き、`get_sainome_ranking_v2`以外から返さない。これにより`verification_status='unverified'`と本人判定を省く旧応答への迂回を閉じる。
+既存の`get_best_score_ranking`を含む全ての旧ランキング読取RPCでは、3つのサイノメslugを明示的に拒否する。サイノメv2の行はprivate専用集計にだけ置き、`get_sainome_ranking_v2`以外から返さない。これにより`verification_status='unverified'`と本人判定を省く旧応答への迂回を閉じる。
 
 通常の右から左へ書く名前が順位や得点へ影響しないよう、ブラウザでは名前を`bdi dir="auto"`で隔離する。
 
