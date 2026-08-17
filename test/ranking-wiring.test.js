@@ -35,23 +35,22 @@ test('結果画面下部にモード別ランキングと再送操作がある',
   assert.match(css, /\.result-screen\s*\{[^}]*align-content:\s*start/s);
 });
 
-test('名前を確認してから開始し、結果確定時だけ登録する', () => {
+test('名前を確認してから開始し、結果確定時に名前だけで登録する', () => {
   const startFunction = main.match(/async function startRound\(\)[\s\S]*?\n\}/u)?.[0] ?? '';
   assert.match(startFunction, /capturePlayerName\(\)/);
   assert.equal(
     startFunction.indexOf('capturePlayerName()') < startFunction.indexOf('ensureGame('),
     true
   );
-  assert.match(startFunction, /rankingClient\.issuePlay\(/);
+  assert.match(startFunction, /rankingClient\.startPlay\(/);
   assert.equal(
-    startFunction.indexOf('rankingClient.issuePlay(') < startFunction.indexOf('flow.beginCountdown()'),
+    startFunction.indexOf('rankingClient.startPlay(') < startFunction.indexOf('flow.beginCountdown()'),
     true
   );
-  assert.match(main, /async function preserveFinishedRanking[\s\S]*?prepareRankingSubmission\(\{/);
-  assert.match(main, /async function preserveFinishedRanking[\s\S]*?syncResultRanking\(submission\)/);
-  assert.match(main, /submitPendingRanking\(\{/);
-  assert.match(main, /rankingClient\.getTopRanking\(submission\.result\.modeId\)/);
-  assert.match(main, /activePlayTicket/);
+  assert.match(main, /async function preserveFinishedRanking[\s\S]*?syncResultRanking\(provisional\)/);
+  assert.match(main, /rankingClient\.submitScoreDirect\(/);
+  assert.match(main, /rankingClient\.getTopRanking\(currentSubmission\.result\.modeId\)/);
+  assert.doesNotMatch(main, /rankingClient\.issuePlay\(/);
 });
 
 test('ランキング名と得点はHTML文字列ではなく文字として表示する', () => {
