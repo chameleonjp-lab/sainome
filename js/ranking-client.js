@@ -192,6 +192,7 @@ function parseRankingResponse(data) {
     if (!validatedName.ok || validatedName.name !== displayName) continue;
 
     const { rank_no: rank, best_score: score, play_count: playCount } = row;
+    const isCurrentUser = row.is_current_user === true;
     if (
       typeof rank !== 'number'
       || !Number.isSafeInteger(rank)
@@ -203,13 +204,13 @@ function parseRankingResponse(data) {
       || typeof playCount !== 'number'
       || !Number.isSafeInteger(playCount)
       || playCount < 1
-      || typeof row.is_current_user !== 'boolean'
-      || row.verification_status !== 'unverified'
+      || (row.is_current_user !== undefined && typeof row.is_current_user !== 'boolean')
+      || (row.verification_status !== undefined && row.verification_status !== 'unverified')
     ) {
       throw new RankingError('invalid-response', 'ランキングの行が不正です');
     }
 
-    if (row.is_current_user) {
+    if (isCurrentUser) {
       currentUserCount += 1;
       if (currentUserCount > 1) {
         throw new RankingError('invalid-response', 'ランキングの本人判定が不正です');
@@ -221,7 +222,7 @@ function parseRankingResponse(data) {
       displayName,
       score,
       playCount,
-      isCurrentUser: row.is_current_user
+      isCurrentUser
     }));
   }
   return Object.freeze(ranking);
@@ -245,22 +246,20 @@ export function createSubmissionId(cryptoObject = globalThis.crypto) {
 
 
 function parseSimpleStartResponse(data, expected) {
-  const row = parseOneRow(data, 'プレイ開始の応答が不正です');
+  const row = data && typeof data === 'object' && !Array.isArray(data) ? data : null;
   if (
-    row.started !== true
-    || row.result_display_name !== expected.displayName
-    || row.result_game_slug !== expected.gameSlug
-    || typeof row.result_play_count !== 'number'
-    || !Number.isSafeInteger(row.result_play_count)
-    || row.result_play_count < 1
+    row?.accepted !== true
+    || row.display_name !== expected.displayName
+    || row.game_slug !== expected.gameSlug
+    || row.result_type !== 'play'
   ) {
     throw new RankingError('invalid-response', 'プレイ開始の応答が不正です');
   }
   return Object.freeze({
     started: true,
-    displayName: row.result_display_name,
-    gameSlug: row.result_game_slug,
-    playCount: row.result_play_count
+    displayName: row.display_name,
+    gameSlug: row.game_slug,
+    playCount: null
   });
 }
 
@@ -269,8 +268,6 @@ function parseSimpleSubmitResponse(data, expected) {
   if (
     row.accepted !== true
     || row.result_display_name !== expected.displayName
-    || row.result_game_slug !== expected.gameSlug
-    || row.result_submitted_score !== expected.score
     || typeof row.result_best_score !== 'number'
     || !Number.isSafeInteger(row.result_best_score)
     || row.result_best_score < 0
@@ -286,8 +283,8 @@ function parseSimpleSubmitResponse(data, expected) {
   return Object.freeze({
     accepted: true,
     displayName: row.result_display_name,
-    gameSlug: row.result_game_slug,
-    submittedScore: row.result_submitted_score,
+    gameSlug: expected.gameSlug,
+    submittedScore: expected.score,
     bestScore: row.result_best_score,
     playCount: row.result_play_count,
     isFirstPlay: row.is_first_play,
@@ -384,11 +381,11 @@ export class RankingClient {
       displayName: requireDisplayName(displayName),
       gameSlug: requireModeSlug(modeId)
     });
-    const data = await this.#rpc('start_sainome_play', {
+    const data = await this.#rpc('record_game_play', {
       p_display_name: expected.displayName,
       p_game_slug: expected.gameSlug,
-      p_client_version: RANKING_CLIENT_VERSION,
-      p_contract_version: RANKING_NAME_CONTRACT_VERSION
+      p_result_type: 'play',
+      p_client_version: RANKING_CLIENT_VERSION
     });
     return parseSimpleStartResponse(data, expected);
   }
@@ -399,12 +396,11 @@ export class RankingClient {
       gameSlug: requireModeSlug(modeId),
       score: requireScore(score)
     });
-    const data = await this.#rpc('submit_sainome_score', {
+    const data = await this.#rpc('submit_score', {
       p_display_name: expected.displayName,
       p_game_slug: expected.gameSlug,
       p_score: expected.score,
-      p_client_version: RANKING_CLIENT_VERSION,
-      p_contract_version: RANKING_NAME_CONTRACT_VERSION
+      p_client_version: RANKING_CLIENT_VERSION
     });
     return parseSimpleSubmitResponse(data, expected);
   }
@@ -455,7 +451,7 @@ export class RankingClient {
   }
 
   async getTopRanking(modeId) {
-    const data = await this.#rpc('get_sainome_ranking_v2', {
+    const data = await this.#rpc('get_best_score_ranking', {
       p_game_slug: requireModeSlug(modeId),
       p_limit: RANKING_LIMIT
     });
