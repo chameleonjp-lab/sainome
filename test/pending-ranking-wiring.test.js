@@ -27,6 +27,9 @@ test('端末保存失敗を通信状態とは別の警告として結果画面�
 test('開始は名前だけ、終了時は直接送信して結果画面で順位を読む', () => {
   assert.match(main, /await rankingClient\.startPlay\(/);
   assert.match(main, /await syncResultRanking\(provisional\)/);
+  assert.match(main, /prepareDirectRankingSubmission\(/);
+  assert.match(main, /pendingRankingSubmissions\.markAccepted\(/);
+  assert.match(main, /submitPendingDirectRanking\(/);
   assert.match(main, /rankingClient\.submitScoreDirect\(/);
   assert.match(main, /rankingClient\.getTopRanking\(/);
   assert.doesNotMatch(main, /rankingClient\.issuePlay\(/);
