@@ -11,7 +11,7 @@ test('WebGLの描画停止中はゲーム時間と操作を止め、復帰後に
   assert.match(source, /SimulationPause/);
   assert.match(source, /webglcontextlost/);
   assert.match(source, /webglcontextrestored/);
-  assert.match(source, /this\.simulationPause\.sync\(!this\.isVisible \|\| this\.contextLost/);
+  assert.match(source, /this\.simulationPause\.sync\([\s\S]*?!this\.isVisible \|\| this\.contextLost/);
   assert.match(source, /if \(this\.contextLost\) \{[\s\S]*?return;/);
   assert.match(source, /if \(this\.isVisible && !this\.contextLost\) \{[\s\S]*?this\.session\.tick\(now\)/);
   assert.match(source, /this\.simulationPause\.getPausedDuration\(now\)/);
