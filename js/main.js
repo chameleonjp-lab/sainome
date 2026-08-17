@@ -69,6 +69,10 @@ const clearCount = document.querySelector('#clear-count');
 const homeScreen = document.querySelector('#home-screen');
 const countdownScreen = document.querySelector('#countdown-screen');
 const countdownValue = document.querySelector('#countdown-value');
+const pauseScreen = document.querySelector('#pause-screen');
+const pauseButton = document.querySelector('#pause-button');
+const resumeButton = document.querySelector('#resume-button');
+const retireButton = document.querySelector('#retire-button');
 const resultScreen = document.querySelector('#result-screen');
 const tutorialScreen = document.querySelector('#tutorial-screen');
 const tutorialTitle = document.querySelector('#tutorial-title');
@@ -804,6 +808,9 @@ function setStartPending(pending) {
   tutorialNextButton.disabled = pending;
   gameRecoveryResume.disabled = pending || gameStateOperationPending;
   gameRecoveryDiscard.disabled = pending || gameStateOperationPending;
+  pauseButton.disabled = pending;
+  resumeButton.disabled = pending;
+  retireButton.disabled = pending;
   playerNameInput.disabled = pending;
   startButton.textContent = pending ? '3D盤面を準備中…' : 'ゲーム開始';
   replayButton.textContent = pending ? '準備中…' : 'もう一度';
@@ -1000,7 +1007,8 @@ async function loadGameRecovery({ force = false } = {}) {
 
 function isWebGLRecoveryScreen(screen = flow.getSnapshot().screen) {
   return screen === SCREEN_PHASES.COUNTDOWN
-    || screen === SCREEN_PHASES.PLAYING;
+    || screen === SCREEN_PHASES.PLAYING
+    || screen === SCREEN_PHASES.PAUSED;
 }
 
 function clearWebGLRecoveryTimer() {
@@ -1296,7 +1304,10 @@ async function recreateWebGLGame() {
   let loaded = null;
 
   try {
-    if (phase === SCREEN_PHASES.PLAYING) {
+    if (
+      phase === SCREEN_PHASES.PLAYING
+      || phase === SCREEN_PHASES.PAUSED
+    ) {
       loaded = await gameStateStorage.load();
       if (loaded.status !== 'available') {
         if (loaded.status === 'invalid' && loaded.serialized) {
@@ -1309,13 +1320,13 @@ async function recreateWebGLGame() {
 
     disposeGameInstance({ replaceCanvas: true });
     const ready = await ensureGame(
-      phase === SCREEN_PHASES.PLAYING
+      phase === SCREEN_PHASES.PLAYING || phase === SCREEN_PHASES.PAUSED
         ? loaded.state.game.modeId
         : activeMode.id
     );
     if (!ready) throw new Error('WebGL recreation failed');
 
-    if (phase === SCREEN_PHASES.PLAYING) {
+    if (phase === SCREEN_PHASES.PLAYING || phase === SCREEN_PHASES.PAUSED) {
       const saved = loaded.state;
       const mode = getGameMode(saved.game.modeId);
       activeMode = mode;
@@ -1326,6 +1337,7 @@ async function recreateWebGLGame() {
       applyModeLabels(mode);
       resetHudDisplay(mode);
       game.restoreState(saved.game);
+      game.setPaused(phase === SCREEN_PHASES.PAUSED);
       savedGameRecovery = loaded;
       renderFlow(flow.getSnapshot());
       game.emitStateSnapshot();
@@ -1381,7 +1393,9 @@ function renderFlow(snapshot = flow.getSnapshot()) {
   homeScreen.hidden = snapshot.screen !== SCREEN_PHASES.HOME;
   tutorialScreen.hidden = snapshot.screen !== SCREEN_PHASES.TUTORIAL;
   countdownScreen.hidden = snapshot.screen !== SCREEN_PHASES.COUNTDOWN;
+  pauseScreen.hidden = snapshot.screen !== SCREEN_PHASES.PAUSED;
   resultScreen.hidden = snapshot.screen !== SCREEN_PHASES.RESULT;
+  pauseButton.hidden = snapshot.screen !== SCREEN_PHASES.PLAYING;
   playNote.hidden = snapshot.screen !== SCREEN_PHASES.PLAYING;
 
   if (snapshot.screen === SCREEN_PHASES.TUTORIAL) renderTutorial();
@@ -1393,7 +1407,10 @@ function renderFlow(snapshot = flow.getSnapshot()) {
   if (snapshot.screen === SCREEN_PHASES.RESULT && snapshot.result) {
     const resultMode = getGameMode(snapshot.result.modeId);
     resultShareStatus.textContent = '';
-    resultKicker.textContent = `${resultMode.label}モード · TIME UP`;
+    const resultReason = snapshot.result.endedReason === 'retired'
+      ? 'RETIRED'
+      : 'TIME UP';
+    resultKicker.textContent = `${resultMode.label}モード · ${resultReason}`;
     resultRankingTitle.textContent = `${resultMode.label}ランキング`;
     resultPlayerName.textContent = latestRankingSubmission?.displayName ?? activePlayerName;
     resultScore.textContent = numberFormatter.format(snapshot.result.score);
@@ -1589,6 +1606,55 @@ async function startRound() {
   scheduleCountdown(countdownRunId);
 }
 
+function pauseRound() {
+  if (
+    !game
+    || webglRecoveryVisible
+    || flow.getSnapshot().screen !== SCREEN_PHASES.PLAYING
+  ) return;
+
+  pointerStart = null;
+  game.emitStateSnapshot();
+  game.setPaused(true);
+  const snapshot = flow.pausePlaying();
+  if (!snapshot) {
+    game.setPaused(false);
+    return;
+  }
+  renderFlow(snapshot);
+  window.setTimeout(() => resumeButton.focus(), 0);
+}
+
+function resumeRound() {
+  if (
+    !game
+    || webglRecoveryVisible
+    || flow.getSnapshot().screen !== SCREEN_PHASES.PAUSED
+  ) return;
+
+  const snapshot = flow.resumePaused();
+  if (!snapshot) return;
+  game.setPaused(false);
+  renderFlow(snapshot);
+  window.setTimeout(() => pauseButton.focus(), 0);
+}
+
+function retireRound() {
+  if (
+    !game
+    || webglRecoveryVisible
+    || flow.getSnapshot().screen !== SCREEN_PHASES.PAUSED
+  ) return;
+
+  resumeButton.disabled = true;
+  retireButton.disabled = true;
+  const result = game.retire();
+  if (!result) {
+    resumeButton.disabled = false;
+    retireButton.disabled = false;
+  }
+}
+
 function requestMove(direction) {
   if (!game || webglRecoveryVisible || !flow.canMove()) return;
   const button = directionButtons.find(
@@ -1656,6 +1722,9 @@ for (const button of directionButtons) {
   });
 }
 
+pauseButton.addEventListener('click', pauseRound);
+resumeButton.addEventListener('click', resumeRound);
+retireButton.addEventListener('click', retireRound);
 startButton.addEventListener('click', startRound);
 replayButton.addEventListener('click', startRound);
 gameRecoveryResume.addEventListener('click', () => {
