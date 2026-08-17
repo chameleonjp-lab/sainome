@@ -61,6 +61,7 @@ button:disabled { opacity: .55; }
 }
 .pause-button {
   flex: 0 0 auto;
+  margin-left: auto;
   min-width: 76px;
   min-height: 58px;
   padding: 8px 12px;
