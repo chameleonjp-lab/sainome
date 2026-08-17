@@ -279,12 +279,19 @@ test('保存済み番号の再送でも匿名セッションを作らず送信�
 
 test('300秒ランキングを60秒とは別の記録として上位10件取得する', async () => {
   const requests = [];
-  const rows = Array.from({ length: 12 }, (_, index) => rankingRow({
-    rank: index + 1,
-    displayName: `プレイヤー${index + 1}`,
-    score: 12000 - index * 100,
-    playCount: index + 1
-  }));
+  const rows = Array.from({ length: 12 }, (_, index) => {
+    const {
+      is_current_user: _isCurrentUser,
+      verification_status: _verificationStatus,
+      ...sharedRow
+    } = rankingRow({
+      rank: index + 1,
+      displayName: `プレイヤー${index + 1}`,
+      score: 12000 - index * 100,
+      playCount: index + 1
+    });
+    return sharedRow;
+  });
   const client = makeClient({
     authClient: ANON_AUTH_CLIENT,
     fetchImpl: async (url, options) => {
@@ -296,7 +303,7 @@ test('300秒ランキングを60秒とは別の記録として上位10件取得�
   const ranking = await client.getTopRanking(GAME_MODE_IDS.THREE_HUNDRED_SECONDS);
 
   assert.equal(ranking.length, RANKING_LIMIT);
-  assert.equal(requests[0].url, `${URL}/rest/v1/rpc/get_sainome_ranking_v2`);
+  assert.equal(requests[0].url, `${URL}/rest/v1/rpc/get_best_score_ranking`);
   assert.equal('Authorization' in requests[0].options.headers, false);
   assert.deepEqual(JSON.parse(requests[0].options.body), {
     p_game_slug: RANKING_GAME_SLUGS[GAME_MODE_IDS.THREE_HUNDRED_SECONDS],
@@ -622,17 +629,19 @@ test('登録番号生成の互換関数は標準UUIDと代替乱数を扱える'
 });
 
 
-test('プレイ番号なしで開始時にプレイ回数を受け取る', async () => {
+test('開始時に共通プレイ記録へ1回を送る', async () => {
   const calls = [];
   const client = makeClient({
     fetchImpl: async (url, options) => {
       calls.push({ url, options });
-      return jsonResponse([{
-        started: true,
-        result_display_name: 'プレイヤー',
-        result_game_slug: 'sainome_300_seconds',
-        result_play_count: 1
-      }]);
+      return jsonResponse({
+        accepted: true,
+        display_name: 'プレイヤー',
+        game_slug: 'sainome_300_seconds',
+        normalized_name: 'プレイヤー',
+        result_type: 'play',
+        reached_wave: 1
+      });
     }
   });
   const result = await client.startPlay({
@@ -643,13 +652,18 @@ test('プレイ番号なしで開始時にプレイ回数を受け取る', async
     started: true,
     displayName: 'プレイヤー',
     gameSlug: 'sainome_300_seconds',
-    playCount: 1
+    playCount: null
   });
-  assert.match(calls[0].url, /\/rpc\/start_sainome_play$/u);
+  assert.match(calls[0].url, /\/rpc\/record_game_play$/u);
   const body = JSON.parse(calls[0].options.body);
-  assert.equal(body.p_display_name, 'プレイヤー');
-  assert.equal(body.p_game_slug, 'sainome_300_seconds');
+  assert.deepEqual(body, {
+    p_display_name: 'プレイヤー',
+    p_game_slug: 'sainome_300_seconds',
+    p_result_type: 'play',
+    p_client_version: RANKING_CLIENT_VERSION
+  });
   assert.equal('p_submission_id' in body, false);
+  assert.equal('p_contract_version' in body, false);
 });
 
 test('プレイ番号なしで終了時にスコアを送信できる', async () => {
@@ -659,9 +673,9 @@ test('プレイ番号なしで終了時にスコアを送信できる', async ()
       calls.push({ url, options });
       return jsonResponse([{
         accepted: true,
-        result_game_slug: 'sainome_300_seconds',
+        result_normalized_name: 'プレイヤー',
         result_display_name: 'プレイヤー',
-        result_submitted_score: 3200,
+        result_first_score: 3200,
         result_best_score: 3200,
         result_play_count: 1,
         is_first_play: true,
@@ -684,8 +698,14 @@ test('プレイ番号なしで終了時にスコアを送信できる', async ()
     isFirstPlay: true,
     isNewBest: true
   });
-  assert.match(calls[0].url, /\/rpc\/submit_sainome_score$/u);
+  assert.match(calls[0].url, /\/rpc\/submit_score$/u);
   const body = JSON.parse(calls[0].options.body);
-  assert.equal(body.p_score, 3200);
+  assert.deepEqual(body, {
+    p_display_name: 'プレイヤー',
+    p_game_slug: 'sainome_300_seconds',
+    p_score: 3200,
+    p_client_version: RANKING_CLIENT_VERSION
+  });
   assert.equal('p_submission_id' in body, false);
+  assert.equal('p_contract_version' in body, false);
 });
