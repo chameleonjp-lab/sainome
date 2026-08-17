@@ -4,6 +4,7 @@ import { validatePlayerName } from './player-profile.js';
 export const RANKING_LIMIT = 10;
 export const RANKING_CLIENT_VERSION = 'sainome-web-2';
 export const RANKING_SUBMISSION_CONTRACT_VERSION = 'sainome-play-v2';
+export const RANKING_NAME_CONTRACT_VERSION = 'sainome-name-v1';
 export const RANKING_GAME_SLUGS = Object.freeze({
   [GAME_MODE_IDS.SIXTY_SECONDS]: 'sainome_60_seconds',
   [GAME_MODE_IDS.ONE_EIGHTY_SECONDS]: 'sainome_180_seconds',
@@ -242,6 +243,58 @@ export function createSubmissionId(cryptoObject = globalThis.crypto) {
   return `fallback_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 14)}`;
 }
 
+
+function parseSimpleStartResponse(data, expected) {
+  const row = parseOneRow(data, 'プレイ開始の応答が不正です');
+  if (
+    row.started !== true
+    || row.result_display_name !== expected.displayName
+    || row.result_game_slug !== expected.gameSlug
+    || typeof row.result_play_count !== 'number'
+    || !Number.isSafeInteger(row.result_play_count)
+    || row.result_play_count < 1
+  ) {
+    throw new RankingError('invalid-response', 'プレイ開始の応答が不正です');
+  }
+  return Object.freeze({
+    started: true,
+    displayName: row.result_display_name,
+    gameSlug: row.result_game_slug,
+    playCount: row.result_play_count
+  });
+}
+
+function parseSimpleSubmitResponse(data, expected) {
+  const row = parseOneRow(data, '記録登録の応答が不正です');
+  if (
+    row.accepted !== true
+    || row.result_display_name !== expected.displayName
+    || row.result_game_slug !== expected.gameSlug
+    || row.result_submitted_score !== expected.score
+    || typeof row.result_best_score !== 'number'
+    || !Number.isSafeInteger(row.result_best_score)
+    || row.result_best_score < 0
+    || row.result_best_score > MAX_SCORE
+    || typeof row.result_play_count !== 'number'
+    || !Number.isSafeInteger(row.result_play_count)
+    || row.result_play_count < 1
+    || typeof row.is_first_play !== 'boolean'
+    || typeof row.is_new_best !== 'boolean'
+  ) {
+    throw new RankingError('invalid-response', '記録登録の応答が不正です');
+  }
+  return Object.freeze({
+    accepted: true,
+    displayName: row.result_display_name,
+    gameSlug: row.result_game_slug,
+    submittedScore: row.result_submitted_score,
+    bestScore: row.result_best_score,
+    playCount: row.result_play_count,
+    isFirstPlay: row.is_first_play,
+    isNewBest: row.is_new_best
+  });
+}
+
 export class RankingClient {
   constructor({
     url,
@@ -324,6 +377,36 @@ export class RankingClient {
     } finally {
       clearTimeout(timeoutId);
     }
+  }
+
+  async startPlay({ displayName, modeId }) {
+    const expected = Object.freeze({
+      displayName: requireDisplayName(displayName),
+      gameSlug: requireModeSlug(modeId)
+    });
+    const data = await this.#rpc('start_sainome_play', {
+      p_display_name: expected.displayName,
+      p_game_slug: expected.gameSlug,
+      p_client_version: RANKING_CLIENT_VERSION,
+      p_contract_version: RANKING_NAME_CONTRACT_VERSION
+    });
+    return parseSimpleStartResponse(data, expected);
+  }
+
+  async submitScoreDirect({ displayName, modeId, score }) {
+    const expected = Object.freeze({
+      displayName: requireDisplayName(displayName),
+      gameSlug: requireModeSlug(modeId),
+      score: requireScore(score)
+    });
+    const data = await this.#rpc('submit_sainome_score', {
+      p_display_name: expected.displayName,
+      p_game_slug: expected.gameSlug,
+      p_score: expected.score,
+      p_client_version: RANKING_CLIENT_VERSION,
+      p_contract_version: RANKING_NAME_CONTRACT_VERSION
+    });
+    return parseSimpleSubmitResponse(data, expected);
   }
 
   async issuePlay({ displayName, modeId }) {
