@@ -17,6 +17,13 @@ function requireCanonicalPlayerName(displayName) {
   return displayName;
 }
 
+const DIRECT_SUBMISSION_ID_PATTERN = /^direct-[A-Za-z0-9_-]{8,120}$/u;
+
+function isValidDirectSubmissionId(value) {
+  return isValidRankingSubmissionId(value)
+    || (typeof value === 'string' && DIRECT_SUBMISSION_ID_PATTERN.test(value));
+}
+
 function requirePlayTicket(playTicket, result) {
   if (!playTicket || typeof playTicket !== 'object') return null;
   if (!isValidRankingSubmissionId(playTicket.submissionId)) {
@@ -162,7 +169,7 @@ export async function prepareDirectRankingSubmission({
     throw new TypeError('submission clock is invalid');
   }
   requireCanonicalPlayerName(displayName);
-  if (!isValidRankingSubmissionId(submissionId)) {
+  if (!isValidDirectSubmissionId(submissionId)) {
     throw new TypeError('direct submissionId is invalid');
   }
 
