@@ -755,7 +755,7 @@ async function syncResultRanking(submission, { submit = true } = {}) {
   }
 
   setRankingPending(currentSubmission, false);
-  renderRankingStorageWarning(null);
+  renderRankingStorageWarning(submitError ? currentSubmission : null);
   if (rankingRows) renderRankingRows(rankingRows);
   else clearRankingRows();
 
