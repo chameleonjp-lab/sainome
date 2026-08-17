@@ -3,6 +3,7 @@ import { validatePlayerName } from './player-profile.js';
 import {
   isValidRankingClientVersion,
   isValidRankingSubmissionId,
+  RANKING_NAME_CONTRACT_VERSION,
   RANKING_SUBMISSION_CONTRACT_VERSION
 } from './ranking-client.js';
 
@@ -20,6 +21,13 @@ const MAX_CLEARED_DICE = 1_000_000;
 const MAX_CHAIN = 100_000;
 const MAX_CREATED_AT = 8_640_000_000_000_000;
 const MAX_SERIALIZED_CHARACTERS = 4096;
+const DIRECT_SUBMISSION_ID_PATTERN = /^direct-[A-Za-z0-9_-]{8,120}$/u;
+
+function isValidPendingSubmissionId(value) {
+  return isValidRankingSubmissionId(value) || (
+    typeof value === 'string' && DIRECT_SUBMISSION_ID_PATTERN.test(value)
+  );
+}
 
 function requestResult(request) {
   return new Promise((resolve, reject) => {
@@ -249,11 +257,12 @@ function requireNonNegativeInteger(value, name, maximum = Number.MAX_SAFE_INTEGE
   return value;
 }
 
-function normalizeResult(result) {
+function normalizeResult(result, { allowRetired = false } = {}) {
   if (!result || typeof result !== 'object') {
     throw new TypeError('result is required');
   }
-  if (result.endedReason !== 'time-up') {
+  const allowedReasons = allowRetired ? ['time-up', 'retired'] : ['time-up'];
+  if (!allowedReasons.includes(result.endedReason)) {
     throw new RangeError('endedReason is invalid');
   }
 
@@ -310,6 +319,43 @@ function normalizeSubmission(value) {
   });
 }
 
+function normalizeDirectSubmission(value) {
+  if (!value || typeof value !== 'object' || value.kind !== 'direct-name') {
+    throw new TypeError('direct submission is invalid');
+  }
+  if (!isValidPendingSubmissionId(value.submissionId)) {
+    throw new TypeError('direct submissionId is invalid');
+  }
+  if (!isValidRankingClientVersion(value.clientVersion)) {
+    throw new TypeError('clientVersion is invalid');
+  }
+  if (value.contractVersion !== RANKING_NAME_CONTRACT_VERSION) {
+    throw new TypeError('contractVersion is invalid');
+  }
+
+  const validatedName = validatePlayerName(value.displayName);
+  if (!validatedName.ok || validatedName.name !== value.displayName) {
+    throw new TypeError('displayName is invalid');
+  }
+  requireNonNegativeInteger(value.createdAt, 'createdAt', MAX_CREATED_AT);
+
+  return Object.freeze({
+    kind: 'direct-name',
+    submissionId: value.submissionId,
+    contractVersion: value.contractVersion,
+    clientVersion: value.clientVersion,
+    displayName: validatedName.name,
+    result: normalizeResult(value.result, { allowRetired: true }),
+    createdAt: value.createdAt
+  });
+}
+
+function normalizePendingSubmission(value) {
+  return value?.kind === 'direct-name'
+    ? normalizeDirectSubmission(value)
+    : normalizeSubmission(value);
+}
+
 function serializeSubmission(submission) {
   const serialized = JSON.stringify({
     version: PENDING_RANKING_STORAGE_VERSION,
@@ -352,7 +398,7 @@ function createRecoveryRecord(record, type, extra = {}) {
 function decodeRecord(record) {
   if (
     !record
-    || !isValidRankingSubmissionId(record.submissionId)
+    || !isValidPendingSubmissionId(record.submissionId)
     || typeof record.serialized !== 'string'
     || record.serialized.length > MAX_SERIALIZED_CHARACTERS
   ) {
@@ -363,7 +409,7 @@ function decodeRecord(record) {
     throw new TypeError('saved submission version is invalid');
   }
 
-  const submission = normalizeSubmission(saved.submission);
+  const submission = normalizePendingSubmission(saved.submission);
   if (record.submissionId !== submission.submissionId) {
     throw new TypeError('saved submission key does not match its identifier');
   }
@@ -526,7 +572,7 @@ export class PendingRankingSubmissions {
     let submission;
     let serialized;
     try {
-      submission = normalizeSubmission(value);
+      submission = normalizePendingSubmission(value);
       serialized = serializeSubmission(submission);
     } catch {
       return freezeResult({
@@ -683,7 +729,7 @@ export class PendingRankingSubmissions {
     let submission;
     let serialized;
     try {
-      submission = normalizeSubmission(value);
+      submission = normalizePendingSubmission(value);
       serialized = serializeSubmission(submission);
     } catch {
       return freezeResult({
@@ -865,7 +911,7 @@ export class PendingRankingSubmissions {
     let submission;
     let serialized;
     try {
-      submission = normalizeSubmission(value);
+      submission = normalizePendingSubmission(value);
       serialized = serializeSubmission(submission);
     } catch {
       return freezeResult({
