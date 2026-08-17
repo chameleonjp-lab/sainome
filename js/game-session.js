@@ -75,7 +75,7 @@ function freezeSnapshot(session) {
     maxChain: session.maxChain,
     clearEvents: session.clearEvents,
     specialOneEvents: session.specialOneEvents,
-    endedReason: session.phase === PHASES.FINISHED ? 'time-up' : null
+    endedReason: session.phase === PHASES.FINISHED ? session.endedReason : null
   });
 }
 
@@ -98,6 +98,7 @@ export class GameSession {
     this.maxChain = 0;
     this.clearEvents = 0;
     this.specialOneEvents = 0;
+    this.endedReason = null;
     this.result = null;
   }
 
@@ -112,6 +113,7 @@ export class GameSession {
     this.maxChain = 0;
     this.clearEvents = 0;
     this.specialOneEvents = 0;
+    this.endedReason = null;
     this.result = null;
     return this.getSnapshot();
   }
@@ -141,6 +143,7 @@ export class GameSession {
     this.maxChain = requireNonNegativeInteger(snapshot.maxChain, 'maxChain');
     this.clearEvents = requireNonNegativeInteger(snapshot.clearEvents, 'clearEvents');
     this.specialOneEvents = requireNonNegativeInteger(snapshot.specialOneEvents, 'specialOneEvents');
+    this.endedReason = null;
     this.result = null;
     return this.getSnapshot();
   }
@@ -191,10 +194,23 @@ export class GameSession {
     });
   }
 
+  retire(now = this.lastNow) {
+    const currentTime = requireFiniteNumber(now, 'now');
+    if (this.phase !== PHASES.RUNNING && this.phase !== PHASES.FINISHING) {
+      return null;
+    }
+    if (this.phase === PHASES.RUNNING) this.tick(currentTime);
+    this.phase = PHASES.FINISHED;
+    this.endedReason = 'retired';
+    this.result = freezeSnapshot(this);
+    return this.result;
+  }
+
   finishWhenSettled(hasPendingWork = false) {
     if (this.phase !== PHASES.FINISHING || hasPendingWork) return null;
     this.phase = PHASES.FINISHED;
     this.elapsedMs = this.durationMs;
+    this.endedReason = 'time-up';
     this.result = freezeSnapshot(this);
     return this.result;
   }

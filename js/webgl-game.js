@@ -227,6 +227,7 @@ export class WebGLSainome {
     this.isVisible = !document.hidden;
     this.contextLost = false;
     this.renderActive = false;
+    this.manualPaused = false;
     this.diagnosticsFrameCount = 0;
     this.screenPhase = SCREEN_PHASES.HOME;
     this.animationFrameTasks = new Set();
@@ -333,7 +334,16 @@ export class WebGLSainome {
   }
 
   syncSimulationPause(now = performance.now()) {
-    this.simulationPause.sync(!this.isVisible || this.contextLost, now);
+    this.simulationPause.sync(
+      !this.isVisible || this.contextLost || this.manualPaused,
+      now
+    );
+  }
+
+  setPaused(paused) {
+    this.manualPaused = Boolean(paused);
+    this.syncSimulationPause();
+    if (!this.manualPaused && this.renderActive) this.renderLoop.refresh();
   }
 
   setScreenPhase(screenPhase) {
@@ -408,6 +418,8 @@ export class WebGLSainome {
 
   reset(modeId = this.mode.id) {
     this.mode = getGameMode(modeId);
+    this.manualPaused = false;
+    this.syncSimulationPause();
     this.session = new GameSession({ modeId: this.mode.id });
     this.random = new GameRandom();
     this.lastStateSnapshotElapsedMs = 0;
@@ -455,6 +467,29 @@ export class WebGLSainome {
     this.emitSession(snapshot, true);
     this.emitStateSnapshot();
     return true;
+  }
+
+  retire() {
+    const phase = this.session.getSnapshot().phase;
+    if (phase !== GAME_PHASES.RUNNING && phase !== GAME_PHASES.FINISHING) return null;
+
+    const result = this.session.retire(this.getGameTime());
+    if (!result) return null;
+    this.manualPaused = false;
+    this.syncSimulationPause();
+
+    this.pendingMatchResolution = false;
+    this.pendingSpawnCount = 0;
+    this.queuedDirection = null;
+    window.clearTimeout(this.queueTimerId);
+    this.queueTimerId = null;
+    this.animationFrameTasks.clear();
+    this.busy = false;
+    this.epoch += 1;
+    this.emitSession(result, true);
+    this.callbacks.onFinish?.(result);
+    this.callbacks.onMessage?.(`${this.mode.label}をリタイアしました。得点は${result.score}点です`);
+    return result;
   }
 
   getDiagnosticsContextLossExtension() {
