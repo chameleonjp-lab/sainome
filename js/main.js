@@ -478,7 +478,7 @@ function renderRankingStorageWarning(submission) {
     'invalid-submission':
       'この結果を安全な未送信記録として保存できなかったため、送信を止めました。',
     'ticket-unavailable':
-      'プレイ番号を発行できなかったため、このプレイはランキング対象外です。'
+      'ランキング送信に失敗しました。結果画面から再試行できます。'
   };
   resultRankingStorageWarning.textContent = messages[submission.pendingSaveCode]
     ?? 'この結果を端末へ保存できませんでした。画面を閉じると失われます。';
