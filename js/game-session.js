@@ -113,6 +113,7 @@ export class GameSession {
     this.maxChain = 0;
     this.clearEvents = 0;
     this.specialOneEvents = 0;
+    this.endedReason = null;
     this.result = null;
     return this.getSnapshot();
   }
