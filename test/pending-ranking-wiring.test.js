@@ -24,15 +24,13 @@ test('端末保存失敗を通信状態とは別の警告として結果画面�
   assert.match(main, /画面を閉じると失われます/);
 });
 
-test('結果確定後はIndexedDB保存完了より後に通信を開始する', () => {
-  const flowStart = main.indexOf('async function preserveFinishedRanking(provisional)');
-  const flowEnd = main.indexOf('\nconst gameCallbacks', flowStart);
-  const rankingFlow = main.slice(flowStart, flowEnd);
-  const prepareAt = rankingFlow.indexOf('await prepareRankingSubmission({');
-  const syncAt = rankingFlow.indexOf('syncResultRanking(submission)');
-
-  assert.equal(prepareAt >= 0, true);
-  assert.equal(syncAt > prepareAt, true);
+test('開始は名前だけ、終了時は直接送信して結果画面で順位を読む', () => {
+  assert.match(main, /await rankingClient\.startPlay\(/);
+  assert.match(main, /await syncResultRanking\(provisional\)/);
+  assert.match(main, /rankingClient\.submitScoreDirect\(/);
+  assert.match(main, /rankingClient\.getTopRanking\(/);
+  assert.doesNotMatch(main, /rankingClient\.issuePlay\(/);
+  assert.doesNotMatch(main, /プレイ番号を発行できなかった/);
 });
 
 test('復元した未送信記録は手動操作だけで再送し、タブ間更新は表示へ反映する', () => {
@@ -43,15 +41,11 @@ test('復元した未送信記録は手動操作だけで再送し、タブ間�
   assert.doesNotMatch(main, /renderPendingRankingPanel\(\);\s*void retryStoredRankingSubmissions\(\);/);
 });
 
-test('恒久拒否を隔離し、再送と順位再読込を別操作に分ける', () => {
-  assert.match(main, /const MAX_MANUAL_PENDING_RETRIES = 10;/);
-  assert.match(main, /classifyRankingFailure\(error\)/);
-  assert.match(main, /pendingRankingSubmissions\.quarantine\(submission/);
-  assert.equal(
-    (main.match(/code: error\?\.serverCode \?\? error\?\.code \?\? 'request-rejected'/g) ?? []).length,
-    2
-  );
+test('結果画面の再送と順位再読込を別操作に分ける', () => {
+  assert.match(main, /resultRankingRetryAction === 'submit'/);
+  assert.match(main, /resultRankingRetryAction === 'ranking'/);
   assert.match(main, /syncResultRanking\(latestRankingSubmission, \{ submit: false \}\)/);
+  assert.match(main, /resultRankingRetryAction === 'submit' && latestRankingSubmission\.canSubmit/);
 });
 
 

@@ -620,3 +620,72 @@ test('登録番号生成の互換関数は標準UUIDと代替乱数を扱える'
   });
   assert.match(fallback, /^[a-f0-9]{32}$/u);
 });
+
+
+test('プレイ番号なしで開始時にプレイ回数を受け取る', async () => {
+  const calls = [];
+  const client = makeClient({
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      return jsonResponse([{
+        started: true,
+        result_display_name: 'プレイヤー',
+        result_game_slug: 'sainome_300_seconds',
+        result_play_count: 1
+      }]);
+    }
+  });
+  const result = await client.startPlay({
+    displayName: 'プレイヤー',
+    modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS
+  });
+  assert.deepEqual(result, {
+    started: true,
+    displayName: 'プレイヤー',
+    gameSlug: 'sainome_300_seconds',
+    playCount: 1
+  });
+  assert.match(calls[0].url, /\/rpc\/start_sainome_play$/u);
+  const body = JSON.parse(calls[0].options.body);
+  assert.equal(body.p_display_name, 'プレイヤー');
+  assert.equal(body.p_game_slug, 'sainome_300_seconds');
+  assert.equal('p_submission_id' in body, false);
+});
+
+test('プレイ番号なしで終了時にスコアを送信できる', async () => {
+  const calls = [];
+  const client = makeClient({
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      return jsonResponse([{
+        accepted: true,
+        result_game_slug: 'sainome_300_seconds',
+        result_display_name: 'プレイヤー',
+        result_submitted_score: 3200,
+        result_best_score: 3200,
+        result_play_count: 1,
+        is_first_play: true,
+        is_new_best: true
+      }]);
+    }
+  });
+  const result = await client.submitScoreDirect({
+    displayName: 'プレイヤー',
+    modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS,
+    score: 3200
+  });
+  assert.deepEqual(result, {
+    accepted: true,
+    displayName: 'プレイヤー',
+    gameSlug: 'sainome_300_seconds',
+    submittedScore: 3200,
+    bestScore: 3200,
+    playCount: 1,
+    isFirstPlay: true,
+    isNewBest: true
+  });
+  assert.match(calls[0].url, /\/rpc\/submit_sainome_score$/u);
+  const body = JSON.parse(calls[0].options.body);
+  assert.equal(body.p_score, 3200);
+  assert.equal('p_submission_id' in body, false);
+});
