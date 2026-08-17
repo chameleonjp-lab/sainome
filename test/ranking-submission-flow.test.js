@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 
 import {
   classifyRankingFailure,
+  prepareDirectRankingSubmission,
   prepareRankingSubmission,
   SingleFlight,
+  submitPendingDirectRanking,
   submitPendingRanking,
   updateIfCurrentRankingSubmission
 } from '../js/ranking-submission-flow.js';
@@ -12,6 +14,7 @@ import {
   RANKING_CLIENT_VERSION,
   RANKING_GAME_SLUGS,
   RankingError,
+  RANKING_NAME_CONTRACT_VERSION,
   RANKING_SUBMISSION_CONTRACT_VERSION
 } from '../js/ranking-client.js';
 
@@ -186,6 +189,52 @@ test('保存完了後にだけ通信を開始し、受付内容一致後に同�
 
   assert.deepEqual(events, ['save', 'send', 'cleanup']);
   assert.deepEqual(cleaned, submission);
+  assert.equal(submitted.cleanup.ok, true);
+});
+
+test('名前だけ方式の未送信結果を保存して再送後に削除する', async () => {
+  const events = [];
+  const pendingSubmissions = {
+    enqueue: async (submission) => {
+      events.push('save');
+      return { ok: true, persisted: true, code: 'queued', submission };
+    },
+    markAccepted: async (submission) => {
+      events.push('cleanup');
+      assert.equal(submission.kind, 'direct-name');
+      return { ok: true, removed: true, persisted: true, code: 'removed' };
+    }
+  };
+  const rankingClient = {
+    submitScoreDirect: async (request) => {
+      events.push('send');
+      return {
+        accepted: true,
+        displayName: request.displayName,
+        gameSlug: RANKING_GAME_SLUGS[request.modeId],
+        submittedScore: request.score
+      };
+    }
+  };
+  const submission = await prepareDirectRankingSubmission({
+    pendingSubmissions,
+    displayName: 'プレイヤー',
+    result: RESULT,
+    now: () => 100,
+    submissionId: 'direct-test-12345678'
+  });
+
+  assert.equal(submission.kind, 'direct-name');
+  assert.equal(submission.contractVersion, RANKING_NAME_CONTRACT_VERSION);
+  assert.equal(submission.canSubmit, true);
+  assert.equal('issuedAt' in submission, false);
+
+  const submitted = await submitPendingDirectRanking({
+    rankingClient,
+    pendingSubmissions,
+    submission
+  });
+  assert.deepEqual(events, ['save', 'send', 'cleanup']);
   assert.equal(submitted.cleanup.ok, true);
 });
 
