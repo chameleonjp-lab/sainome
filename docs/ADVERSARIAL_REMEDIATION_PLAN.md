@@ -11,7 +11,7 @@
 - Supabase migration `20260817124110_repair_sainome_simple_name_ranking` が適用済み。
 - `private.sainome_v2_config.accepting_runs=true`、`ranking_enable_not_before`は現在時刻以前、`public.games.sainome_300_seconds.is_active=true`を確認した。
 - `public.start_sainome_play`、`public.submit_sainome_score`、`public.get_sainome_ranking_v2`が存在し、いずれも空の`search_path`を持つ`SECURITY DEFINER`。新しい名前のみ3関数はanonへ実行権限を限定している。
-- anonロールで開始→送信→ランキング取得をトランザクション内で確認し、ロールバック後の本番件数は`sainome_v2_scores=0`、`sainome_v2_player_keys=0`、公開`sainome_*`得点行=0`だった。確認用データは残していない。
+- anonロールで開始→送信→ランキング取得をトランザクション内で確認し、ロールバック後の本番件数は`sainome_v2_scores=0`、`sainome_v2_player_keys=0`、公開`sainome_*`得点行=`0`だった。確認用データは残していない。
 - 60秒・180秒は新規受付の対象外で、既存の保存・未送信記録だけを互換用に保全する。
 - Supabase Advisorの既知のRLS・既存関数権限・インデックス警告は、今回の名前のみ経路の新規障害とは切り分けて残課題として扱う。
 
@@ -35,7 +35,7 @@
 
 ## 2. 対応順の判断
 
-本番DBでは以前、サイノメ用のゲーム登録と得点登録関数が削除されていた。第3工程でv2契約を復旧したが、安全確認が終わるまで受付フラグ、有効化時刻、対象ゲームを停止状態にしているため、現在のランキング送信は成立しない。
+本番DBでは以前、サイノメ用のゲーム登録と得点登録関数が削除されていた。PR #57の修復移行で名前のみの開始・送信・読取RPCを本番へ適用し、現在は300秒のランキング送信が成立する状態を確認済みである。旧プレイ番号方式の詳細は移行前の設計履歴として残す。
 
 ただしDBだけを先に再開すると、送信前または送信結果が不明な時点でページが破棄された場合、正当な記録を再送できない。先に未送信結果を端末へ保存し、名前と利用者識別の契約を固めた後でDBを再開する。
 
