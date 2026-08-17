@@ -473,10 +473,10 @@ export class WebGLSainome {
     const phase = this.session.getSnapshot().phase;
     if (phase !== GAME_PHASES.RUNNING && phase !== GAME_PHASES.FINISHING) return null;
 
-    this.manualPaused = false;
-    this.syncSimulationPause();
     const result = this.session.retire(this.getGameTime());
     if (!result) return null;
+    this.manualPaused = false;
+    this.syncSimulationPause();
 
     this.pendingMatchResolution = false;
     this.pendingSpawnCount = 0;
