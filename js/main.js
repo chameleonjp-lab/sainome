@@ -27,15 +27,21 @@ import {
   shareResult
 } from './result-share.js';
 import { PlayerProfile } from './player-profile.js';
-import { RankingClient } from './ranking-client.js';
+import {
+  createSubmissionId,
+  isValidRankingSubmissionId,
+  RankingClient
+} from './ranking-client.js';
 import {
   PendingRankingSubmissions,
   PENDING_RANKING_CHANNEL_NAME
 } from './pending-ranking-submissions.js';
 import {
+  prepareDirectRankingSubmission,
   prepareRankingSubmission,
   classifyRankingFailure,
   SingleFlight,
+  submitPendingDirectRanking,
   submitPendingRanking,
   updateIfCurrentRankingSubmission
 } from './ranking-submission-flow.js';
@@ -493,6 +499,12 @@ function isBrowserOffline() {
   return globalThis.navigator?.onLine === false;
 }
 
+function createDirectSubmissionId() {
+  const generated = createSubmissionId();
+  if (isValidRankingSubmissionId(generated)) return generated;
+  return `direct-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 14)}`;
+}
+
 async function exportPendingRankingRecovery() {
   try {
     const content = await pendingRankingSubmissions.exportRecoveryData();
@@ -565,11 +577,17 @@ async function retryStoredRankingSubmissions() {
 
       for (const submission of batch) {
         try {
-          const { cleanup } = await submitPendingRanking({
-            rankingClient,
-            pendingSubmissions: pendingRankingSubmissions,
-            submission
-          });
+          const { cleanup } = submission.kind === 'direct-name'
+            ? await submitPendingDirectRanking({
+              rankingClient,
+              pendingSubmissions: pendingRankingSubmissions,
+              submission
+            })
+            : await submitPendingRanking({
+              rankingClient,
+              pendingSubmissions: pendingRankingSubmissions,
+              submission
+            });
           if (cleanup.ok) acceptedCount += 1;
           else cleanupErrors += 1;
         } catch (error) {
@@ -685,25 +703,39 @@ async function syncResultRanking(submission, { submit = true } = {}) {
   let rankingRows = null;
   let rankingError = null;
 
+  let cleanupError = null;
   if (submit) {
-    try {
-      if (!rankingClient) throw new Error('Ranking client is unavailable');
-      submitOutcome = await rankingClient.submitScoreDirect({
-        displayName: submission.displayName,
-        modeId: submission.result.modeId,
-        score: submission.result.score
-      });
-      currentSubmission = Object.freeze({
-        ...submission,
-        acceptedOutcome: submitOutcome,
-        canSubmit: false
-      });
-      if (latestRankingSubmission?.runId === submission.runId) {
-        latestRankingSubmission = currentSubmission;
+    if (submission.canSubmit === false) {
+      submitError = new Error('ranking submission is not safe to send');
+    } else {
+      try {
+        if (!rankingClient) throw new Error('Ranking client is unavailable');
+        submitOutcome = await rankingClient.submitScoreDirect({
+          displayName: submission.displayName,
+          modeId: submission.result.modeId,
+          score: submission.result.score
+        });
+        currentSubmission = Object.freeze({
+          ...submission,
+          acceptedOutcome: submitOutcome,
+          canSubmit: false
+        });
+        if (submission.kind === 'direct-name') {
+          try {
+            const cleanup = await pendingRankingSubmissions.markAccepted(currentSubmission);
+            if (!cleanup.ok) cleanupError = cleanup;
+          } catch (error) {
+            console.error(error);
+            cleanupError = { ok: false, code: 'storage-unavailable' };
+          }
+        }
+        if (latestRankingSubmission?.runId === submission.runId) {
+          latestRankingSubmission = currentSubmission;
+        }
+      } catch (error) {
+        console.error(error);
+        submitError = error;
       }
-    } catch (error) {
-      console.error(error);
-      submitError = error;
     }
   }
 
@@ -731,7 +763,14 @@ async function syncResultRanking(submission, { submit = true } = {}) {
     resultRankingStatus.textContent = rankingRows
       ? 'ランキングは表示しましたが、今回の記録を送信できませんでした'
       : '記録を送信できませんでした。通信状態を確認してください';
-    setResultRankingRetryAction('submit', '記録を再送する');
+    setResultRankingRetryAction(
+      submission.canSubmit === false ? null : 'submit',
+      submission.canSubmit === false ? '' : '記録を再送する'
+    );
+  } else if (cleanupError) {
+    resultRankingStatus.textContent =
+      '記録は登録しましたが、端末の未送信表示を更新できませんでした';
+    setResultRankingRetryAction('cleanup', '登録状態を再確認');
   } else if (rankingError) {
     resultRankingStatus.textContent = submitOutcome
       ? '記録は登録しましたが、ランキングを読み込めませんでした'
@@ -847,13 +886,36 @@ function renderSoundToggle(snapshot = soundEffects.getSnapshot()) {
 }
 
 async function preserveFinishedRanking(provisional) {
-  const isLatest = latestRankingSubmission?.runId === provisional.runId;
-  if (isLatest) {
-    latestRankingSubmission = provisional;
+  let prepared;
+  try {
+    prepared = await prepareDirectRankingSubmission({
+      pendingSubmissions: pendingRankingSubmissions,
+      displayName: provisional.displayName,
+      result: provisional.result,
+      now: () => Date.now(),
+      submissionId: createDirectSubmissionId()
+    });
+    prepared = Object.freeze({
+      ...prepared,
+      runId: provisional.runId
+    });
+  } catch (error) {
+    console.error(error);
+    prepared = Object.freeze({
+      ...provisional,
+      canSubmit: false,
+      persisted: false,
+      pendingSaveCode: 'invalid-submission'
+    });
+  }
+
+  if (latestRankingSubmission?.runId === provisional.runId) {
+    latestRankingSubmission = prepared;
+    renderRankingStorageWarning(prepared);
     resultRankingStatus.textContent = '記録を送信しています…';
     setResultRankingRetryAction(null);
   }
-  await syncResultRanking(provisional);
+  await syncResultRanking(prepared);
 }
 
 function formatSavedGameSummary(state) {
