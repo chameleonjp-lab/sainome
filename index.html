@@ -18,11 +18,14 @@
 <body>
   <main id="app" class="app" data-screen="home">
     <header class="hud" aria-label="ゲームの状況">
-      <div class="brand"><span id="mode-brand">300 SECOND PUZZLE</span><strong>サイノメ</strong></div>
-      <div id="time-panel" class="hud-item"><span>TIME</span><strong id="remaining-time">300</strong></div>
-      <div id="score-panel" class="hud-item hud-score"><span>SCORE</span><strong id="score-count">0</strong></div>
-      <div class="hud-item"><span>CHAIN</span><strong id="chain-count">0</strong></div>
-      <div class="hud-item"><span>CLEAR</span><strong id="clear-count">0</strong></div>
+      <div class="hud-stats">
+        <div class="brand"><span id="mode-brand">300 SECOND PUZZLE</span><strong>サイノメ</strong></div>
+        <div id="time-panel" class="hud-item"><span>TIME</span><strong id="remaining-time">300</strong></div>
+        <div id="score-panel" class="hud-item hud-score"><span>SCORE</span><strong id="score-count">0</strong></div>
+        <div class="hud-item"><span>CHAIN</span><strong id="chain-count">0</strong></div>
+        <div class="hud-item"><span>CLEAR</span><strong id="clear-count">0</strong></div>
+      </div>
+      <button id="pause-button" class="pause-button" type="button" aria-label="ゲームを一時停止" hidden>一時停止</button>
     </header>
 
     <section id="stage" class="stage" aria-label="サイノメの3Dゲーム画面">
@@ -165,6 +168,16 @@
       <section id="countdown-screen" class="screen-panel countdown-screen" aria-live="assertive" hidden>
         <p>READY</p>
         <strong id="countdown-value">3</strong>
+      </section>
+
+      <section id="pause-screen" class="screen-panel pause-screen" aria-labelledby="pause-title" hidden>
+        <p class="screen-kicker">GAME PAUSED</p>
+        <h2 id="pause-title">一時停止中</h2>
+        <p class="pause-lead">時間は止まっています</p>
+        <div class="pause-actions">
+          <button id="resume-button" class="primary-button" type="button">再開</button>
+          <button id="retire-button" class="secondary-button" type="button">リタイア</button>
+        </div>
       </section>
 
       <section id="result-screen" class="screen-panel result-screen" aria-labelledby="result-title" hidden>
