@@ -4,6 +4,7 @@ import {
   RankingError,
   RANKING_CLIENT_VERSION,
   RANKING_GAME_SLUGS,
+  RANKING_NAME_CONTRACT_VERSION,
   RANKING_SUBMISSION_CONTRACT_VERSION
 } from './ranking-client.js';
 import { validatePlayerName } from './player-profile.js';
@@ -145,6 +146,74 @@ export async function prepareRankingSubmission({
     pendingSaveCode: queued.code,
     canSubmit
   });
+}
+
+export async function prepareDirectRankingSubmission({
+  pendingSubmissions,
+  displayName,
+  result,
+  now = () => Date.now(),
+  submissionId
+}) {
+  if (!pendingSubmissions || typeof pendingSubmissions.enqueue !== 'function') {
+    throw new TypeError('pendingSubmissions is invalid');
+  }
+  if (typeof now !== 'function') {
+    throw new TypeError('submission clock is invalid');
+  }
+  requireCanonicalPlayerName(displayName);
+  if (!isValidRankingSubmissionId(submissionId)) {
+    throw new TypeError('direct submissionId is invalid');
+  }
+
+  const candidate = Object.freeze({
+    kind: 'direct-name',
+    submissionId,
+    contractVersion: RANKING_NAME_CONTRACT_VERSION,
+    clientVersion: RANKING_CLIENT_VERSION,
+    displayName,
+    result,
+    createdAt: now()
+  });
+  const queued = await pendingSubmissions.enqueue(candidate);
+  const canSubmit = queued.ok || queued.code === 'queue-full';
+
+  return Object.freeze({
+    ...candidate,
+    persisted: queued.persisted,
+    pendingSaveCode: queued.code,
+    canSubmit
+  });
+}
+
+export async function submitPendingDirectRanking({
+  rankingClient,
+  pendingSubmissions,
+  submission
+}) {
+  if (submission?.canSubmit === false) {
+    throw new Error('ranking submission is not safe to send');
+  }
+  if (submission?.kind !== 'direct-name') {
+    throw new TypeError('direct ranking submission is invalid');
+  }
+  requireCanonicalPlayerName(submission.displayName);
+
+  const outcome = await rankingClient.submitScoreDirect({
+    displayName: submission.displayName,
+    modeId: submission.result.modeId,
+    score: submission.result.score
+  });
+  if (
+    outcome?.accepted !== true
+    || outcome.displayName !== submission.displayName
+    || outcome.gameSlug !== RANKING_GAME_SLUGS[submission.result.modeId]
+    || outcome.submittedScore !== submission.result.score
+  ) {
+    throw new Error('ranking acceptance does not match the saved submission');
+  }
+  const cleanup = await pendingSubmissions.markAccepted(submission);
+  return Object.freeze({ outcome, cleanup });
 }
 
 export async function submitPendingRanking({
