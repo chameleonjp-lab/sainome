@@ -654,26 +654,24 @@ function setResultRankingRetryAction(action, label = '') {
 
 async function syncResultRanking(submission, { submit = true } = {}) {
   if (!submission || rankingPendingRunIds.has(submission.runId)) return;
-  const shouldSubmit = submit && !submission.acceptedOutcome;
-  if (!shouldSubmit && !submission.acceptedOutcome) return;
-  if (shouldSubmit && isBrowserOffline()) {
+  if (submit && isBrowserOffline()) {
     if (isCurrentRankingSubmission(submission)) {
       resultRankingStatus.textContent =
-        '現在オフラインのため送信を開始しません。接続後に「記録を再送する」を押してください';
+        '現在オフラインのため記録を送信できません。接続後に「記録を再送する」を押してください';
       setResultRankingRetryAction('submit', '記録を再送する');
     }
     return;
   }
 
   setRankingPending(submission, true);
-    updateIfCurrentRankingSubmission({
+  updateIfCurrentRankingSubmission({
     submission,
     isCurrent: isCurrentRankingSubmission,
     update: () => {
       setResultRankingRetryAction(null);
-      resultRankingStatus.textContent = shouldSubmit
+      resultRankingStatus.textContent = submit
         ? '記録を送信しています…'
-        : 'ランキングを再読み込みしています…';
+        : 'ランキングを読み込んでいます…';
     }
   });
 
@@ -682,54 +680,30 @@ async function syncResultRanking(submission, { submit = true } = {}) {
   let submitError = null;
   let rankingRows = null;
   let rankingError = null;
-  let pendingCleanupError = false;
-  let isolated = false;
 
-  if (shouldSubmit) {
+  if (submit) {
     try {
       if (!rankingClient) throw new Error('Ranking client is unavailable');
-      const submitted = await submitPendingRanking({
-        rankingClient,
-        pendingSubmissions: pendingRankingSubmissions,
-        submission
+      submitOutcome = await rankingClient.submitScoreDirect({
+        displayName: submission.displayName,
+        modeId: submission.result.modeId,
+        score: submission.result.score
       });
-      submitOutcome = submitted.outcome;
-      pendingCleanupError = !submitted.cleanup.ok;
       currentSubmission = Object.freeze({
         ...submission,
-        acceptedOutcome: submitOutcome
+        acceptedOutcome: submitOutcome,
+        canSubmit: false
       });
       if (latestRankingSubmission?.runId === submission.runId) {
         latestRankingSubmission = currentSubmission;
       }
-      updateIfCurrentRankingSubmission({
-        submission: currentSubmission,
-        isCurrent: isCurrentRankingSubmission,
-        update: () => renderRankingStorageWarning(null)
-      });
-      notifyPendingRankingChange();
-      await renderPendingRankingPanel();
     } catch (error) {
       console.error(error);
       submitError = error;
-      if (classifyRankingFailure(error) === 'permanent') {
-        const quarantined = await pendingRankingSubmissions.quarantine(submission, {
-          reason: 'ranking-submit-permanent-rejection',
-          code: error?.serverCode ?? error?.code ?? 'request-rejected'
-        });
-        isolated = quarantined.ok;
-        if (isolated) {
-          notifyPendingRankingChange();
-          await renderPendingRankingPanel();
-        }
-      }
     }
   }
 
-  const submitFailureKind = submitError ? classifyRankingFailure(submitError) : null;
-  const shouldLoadRanking = !submitError
-    || (submitFailureKind === 'permanent' && !isBrowserOffline());
-  if (shouldLoadRanking) {
+  if (!isBrowserOffline()) {
     try {
       if (!rankingClient) throw new Error('Ranking client is unavailable');
       rankingRows = await rankingClient.getTopRanking(currentSubmission.result.modeId);
@@ -745,47 +719,34 @@ async function syncResultRanking(submission, { submit = true } = {}) {
   }
 
   setRankingPending(currentSubmission, false);
+  renderRankingStorageWarning(null);
+  if (rankingRows) renderRankingRows(rankingRows);
+  else clearRankingRows();
 
-  if (rankingRows) {
-    renderRankingRows(rankingRows);
-  } else {
-    clearRankingRows();
-  }
-
-  if (submitError && isolated) {
+  if (submitError) {
     resultRankingStatus.textContent = rankingRows
-      ? '今回の記録は受け付けられなかったため隔離しました。ランキングを表示しています'
-      : '今回の記録は受け付けられなかったため隔離しました';
-    setResultRankingRetryAction(null);
-  } else if (submitError && submitFailureKind === 'permanent') {
-    resultRankingStatus.textContent =
-      '今回の記録は受け付けられませんでした。保全に失敗したため記録は保持しています';
-    setResultRankingRetryAction(null);
-  } else if (submitError) {
-    const failureMessage = rankingRows
-      ? '順位は表示できましたが、今回の記録を送信できませんでした'
+      ? 'ランキングは表示しましたが、今回の記録を送信できませんでした'
       : '記録を送信できませんでした。通信状態を確認してください';
-    resultRankingStatus.textContent = currentSubmission.persisted
-      ? `${failureMessage}。未送信記録は端末に保存しています`
-      : `${failureMessage}。端末にも保存できないため、この画面を閉じないでください`;
     setResultRankingRetryAction('submit', '記録を再送する');
-  } else if (pendingCleanupError) {
-    resultRankingStatus.textContent =
-      '記録は登録しましたが、端末の未送信表示を更新できませんでした';
-    setResultRankingRetryAction('cleanup', '登録状態を再確認');
   } else if (rankingError) {
-    resultRankingStatus.textContent = '記録は登録しましたが、ランキングを読み込めませんでした';
+    resultRankingStatus.textContent = submitOutcome
+      ? '記録は登録しましたが、ランキングを読み込めませんでした'
+      : 'ランキングを読み込めませんでした';
     setResultRankingRetryAction('ranking', 'ランキングを再読込');
-  } else if (rankingRows?.length === 0) {
-    resultRankingStatus.textContent = '記録を登録しました。ランキングは集計中です';
-  } else if (submitOutcome.wasDuplicate) {
-    resultRankingStatus.textContent = '登録済みの記録とランキングを確認しました';
-  } else if (submitOutcome.isFirstPlay) {
+  } else if (submitOutcome?.isFirstPlay) {
     resultRankingStatus.textContent = '初回記録を登録しました';
-  } else if (submitOutcome.isNewBest) {
+    setResultRankingRetryAction(null);
+  } else if (submitOutcome?.isNewBest) {
     resultRankingStatus.textContent = 'ランキングの自己ベストを更新しました';
-  } else {
+    setResultRankingRetryAction(null);
+  } else if (submitOutcome) {
     resultRankingStatus.textContent = '記録を登録しました';
+    setResultRankingRetryAction(null);
+  } else {
+    resultRankingStatus.textContent = rankingRows?.length
+      ? 'ランキングを読み込みました'
+      : 'ランキングに記録がありません';
+    setResultRankingRetryAction(null);
   }
 }
 
@@ -879,65 +840,13 @@ function renderSoundToggle(snapshot = soundEffects.getSnapshot()) {
 }
 
 async function preserveFinishedRanking(provisional) {
-  let prepared;
-  try {
-    prepared = await prepareRankingSubmission({
-      pendingSubmissions: pendingRankingSubmissions,
-      displayName: provisional.displayName,
-      result: provisional.result,
-      playTicket: provisional.playTicket
-    });
-  } catch (error) {
-    console.error(error);
-    if (latestRankingSubmission?.runId === provisional.runId) {
-      const failed = Object.freeze({
-        ...provisional,
-        pendingSaveCode: 'storage-unavailable'
-      });
-      latestRankingSubmission = failed;
-      renderRankingStorageWarning(failed);
-      resultRankingStatus.textContent = '記録を安全に保存できないため、今回の送信を止めました';
-      resultRankingRetry.hidden = true;
-    }
-    return;
-  }
-
-  const submission = Object.freeze({ ...prepared, runId: provisional.runId });
   const isLatest = latestRankingSubmission?.runId === provisional.runId;
-  if (isLatest) latestRankingSubmission = submission;
-  notifyPendingRankingChange();
-  await renderPendingRankingPanel();
-
-  if (submission.pendingSaveCode === 'ticket-unavailable') {
-    if (isLatest && isCurrentRankingSubmission(submission)) {
-      renderRankingStorageWarning(submission);
-      resultRankingStatus.textContent =
-        'このプレイはランキング対象外です。次回の開始時に受付を再試行します';
-      setResultRankingRetryAction(null);
-    }
-    if (rankingClient) {
-      try {
-        const rankingRows = await rankingClient.getTopRanking(submission.result.modeId);
-        if (isCurrentRankingSubmission(submission)) renderRankingRows(rankingRows);
-      } catch (error) {
-        console.error(error);
-      }
-    }
-    return;
+  if (isLatest) {
+    latestRankingSubmission = provisional;
+    resultRankingStatus.textContent = '記録を送信しています…';
+    setResultRankingRetryAction(null);
   }
-
-  if (isLatest && isCurrentRankingSubmission(submission)) {
-    renderRankingStorageWarning(submission);
-    if (submission.canSubmit) {
-      resultRankingStatus.textContent = 'ランキングを読み込んでいます…';
-      setResultRankingRetryAction(null);
-    } else {
-      resultRankingStatus.textContent = '記録を安全に送信できないため、今回の送信を止めました';
-      setResultRankingRetryAction(null);
-    }
-  }
-
-  if (submission.canSubmit) void syncResultRanking(submission);
+  await syncResultRanking(provisional);
 }
 
 function formatSavedGameSummary(state) {
@@ -1306,17 +1215,15 @@ const gameCallbacks = {
     if (!next) return;
     setStartPending(true);
     const gameStateCleanup = clearFinishedGameState();
-    const playTicket = activePlayTicket;
     activePlayTicket = null;
     latestRecordOutcome = bestRecords.recordResult(next.result);
     const provisional = Object.freeze({
       runId: ++rankingRunId,
       displayName: activePlayerName,
       result: next.result,
-      playTicket,
-      persisted: false,
-      pendingSaveCode: 'preparing',
-      canSubmit: false
+      persisted: true,
+      pendingSaveCode: null,
+      canSubmit: true
     });
     latestRankingSubmission = provisional;
     clearRankingRows();
@@ -1653,12 +1560,12 @@ async function startRound() {
     return;
   }
 
-  // サーバー発行番号は3カウントより前に取得する。失敗してもゲームは開始するが、
-  // 結果確定後に番号を遡って発行することはしない。
+  // プレイ開始時に名前だけでプレイ回数を1回増やす。
+  // 通信に失敗してもゲーム自体は開始し、結果画面で送信を再試行できる。
   activePlayTicket = null;
   if (rankingClient) {
     try {
-      activePlayTicket = await rankingClient.issuePlay({
+      await rankingClient.startPlay({
         displayName: roundPlayerName,
         modeId: roundMode.id
       });
