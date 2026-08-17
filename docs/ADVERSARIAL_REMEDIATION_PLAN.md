@@ -2,23 +2,23 @@
 
 作成日：2026年8月9日  
 対象基準：`main`（PR #48 merge後、`783926c`）
-更新日：2026年8月17日（PR #57マージ後）
+更新日：2026年8月17日（共通ランキング整合後）
 
-進捗：第1〜第10工程は実装・自動検査完了。PR #57（merge `19c57375ffbe904c3b8c5401d7244b6f60f39d9b`）で、300秒の名前のみランキングを本番へ接続し、開始時にプレイ回数を加算、終了時にスコアを登録、結果画面でランキングを取得する経路を修復した。第11工程の実機受入は、同一候補版の実機記録が揃うまで未完了とする。
+進捗：第1〜第10工程は実装・自動検査完了。300秒の名前のみランキングは、本番の全ゲーム共通`game_play_events`・`game_scores`へ整合した。開始時にプレイ回数を加算し、終了時にスコアを登録し、ゲーム結果画面と実験場が同じランキングを取得する。第11工程の実機受入は、同一候補版の実機記録が揃うまで未完了とする。
 
 ## 現行本番状態（2026年8月17日確認）
 
-- Supabase migration `20260817124110_repair_sainome_simple_name_ranking` が適用済み。
+- Supabase migrations `20260817124110_repair_sainome_simple_name_ranking`、`20260817133002_align_sainome_with_shared_ranking` が適用済み。
 - `private.sainome_v2_config.accepting_runs=true`、`ranking_enable_not_before`は現在時刻以前、`public.games.sainome_300_seconds.is_active=true`を確認した。
-- `public.start_sainome_play`、`public.submit_sainome_score`、`public.get_sainome_ranking_v2`が存在し、いずれも空の`search_path`を持つ`SECURITY DEFINER`。新しい名前のみ3関数はanonへ実行権限を限定している。
-- anonロールで開始→送信→ランキング取得をトランザクション内で確認し、ロールバック後の本番件数は`sainome_v2_scores=0`、`sainome_v2_player_keys=0`、公開`sainome_*`得点行=`0`だった。確認用データは残していない。
+- 新規クライアントは全ゲーム共通の`public.record_game_play`、`public.submit_score`、`public.get_best_score_ranking`を使う。`public.start_sainome_play`、`public.submit_sainome_score`、`public.get_sainome_ranking_v2`は、旧キャッシュ向けに同じ共通テーブルへ橋渡しする。
+- anonロールで開始→送信→共通ランキング取得→旧RPCランキング取得をトランザクション内で確認した。ロールバック後の`game_play_events`、`game_scores`、旧`sainome_v2_scores`はいずれもサイノメ0件で、確認用データは残していない。
 - 60秒・180秒は新規受付の対象外で、既存の保存・未送信記録だけを互換用に保全する。
 - Supabase Advisorの既知のRLS・既存関数権限・インデックス警告は、今回の名前のみ経路の新規障害とは切り分けて残課題として扱う。
 
 ## 現行300秒ランキング契約
 
 - 正規化済み表示名とPublishable keyでRPCを呼び出す。Anonymous Auth、UID、サーバー発行プレイ番号は新規プレイで使わない。
-- 開始時は`start_sainome_play`でプレイ回数を1増やし、終了時は`submit_sainome_score`でスコアを登録し、結果画面で`get_sainome_ranking_v2`を取得する。
+- 開始時は`record_game_play`で共通プレイイベントを1件増やし、終了時は`submit_score`で共通得点を登録し、結果画面と実験場は`get_best_score_ranking`を取得する。旧サイノメ専用RPCも同じ共通データを読み書きする。
 - 表示名は重複可能で、同名入力のなりすましは防げない。本人確認が必要な用途には使わない。
 - 失敗した結果は端末へ保全して手動再送する。旧プレイ番号方式の保存記録は自動変換せず互換用に扱う。
 
@@ -35,7 +35,7 @@
 
 ## 2. 対応順の判断
 
-本番DBでは以前、サイノメ用のゲーム登録と得点登録関数が削除されていた。PR #57の修復移行で名前のみの開始・送信・読取RPCを本番へ適用し、現在は300秒のランキング送信が成立する状態を確認済みである。旧プレイ番号方式の詳細は移行前の設計履歴として残す。
+本番DBでは以前、サイノメ用のゲーム登録と得点登録関数が削除され、その後の修復でもサイノメだけ専用テーブルへ分離されていた。実験場は全ゲーム共通の`get_best_score_ranking`しか読まないため、専用側へ送れても実験場には表示されない構成だった。移行`20260817133002`で共通ランキングを唯一の表示元にし、旧専用RPCは共通データへの互換橋渡しへ変更した。旧プレイ番号方式の詳細は移行前の設計履歴として残す。
 
 ただしDBだけを先に再開すると、送信前または送信結果が不明な時点でページが破棄された場合、正当な記録を再送できない。先に未送信結果を端末へ保存し、名前と利用者識別の契約を固めた後でDBを再開する。
 

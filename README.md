@@ -25,7 +25,7 @@
 - ランキング受付前の結果をIndexedDBトランザクションで端末へ保全し、300秒の名前のみ方式を手動で再送（旧プレイ番号方式の保存記録も互換読み取り）
 - ランキング名のゲーム内の保存・送信経路を同じ検査へ統一し、不正な旧ランキング行だけを非表示
 - ランキング名を双方向隔離して表示し、匿名の本人判定は行わず、同名入力によるなりすましリスクを明示
-- 本番Supabaseの300秒名前のみランキングをPublishable key（anonロール）で接続し、開始時のプレイ回数加算、終了時のスコア登録、結果画面のランキング取得を行う。60秒・180秒の新規受付は行わず、旧記録は保全
+- 本番Supabaseの全ゲーム共通ランキングへPublishable key（anonロール）で接続し、開始時は`record_game_play`、終了時は`submit_score`、結果画面と実験場は`get_best_score_ranking`を使う。旧サイノメ専用RPCも共通テーブルへ橋渡しし、キャッシュ済み画面から別ランキングへ記録されることを防ぐ。60秒・180秒の新規受付は行わず、旧記録は保全
 - 登録成功後の順位再読込を得点再送から分離し、失効・内容不一致は保全領域へ隔離、早すぎる送信・受付停止は未送信のまま残して後続記録を続行
 - 破損データと旧`shared-v1`記録を自動変換せず保全し、非破壊エクスポートと確認付き削除を提供
 - iPhone向けの盤面に沿った斜め4方向フリック
@@ -153,6 +153,7 @@ test/pending-ranking-wiring.test.js
 test/sainome-ranking-submission-contract-migration.test.js
 test/sainome-ranking-v2-migration.test.js
 test/sainome-300-seconds-migration.test.js
+test/shared-ranking-alignment-migration.test.js
 test/tutorial-slides.test.js
 test/ui-flow.test.js
 contracts/player-name-v1.json
@@ -161,6 +162,7 @@ supabase/migrations/20260810120000_sainome_ranking_v2.sql
 supabase/migrations/20260811090000_sainome_unicode_name_contract.sql
 supabase/migrations/20260813032103_harden_sainome_ranking_submission_contract.sql
 supabase/migrations/20260816090000_sainome_300_seconds.sql
+supabase/migrations/20260817133002_align_sainome_with_shared_ranking.sql
 archive/60-second/README.md
 archive/60-second/dice.js
 archive/60-second/game-modes.js
