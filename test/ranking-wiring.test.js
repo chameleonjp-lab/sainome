@@ -47,7 +47,7 @@ test('名前を確認してから開始し、結果確定時に名前だけで�
     startFunction.indexOf('rankingClient.startPlay(') < startFunction.indexOf('flow.beginCountdown()'),
     true
   );
-  assert.match(main, /async function preserveFinishedRanking[\s\S]*?syncResultRanking\(provisional\)/);
+  assert.match(main, /async function preserveFinishedRanking[\s\S]*?prepareDirectRankingSubmission[\s\S]*?syncResultRanking\(prepared\)/);
   assert.match(main, /rankingClient\.submitScoreDirect\(/);
   assert.match(main, /rankingClient\.getTopRanking\(currentSubmission\.result\.modeId\)/);
   assert.doesNotMatch(main, /rankingClient\.issuePlay\(/);
