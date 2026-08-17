@@ -8,6 +8,7 @@ import {
 } from '../js/pending-ranking-submissions.js';
 import {
   RANKING_CLIENT_VERSION,
+  RANKING_NAME_CONTRACT_VERSION,
   RANKING_SUBMISSION_CONTRACT_VERSION
 } from '../js/ranking-client.js';
 
@@ -168,6 +169,35 @@ test('通信前に契約版とクライアント版付きで保存し、作り�
   const restored = await restoredManager.refresh();
   assert.equal(restored.count, 1);
   assert.deepEqual(restored.items[0], createSubmission());
+});
+
+test('プレイ番号なしの直接送信結果も端末へ保存して復元できる', async () => {
+  const storage = createAtomicMemoryStorage();
+  const direct = {
+    kind: 'direct-name',
+    submissionId: 'direct-test-12345678',
+    contractVersion: RANKING_NAME_CONTRACT_VERSION,
+    clientVersion: RANKING_CLIENT_VERSION,
+    displayName: 'プレイヤー',
+    result: {
+      modeId: '300-seconds',
+      score: 3200,
+      clearedDice: 8,
+      maxChain: 2,
+      endedReason: 'retired'
+    },
+    createdAt: CREATED_AT
+  };
+  const pending = new PendingRankingSubmissions({ storage });
+  const queued = await pending.enqueue(direct);
+
+  assert.equal(queued.ok, true);
+  assert.equal(queued.persisted, true);
+  const restored = new PendingRankingSubmissions({ storage });
+  const snapshot = await restored.refresh();
+  assert.equal(snapshot.count, 1);
+  assert.deepEqual(snapshot.items[0], direct);
+  assert.equal(JSON.parse(storage.peek(direct.submissionId).serialized).submission.kind, 'direct-name');
 });
 
 test('無効な名前は保存処理を呼ばずinvalid-submissionとして拒否する', async () => {
