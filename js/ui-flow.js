@@ -5,6 +5,7 @@ export const SCREEN_PHASES = Object.freeze({
   TUTORIAL: 'tutorial',
   COUNTDOWN: 'countdown',
   PLAYING: 'playing',
+  PAUSED: 'paused',
   RESULT: 'result'
 });
 
@@ -105,8 +106,27 @@ export class GameFlow {
     return this.getSnapshot();
   }
 
-  finish(result) {
+  pausePlaying() {
     if (this.screen !== SCREEN_PHASES.PLAYING) return null;
+
+    this.screen = SCREEN_PHASES.PAUSED;
+    this.countdown = 0;
+    return this.getSnapshot();
+  }
+
+  resumePaused() {
+    if (this.screen !== SCREEN_PHASES.PAUSED) return null;
+
+    this.screen = SCREEN_PHASES.PLAYING;
+    this.countdown = 0;
+    return this.getSnapshot();
+  }
+
+  finish(result) {
+    if (
+      this.screen !== SCREEN_PHASES.PLAYING
+      && this.screen !== SCREEN_PHASES.PAUSED
+    ) return null;
     this.result = normalizeResult(result);
     this.screen = SCREEN_PHASES.RESULT;
     this.countdown = 0;
