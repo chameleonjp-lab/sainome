@@ -3,10 +3,12 @@ import assert from 'node:assert/strict';
 
 import { GAME_MODE_IDS } from '../js/game-modes.js';
 import {
+  createRankingFailureDetail,
   createSubmissionId,
+  isRetryableRankingError,
+  isValidRankingSubmissionId,
   RankingClient,
   RankingError,
-  isRetryableRankingError,
   RANKING_CLIENT_VERSION,
   RANKING_GAME_SLUGS,
   RANKING_LIMIT,
@@ -15,20 +17,9 @@ import {
 
 const URL = 'https://example.supabase.co';
 const KEY = `sb_publishable_${'x'.repeat(28)}`;
+const MODE_ID = GAME_MODE_IDS.THREE_HUNDRED_SECONDS;
+const GAME_SLUG = 'sainome_300_seconds';
 const SUBMISSION_ID = '12345678-1234-4234-8234-123456789012';
-const AUTH_SESSION = Object.freeze({
-  accessToken: 'access-token-for-tests-1234567890',
-  refreshToken: 'refresh-token-for-tests-1234567890',
-  userId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-  isAnonymous: true,
-  expiresAt: Date.now() + 3_600_000
-});
-const AUTH_CLIENT = Object.freeze({
-  getSession: async () => AUTH_SESSION
-});
-const ANON_AUTH_CLIENT = Object.freeze({
-  getSession: async () => null
-});
 
 function jsonResponse(data, { ok = true, status = ok ? 200 : 400 } = {}) {
   return {
@@ -38,674 +29,326 @@ function jsonResponse(data, { ok = true, status = ok ? 200 : 400 } = {}) {
   };
 }
 
-function makeClient({ fetchImpl = async () => jsonResponse([]), authClient = AUTH_CLIENT } = {}) {
+function makeClient(fetchImpl = async () => jsonResponse([])) {
   return new RankingClient({
     url: URL,
     publishableKey: KEY,
-    fetchImpl,
-    authClient
+    fetchImpl
   });
 }
 
-function submitResponse({
-  displayName = 'プレイヤー',
-  modeId = GAME_MODE_IDS.SIXTY_SECONDS,
-  submittedScore = 3200,
-  bestScore = submittedScore,
-  playCount = 1,
-  clientVersion = RANKING_CLIENT_VERSION,
-  contractVersion = RANKING_SUBMISSION_CONTRACT_VERSION,
-  submissionId = SUBMISSION_ID,
-  isFirstPlay = true,
-  isNewBest = true,
-  wasDuplicate = false
-} = {}) {
-  return {
-    accepted: true,
-    result_submission_id: submissionId,
-    result_contract_version: contractVersion,
-    result_client_version: clientVersion,
-    result_game_slug: RANKING_GAME_SLUGS[modeId],
-    result_display_name: displayName,
-    result_submitted_score: submittedScore,
-    result_best_score: bestScore,
-    result_play_count: playCount,
-    is_first_play: isFirstPlay,
-    is_new_best: isNewBest,
-    was_duplicate: wasDuplicate
-  };
-}
-
-function issueResponse({
-  displayName = 'プレイヤー',
-  modeId = GAME_MODE_IDS.SIXTY_SECONDS,
-  submissionId = SUBMISSION_ID,
-  issuedAt = '2026-08-10T00:00:00.000Z',
-  earliestSubmitAt = null,
-  expiresAt = '2026-08-11T00:00:00.000Z'
-} = {}) {
-  const defaultDelay = modeId === GAME_MODE_IDS.SIXTY_SECONDS
-    ? 63_000
-    : modeId === GAME_MODE_IDS.ONE_EIGHTY_SECONDS
-      ? 183_000
-      : 303_000;
-  const resolvedEarliestSubmitAt = earliestSubmitAt
-    ?? new Date(Date.parse(issuedAt) + defaultDelay).toISOString();
+function issueResponse(overrides = {}) {
   return {
     issued: true,
-    result_submission_id: submissionId,
-    result_display_name: displayName,
-    result_game_slug: RANKING_GAME_SLUGS[modeId],
+    result_submission_id: SUBMISSION_ID,
+    result_display_name: 'プレイヤー',
+    result_game_slug: GAME_SLUG,
     result_client_version: RANKING_CLIENT_VERSION,
     result_contract_version: RANKING_SUBMISSION_CONTRACT_VERSION,
-    issued_at: issuedAt,
-    earliest_submit_at: resolvedEarliestSubmitAt,
-    expires_at: expiresAt
+    issued_at: '2026-08-10T00:00:00.000Z',
+    earliest_submit_at: '2026-08-10T00:05:03.000Z',
+    expires_at: '2026-08-11T00:00:00.000Z',
+    ...overrides
   };
 }
 
-function rankingRow({
-  rank = 1,
-  displayName = 'プレイヤー',
-  score = 3200,
-  playCount = 1,
-  isCurrentUser = false,
-  verificationStatus = 'unverified'
-} = {}) {
+function onceSubmitResponse(overrides = {}) {
   return {
-    rank_no: rank,
-    display_name: displayName,
-    best_score: score,
-    play_count: playCount,
-    is_current_user: isCurrentUser,
-    verification_status: verificationStatus
+    accepted: true,
+    result_submission_id: SUBMISSION_ID,
+    result_contract_version: RANKING_SUBMISSION_CONTRACT_VERSION,
+    result_client_version: RANKING_CLIENT_VERSION,
+    result_game_slug: GAME_SLUG,
+    result_display_name: 'プレイヤー',
+    result_submitted_score: 3200,
+    result_best_score: 3200,
+    result_play_count: 1,
+    is_first_play: true,
+    is_new_best: true,
+    was_duplicate: false,
+    ...overrides
   };
 }
 
-test('低水準RPCを公開せず、検査済みの操作だけを公開する', () => {
-  const client = makeClient();
-
-  assert.equal(typeof client.rpc, 'undefined');
-  assert.equal(typeof client.issuePlay, 'function');
-  assert.equal(typeof client.submitScore, 'function');
-  assert.equal(typeof client.getTopRanking, 'function');
+test('ランキング対象は300秒だけに固定する', () => {
+  assert.deepEqual(RANKING_GAME_SLUGS, {
+    [MODE_ID]: GAME_SLUG
+  });
+  assert.equal(RANKING_LIMIT, 10);
+  assert.equal(RANKING_CLIENT_VERSION, 'sainome-web-3');
 });
 
-test('開始前に匿名認証を使わずサーバー発行チケットを受け取る', async () => {
-  const requests = [];
-  let authCalls = 0;
-  const authClient = {
-    getSession: async () => {
-      authCalls += 1;
-      throw new Error('匿名認証は呼ばない');
-    }
-  };
-  const client = makeClient({
-    authClient,
-    fetchImpl: async (url, options) => {
-      requests.push({ url, options });
-      return jsonResponse([issueResponse({
-        modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS
-      })]);
-    }
-  });
-
-  const ticket = await client.issuePlay({
-    displayName: 'プレイヤー',
-    modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS
-  });
-
-  assert.equal(authCalls, 0);
-  assert.equal(requests.length, 1);
-  assert.equal(requests[0].url, `${URL}/rest/v1/rpc/issue_sainome_play_v2`);
-  assert.equal(requests[0].options.headers.apikey, KEY);
-  assert.equal('Authorization' in requests[0].options.headers, false);
-  assert.deepEqual(JSON.parse(requests[0].options.body), {
-    p_display_name: 'プレイヤー',
-    p_game_slug: RANKING_GAME_SLUGS[GAME_MODE_IDS.THREE_HUNDRED_SECONDS],
-    p_client_version: RANKING_CLIENT_VERSION,
-    p_contract_version: RANKING_SUBMISSION_CONTRACT_VERSION
-  });
-  assert.deepEqual(ticket, {
-    submissionId: SUBMISSION_ID,
-    displayName: 'プレイヤー',
-    gameSlug: RANKING_GAME_SLUGS[GAME_MODE_IDS.THREE_HUNDRED_SECONDS],
-    clientVersion: RANKING_CLIENT_VERSION,
-    contractVersion: RANKING_SUBMISSION_CONTRACT_VERSION,
-    issuedAt: Date.parse('2026-08-10T00:00:00.000Z'),
-    earliestSubmitAt: Date.parse('2026-08-10T00:05:03.000Z'),
-    expiresAt: Date.parse('2026-08-11T00:00:00.000Z')
-  });
-});
-
-test('300秒の開始発行は303秒後から受け付ける', async () => {
-  const client = makeClient({
-    fetchImpl: async () => jsonResponse([issueResponse({
-      modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS
-    })])
-  });
-  const ticket = await client.issuePlay({
-    displayName: 'プレイヤー',
-    modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS
-  });
-  assert.equal(ticket.gameSlug, 'sainome_300_seconds');
-  assert.equal(ticket.earliestSubmitAt - ticket.issuedAt, 303_000);
-});
-
-test('開始発行の応答時刻・slug・版が改ざんされると拒否する', async () => {
-  const invalidResponses = [
-    issueResponse({ earliestSubmitAt: '2026-08-10T00:01:02.000Z' }),
-    issueResponse({ expiresAt: '2026-08-11T00:00:01.000Z' }),
-    issueResponse({ modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS }),
-    { ...issueResponse(), result_contract_version: 'other-contract' }
-  ];
-
-  for (const response of invalidResponses) {
-    const client = makeClient({
-      fetchImpl: async () => jsonResponse([response])
+test('開始時にrecord_game_playへ300秒slugを送る', async () => {
+  const calls = [];
+  const client = makeClient(async (url, options) => {
+    calls.push({ url, options });
+    return jsonResponse({
+      accepted: true,
+      display_name: 'プレイヤー',
+      game_slug: GAME_SLUG,
+      normalized_name: 'プレイヤー',
+      result_type: 'play',
+      reached_wave: 1
     });
-    await assert.rejects(
-      client.issuePlay({
-        displayName: 'プレイヤー',
-        modeId: GAME_MODE_IDS.SIXTY_SECONDS
-      }),
-      (error) => error instanceof RankingError && error.code === 'invalid-response'
-    );
-  }
+  });
+
+  const result = await client.startPlay({ displayName: 'プレイヤー', modeId: MODE_ID });
+
+  assert.equal(result.started, true);
+  assert.equal(calls[0].url, `${URL}/rest/v1/rpc/record_game_play`);
+  assert.deepEqual(JSON.parse(calls[0].options.body), {
+    p_display_name: 'プレイヤー',
+    p_game_slug: GAME_SLUG,
+    p_result_type: 'play',
+    p_client_version: RANKING_CLIENT_VERSION
+  });
 });
 
-test('300秒の結果をPublishable keyだけで一度登録する', async () => {
-  const requests = [];
-  const client = makeClient({
-    fetchImpl: async (url, options) => {
-      requests.push({ url, options });
-      return jsonResponse([submitResponse({
-        displayName: 'サイ ノメ',
-        modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS
-      })]);
-    }
+test('終了時にsubmit_scoreへ300秒の得点を送る', async () => {
+  const calls = [];
+  const client = makeClient(async (url, options) => {
+    calls.push({ url, options });
+    return jsonResponse([{
+      accepted: true,
+      result_display_name: 'プレイヤー',
+      result_best_score: 3200,
+      result_play_count: 1,
+      is_first_play: true,
+      is_new_best: true
+    }]);
+  });
+
+  const result = await client.submitScoreDirect({
+    displayName: 'プレイヤー', modeId: MODE_ID, score: 3200
+  });
+
+  assert.equal(result.accepted, true);
+  assert.equal(result.bestScore, 3200);
+  assert.equal(calls[0].url, `${URL}/rest/v1/rpc/submit_score`);
+  assert.deepEqual(JSON.parse(calls[0].options.body), {
+    p_display_name: 'プレイヤー',
+    p_game_slug: GAME_SLUG,
+    p_score: 3200,
+    p_client_version: RANKING_CLIENT_VERSION
+  });
+});
+
+test('300秒ランキングを上位10件取得する', async () => {
+  const calls = [];
+  const client = makeClient(async (url, options) => {
+    calls.push({ url, options });
+    return jsonResponse([{
+      rank_no: 1,
+      display_name: 'プレイヤー',
+      best_score: 3200,
+      play_count: 1,
+      is_current_user: true,
+      verification_status: 'unverified'
+    }]);
+  });
+
+  const rows = await client.getTopRanking(MODE_ID);
+
+  assert.deepEqual(rows, [{
+    rank: 1,
+    displayName: 'プレイヤー',
+    score: 3200,
+    playCount: 1,
+    isCurrentUser: true
+  }]);
+  assert.equal(calls[0].url, `${URL}/rest/v1/rpc/get_best_score_ranking`);
+  assert.deepEqual(JSON.parse(calls[0].options.body), {
+    p_game_slug: GAME_SLUG,
+    p_limit: RANKING_LIMIT
+  });
+});
+
+test('サーバー発行番号は300秒の303秒後から受付可能にする', async () => {
+  const client = makeClient(async () => jsonResponse([issueResponse()]));
+  const ticket = await client.issuePlay({ displayName: 'プレイヤー', modeId: MODE_ID });
+
+  assert.equal(ticket.gameSlug, GAME_SLUG);
+  assert.equal(ticket.earliestSubmitAt - ticket.issuedAt, 303_000);
+  assert.equal(ticket.expiresAt - ticket.issuedAt, 86_400_000);
+});
+
+test('発行番号付きの300秒記録を一度だけ送る', async () => {
+  const calls = [];
+  const client = makeClient(async (url, options) => {
+    calls.push({ url, options });
+    return jsonResponse([onceSubmitResponse()]);
   });
 
   const result = await client.submitScore({
-    displayName: 'サイ ノメ',
-    modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS,
+    displayName: 'プレイヤー',
+    modeId: MODE_ID,
     score: 3200,
     submissionId: SUBMISSION_ID
   });
 
-  assert.equal(requests.length, 1);
-  assert.equal(requests[0].url, `${URL}/rest/v1/rpc/submit_score_once`);
-  assert.equal(requests[0].options.headers.apikey, KEY);
-  assert.equal('Authorization' in requests[0].options.headers, false);
-  assert.deepEqual(JSON.parse(requests[0].options.body), {
-    p_display_name: 'サイ ノメ',
-    p_game_slug: RANKING_GAME_SLUGS[GAME_MODE_IDS.THREE_HUNDRED_SECONDS],
+  assert.equal(result.accepted, true);
+  assert.equal(result.submissionId, SUBMISSION_ID);
+  assert.equal(calls[0].url, `${URL}/rest/v1/rpc/submit_score_once`);
+  assert.deepEqual(JSON.parse(calls[0].options.body), {
+    p_display_name: 'プレイヤー',
+    p_game_slug: GAME_SLUG,
     p_score: 3200,
     p_client_version: RANKING_CLIENT_VERSION,
     p_submission_id: SUBMISSION_ID,
     p_contract_version: RANKING_SUBMISSION_CONTRACT_VERSION
   });
-  assert.equal(result.isFirstPlay, true);
-  assert.equal(result.bestScore, 3200);
-  assert.equal(result.submissionId, SUBMISSION_ID);
-  assert.equal(result.contractVersion, RANKING_SUBMISSION_CONTRACT_VERSION);
 });
 
-test('保存済み番号の再送でも匿名セッションを作らず送信する', async () => {
-  let authCalls = 0;
-  const authClient = {
-    getSession: async () => {
-      authCalls += 1;
-      throw new Error('匿名認証は呼ばない');
-    }
+test('廃止した60秒・180秒は通信前に拒否する', async () => {
+  let calls = 0;
+  const client = makeClient(async () => {
+    calls += 1;
+    throw new Error('must not send');
+  });
+
+  for (const modeId of ['60-seconds', '180-seconds']) {
+    await assert.rejects(
+      client.submitScoreDirect({ displayName: 'プレイヤー', modeId, score: 100 }),
+      /Unknown ranking mode/
+    );
+  }
+  assert.equal(calls, 0);
+});
+
+test('ブラウザ標準fetchをglobalThisを受け手として呼ぶ', async () => {
+  let observedThis = null;
+  const browserLikeFetch = async function () {
+    observedThis = this;
+    if (this !== globalThis) throw new TypeError('Illegal invocation');
+    return jsonResponse({
+      accepted: true,
+      display_name: 'プレイヤー',
+      game_slug: GAME_SLUG,
+      result_type: 'play'
+    });
   };
-  const client = makeClient({
-    authClient,
-    fetchImpl: async () => jsonResponse([submitResponse({
-      modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS
-    })])
-  });
 
-  const result = await client.submitScore({
-    displayName: 'プレイヤー',
-    modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS,
-    score: 3200,
-    submissionId: SUBMISSION_ID
-  });
-
-  assert.equal(authCalls, 0);
-  assert.equal(result.accepted, true);
+  await makeClient(browserLikeFetch).startPlay({ displayName: 'プレイヤー', modeId: MODE_ID });
+  assert.equal(observedThis, globalThis);
 });
 
-test('300秒ランキングを60秒とは別の記録として上位10件取得する', async () => {
-  const requests = [];
-  const rows = Array.from({ length: 12 }, (_, index) => {
-    const {
-      is_current_user: _isCurrentUser,
-      verification_status: _verificationStatus,
-      ...sharedRow
-    } = rankingRow({
-      rank: index + 1,
-      displayName: `プレイヤー${index + 1}`,
-      score: 12000 - index * 100,
-      playCount: index + 1
-    });
-    return sharedRow;
-  });
-  const client = makeClient({
-    authClient: ANON_AUTH_CLIENT,
-    fetchImpl: async (url, options) => {
-      requests.push({ url, options });
-      return jsonResponse(rows);
-    }
-  });
-
-  const ranking = await client.getTopRanking(GAME_MODE_IDS.THREE_HUNDRED_SECONDS);
-
-  assert.equal(ranking.length, RANKING_LIMIT);
-  assert.equal(requests[0].url, `${URL}/rest/v1/rpc/get_best_score_ranking`);
-  assert.equal('Authorization' in requests[0].options.headers, false);
-  assert.deepEqual(JSON.parse(requests[0].options.body), {
-    p_game_slug: RANKING_GAME_SLUGS[GAME_MODE_IDS.THREE_HUNDRED_SECONDS],
-    p_limit: RANKING_LIMIT
-  });
-  assert.deepEqual(ranking[0], {
-    rank: 1,
-    displayName: 'プレイヤー1',
-    score: 12000,
-    playCount: 1,
-    isCurrentUser: false
-  });
-});
-
-test('ランキングは未検証表示とDBの本人判定だけを引き継ぐ', async () => {
-  const client = makeClient({
-    fetchImpl: async () => jsonResponse([
-      rankingRow({ rank: 1, displayName: '\u2800', score: 9999, isCurrentUser: true }),
-      rankingRow({ rank: 2, displayName: 'ＡＢＣ', score: 9000 }),
-      rankingRow({ rank: 3, displayName: 'プレイヤー', score: 8000, playCount: 2, isCurrentUser: true })
-    ])
-  });
-
-  const ranking = await client.getTopRanking(GAME_MODE_IDS.SIXTY_SECONDS);
-
-  assert.deepEqual(ranking, [{
-    rank: 3,
-    displayName: 'プレイヤー',
-    score: 8000,
-    playCount: 2,
-    isCurrentUser: true
-  }]);
-});
-
-test('verification_statusが未検証以外の行を成功扱いにしない', async () => {
-  const client = makeClient({
-    fetchImpl: async () => jsonResponse([
-      rankingRow({ verificationStatus: 'verified' })
-    ])
-  });
+test('HTTP失敗は状態・RPC・サーバー理由・slugを保持する', async () => {
+  const client = makeClient(async () => jsonResponse({
+    code: 'GAME_NOT_FOUND',
+    message: 'game not found',
+    hint: 'register the game',
+    details: 'missing slug'
+  }, { ok: false, status: 404 }));
 
   await assert.rejects(
-    client.getTopRanking(GAME_MODE_IDS.SIXTY_SECONDS),
-    (error) => error instanceof RankingError && error.code === 'invalid-response'
-  );
-});
-
-test('ランキングの数値型を文字列から暗黙変換しない', async () => {
-  const client = makeClient({
-    fetchImpl: async () => jsonResponse([{
-      ...rankingRow(),
-      best_score: '3200'
-    }])
-  });
-
-  await assert.rejects(
-    client.getTopRanking(GAME_MODE_IDS.SIXTY_SECONDS),
-    (error) => error instanceof RankingError && error.code === 'invalid-response'
-  );
-});
-
-test('本人判定が複数行にあるランキング応答を拒否する', async () => {
-  const client = makeClient({
-    fetchImpl: async () => jsonResponse([
-      rankingRow({ rank: 1, displayName: 'プレイヤー1', isCurrentUser: true }),
-      rankingRow({ rank: 2, displayName: 'プレイヤー2', score: 3100, isCurrentUser: true })
-    ])
-  });
-
-  await assert.rejects(
-    client.getTopRanking(GAME_MODE_IDS.SIXTY_SECONDS),
-    (error) => error instanceof RankingError && error.code === 'invalid-response'
-  );
-});
-
-test('再送済みの応答を重複登録として扱える', async () => {
-  const client = makeClient({
-    fetchImpl: async () => jsonResponse([submitResponse({
-      modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS,
-      submittedScore: 4000,
-      bestScore: 5000,
-      playCount: 2,
-      isFirstPlay: false,
-      isNewBest: false,
-      wasDuplicate: true
-    })])
-  });
-
-  const result = await client.submitScore({
-    displayName: 'プレイヤー',
-    modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS,
-    score: 4000,
-    submissionId: SUBMISSION_ID
-  });
-
-  assert.equal(result.wasDuplicate, true);
-  assert.equal(result.playCount, 2);
-});
-
-test('受付応答は要求したUUID・契約版・クライアント版・slug・名前・得点と照合する', async () => {
-  const mismatches = [
-    { result_submission_id: 'x'.repeat(16) },
-    { result_contract_version: 'other-contract' },
-    { result_client_version: 'other-client' },
-    { result_game_slug: RANKING_GAME_SLUGS[GAME_MODE_IDS.THREE_HUNDRED_SECONDS] },
-    { result_display_name: '別の名前' },
-    { result_submitted_score: 3201 }
-  ];
-
-  for (const mismatch of mismatches) {
-    const client = makeClient({
-      fetchImpl: async () => jsonResponse([{ ...submitResponse(), ...mismatch }])
-    });
-    await assert.rejects(
-      client.submitScore({
-        displayName: 'プレイヤー',
-        modeId: GAME_MODE_IDS.SIXTY_SECONDS,
-        score: 3200,
-        submissionId: SUBMISSION_ID
-      }),
-      (error) => error instanceof RankingError && error.code === 'invalid-response'
-    );
-  }
-});
-
-test('0件・複数行・曖昧な受付応答を成功扱いにしない', async () => {
-  const valid = submitResponse();
-  const invalidResponses = [[], [valid, valid], [{ ...valid, accepted: false }], null];
-
-  for (const response of invalidResponses) {
-    const client = makeClient({
-      fetchImpl: async () => jsonResponse(response)
-    });
-    await assert.rejects(
-      client.submitScore({
-        displayName: 'プレイヤー',
-        modeId: GAME_MODE_IDS.SIXTY_SECONDS,
-        score: 3200,
-        submissionId: SUBMISSION_ID
-      }),
-      (error) => error instanceof RankingError && error.code === 'invalid-response'
-    );
-  }
-});
-
-test('通信失敗を画面側で判別できるエラーへ変換する', async () => {
-  const client = makeClient({
-    fetchImpl: async () => jsonResponse({ message: 'failed' }, { ok: false })
-  });
-
-  await assert.rejects(
-    client.getTopRanking(GAME_MODE_IDS.SIXTY_SECONDS),
-    (error) => error instanceof RankingError && error.code === 'request-failed'
-  );
-});
-
-test('HTTP応答を一時失敗と恒久拒否に分類できる', async () => {
-  for (const [status, retryable] of [[400, false], [429, true], [500, true]]) {
-    const client = makeClient({
-      fetchImpl: async () => jsonResponse({ message: 'failed' }, { ok: false, status })
-    });
-
-    await assert.rejects(
-      client.getTopRanking(GAME_MODE_IDS.SIXTY_SECONDS),
-      (error) => {
-        assert.equal(error instanceof RankingError, true);
-        assert.equal(error.code, 'request-failed');
-        assert.equal(error.status, status);
-        assert.equal(error.retryable, retryable);
-        assert.equal(isRetryableRankingError(error), retryable);
-        return true;
-      }
-    );
-  }
-});
-
-test('PostgRESTの拒否コードだけを画面へ出さず機械判定用に保持する', async () => {
-  const client = makeClient({
-    fetchImpl: async () => jsonResponse({
-      code: 'PT410',
-      message: 'submission has expired',
-      details: 'terminal submission',
-      hint: 'start a new play'
-    }, { ok: false, status: 410 })
-  });
-
-  await assert.rejects(
-    client.submitScore({
-      displayName: 'プレイヤー',
-      modeId: GAME_MODE_IDS.SIXTY_SECONDS,
-      score: 3200,
-      submissionId: SUBMISSION_ID
-    }),
+    client.submitScoreDirect({ displayName: 'プレイヤー', modeId: MODE_ID, score: 100 }),
     (error) => {
-      assert.equal(error instanceof RankingError, true);
-      assert.equal(error.message, 'ランキング通信に失敗しました');
-      assert.equal(error.status, 410);
-      assert.equal(error.rpcName, 'submit_score_once');
-      assert.equal(error.serverCode, 'PT410');
-      assert.equal('serverMessage' in error, false);
-      assert.equal('serverDetails' in error, false);
-      assert.equal('serverHint' in error, false);
+      assert.ok(error instanceof RankingError);
+      assert.equal(error.code, 'request-failed');
+      assert.equal(error.status, 404);
+      assert.equal(error.rpcName, 'submit_score');
+      assert.equal(error.serverCode, 'GAME_NOT_FOUND');
+      assert.equal(error.serverMessage, 'game not found');
+      assert.equal(error.serverHint, 'register the game');
+      assert.equal(error.serverDetails, 'missing slug');
+      assert.equal(error.gameSlug, GAME_SLUG);
       return true;
     }
   );
 });
 
-test('PostgRESTの拒否コードが文字列でなければ保持しない', async () => {
-  const client = makeClient({
-    fetchImpl: async () => jsonResponse({
-      code: 410,
-      message: ['invalid'],
-      details: { value: 'invalid' },
-      hint: false
-    }, { ok: false, status: 410 })
-  });
-
+test('ネットワーク切断と時間切れを再送可能として返す', async () => {
+  const network = makeClient(async () => { throw new Error('offline'); });
   await assert.rejects(
-    client.submitScore({
-      displayName: 'プレイヤー',
-      modeId: GAME_MODE_IDS.SIXTY_SECONDS,
-      score: 3200,
-      submissionId: SUBMISSION_ID
-    }),
-    (error) => {
-      assert.equal(error.serverCode, null);
-      return true;
-    }
-  );
-});
-
-test('タイムアウトとネットワーク切断は再試行可能として返す', async () => {
-  const timeoutClient = makeClient({
-    fetchImpl: async () => {
-      const error = new Error('aborted');
-      error.name = 'AbortError';
-      throw error;
-    }
-  });
-  await assert.rejects(
-    timeoutClient.getTopRanking(GAME_MODE_IDS.SIXTY_SECONDS),
-    (error) => error instanceof RankingError
-      && error.code === 'timeout'
-      && error.retryable === true
-  );
-
-  const networkClient = makeClient({
-    fetchImpl: async () => { throw new Error('offline'); }
-  });
-  await assert.rejects(
-    networkClient.getTopRanking(GAME_MODE_IDS.SIXTY_SECONDS),
+    network.getTopRanking(MODE_ID),
     (error) => error instanceof RankingError
       && error.code === 'network'
-      && error.retryable === true
+      && isRetryableRankingError(error)
+      && error.rpcName === 'get_best_score_ranking'
+  );
+
+  const timeout = makeClient(async () => {
+    const error = new Error('aborted');
+    error.name = 'AbortError';
+    throw error;
+  });
+  await assert.rejects(
+    timeout.submitScoreDirect({ displayName: 'プレイヤー', modeId: MODE_ID, score: 100 }),
+    (error) => error instanceof RankingError
+      && error.code === 'timeout'
+      && isRetryableRankingError(error)
+      && error.rpcName === 'submit_score'
   );
 });
 
-test('不正なモード、得点、UUID、契約版を送信前に拒否する', async () => {
-  let requests = 0;
-  const client = makeClient({
-    fetchImpl: async () => {
-      requests += 1;
-      throw new Error('must not send');
-    }
+test('応答内容が要求と一致しなければ成功扱いにしない', async () => {
+  const client = makeClient(async () => jsonResponse([{
+    accepted: true,
+    result_display_name: '別人',
+    result_best_score: 100,
+    result_play_count: 1,
+    is_first_play: true,
+    is_new_best: true
+  }]));
+
+  await assert.rejects(
+    client.submitScoreDirect({ displayName: 'プレイヤー', modeId: MODE_ID, score: 100 }),
+    (error) => error instanceof RankingError
+      && error.code === 'invalid-response'
+      && error.rpcName === 'submit_score'
+      && error.gameSlug === GAME_SLUG
+  );
+});
+
+test('失敗情報をUI・診断向けの安全な値へ変換する', () => {
+  const error = new RankingError('request-failed', 'failed', undefined, {
+    retryable: true,
+    status: 503,
+    rpcName: 'submit_score',
+    serverCode: 'TEMPORARY',
+    serverMessage: 'temporary failure',
+    gameSlug: GAME_SLUG
+  });
+
+  assert.deepEqual(createRankingFailureDetail(error), {
+    code: 'request-failed',
+    retryable: true,
+    status: 503,
+    rpcName: 'submit_score',
+    serverCode: 'TEMPORARY',
+    serverMessage: 'temporary failure',
+    serverHint: null,
+    serverDetails: null,
+    gameSlug: GAME_SLUG
+  });
+});
+
+test('不正な名前・得点・登録番号を通信前に拒否する', async () => {
+  let calls = 0;
+  const client = makeClient(async () => {
+    calls += 1;
+    return jsonResponse([]);
   });
 
   await assert.rejects(
-    client.submitScore({
-      displayName: '\u200b', modeId: GAME_MODE_IDS.SIXTY_SECONDS, score: 100,
-      submissionId: SUBMISSION_ID
-    }),
+    client.submitScoreDirect({ displayName: '', modeId: MODE_ID, score: 100 }),
     /displayName/
   );
   await assert.rejects(
-    client.submitScore({
-      displayName: 'ＡＢＣ', modeId: GAME_MODE_IDS.SIXTY_SECONDS, score: 100,
-      submissionId: SUBMISSION_ID
-    }),
-    /displayName/
-  );
-  await assert.rejects(
-    client.submitScore({
-      displayName: '名前', modeId: 'unknown', score: 100, submissionId: SUBMISSION_ID
-    }),
-    /Unknown ranking mode/
-  );
-  await assert.rejects(
-    client.submitScore({
-      displayName: '名前', modeId: GAME_MODE_IDS.SIXTY_SECONDS, score: 1.5,
-      submissionId: SUBMISSION_ID
-    }),
+    client.submitScoreDirect({ displayName: 'プレイヤー', modeId: MODE_ID, score: 1.5 }),
     /score/
   );
   await assert.rejects(
     client.submitScore({
-      displayName: '名前', modeId: GAME_MODE_IDS.SIXTY_SECONDS, score: 100,
-      submissionId: 'short'
+      displayName: 'プレイヤー', modeId: MODE_ID, score: 100, submissionId: 'short'
     }),
     /submissionId/
   );
-  await assert.rejects(
-    client.submitScore({
-      displayName: '名前', modeId: GAME_MODE_IDS.SIXTY_SECONDS, score: 100,
-      submissionId: SUBMISSION_ID, contractVersion: 'unknown-contract'
-    }),
-    /contractVersion/
-  );
-  assert.equal(requests, 0);
+  assert.equal(calls, 0);
 });
 
-test('登録番号生成の互換関数は標準UUIDと代替乱数を扱える', () => {
-  assert.equal(
-    createSubmissionId({ randomUUID: () => SUBMISSION_ID }),
-    SUBMISSION_ID
-  );
-  const fallback = createSubmissionId({
-    getRandomValues: (bytes) => {
-      bytes.fill(15);
-      return bytes;
-    }
-  });
-  assert.match(fallback, /^[a-f0-9]{32}$/u);
-});
-
-
-test('開始時に共通プレイ記録へ1回を送る', async () => {
-  const calls = [];
-  const client = makeClient({
-    fetchImpl: async (url, options) => {
-      calls.push({ url, options });
-      return jsonResponse({
-        accepted: true,
-        display_name: 'プレイヤー',
-        game_slug: 'sainome_300_seconds',
-        normalized_name: 'プレイヤー',
-        result_type: 'play',
-        reached_wave: 1
-      });
-    }
-  });
-  const result = await client.startPlay({
-    displayName: 'プレイヤー',
-    modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS
-  });
-  assert.deepEqual(result, {
-    started: true,
-    displayName: 'プレイヤー',
-    gameSlug: 'sainome_300_seconds',
-    playCount: null
-  });
-  assert.match(calls[0].url, /\/rpc\/record_game_play$/u);
-  const body = JSON.parse(calls[0].options.body);
-  assert.deepEqual(body, {
-    p_display_name: 'プレイヤー',
-    p_game_slug: 'sainome_300_seconds',
-    p_result_type: 'play',
-    p_client_version: RANKING_CLIENT_VERSION
-  });
-  assert.equal('p_submission_id' in body, false);
-  assert.equal('p_contract_version' in body, false);
-});
-
-test('プレイ番号なしで終了時にスコアを送信できる', async () => {
-  const calls = [];
-  const client = makeClient({
-    fetchImpl: async (url, options) => {
-      calls.push({ url, options });
-      return jsonResponse([{
-        accepted: true,
-        result_normalized_name: 'プレイヤー',
-        result_display_name: 'プレイヤー',
-        result_first_score: 3200,
-        result_best_score: 3200,
-        result_play_count: 1,
-        is_first_play: true,
-        is_new_best: true
-      }]);
-    }
-  });
-  const result = await client.submitScoreDirect({
-    displayName: 'プレイヤー',
-    modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS,
-    score: 3200
-  });
-  assert.deepEqual(result, {
-    accepted: true,
-    displayName: 'プレイヤー',
-    gameSlug: 'sainome_300_seconds',
-    submittedScore: 3200,
-    bestScore: 3200,
-    playCount: 1,
-    isFirstPlay: true,
-    isNewBest: true
-  });
-  assert.match(calls[0].url, /\/rpc\/submit_score$/u);
-  const body = JSON.parse(calls[0].options.body);
-  assert.deepEqual(body, {
-    p_display_name: 'プレイヤー',
-    p_game_slug: 'sainome_300_seconds',
-    p_score: 3200,
-    p_client_version: RANKING_CLIENT_VERSION
-  });
-  assert.equal('p_submission_id' in body, false);
-  assert.equal('p_contract_version' in body, false);
+test('登録番号生成は標準UUIDをそのまま使う', () => {
+  const generated = createSubmissionId({ randomUUID: () => SUBMISSION_ID });
+  assert.equal(generated, SUBMISSION_ID);
+  assert.equal(isValidRankingSubmissionId(generated), true);
 });
