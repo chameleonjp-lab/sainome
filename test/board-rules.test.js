@@ -75,7 +75,6 @@ test('上面2が縦横に2個つながると消去対象になる', () => {
   assert.equal(groups.length, 1);
   assert.equal(groups[0].value, 2);
   assert.deepEqual(groups[0].additions.map((item) => item.id).sort(), ['a', 'b']);
-  assert.equal(groups[0].isChain, false);
 });
 
 test('斜めだけで接するサイコロはつながらない', () => {
@@ -97,7 +96,7 @@ test('必要数より少ない同じ目は消去対象にならない', () => {
   assert.deepEqual(findTriggeredGroups(map, 7), []);
 });
 
-test('沈下中のまとまりへ同じ目を足すと追加分だけが連鎖対象になる', () => {
+test('沈下中の同じ目へ追加しても通常消去に含めない', () => {
   const map = diceMap(
     die('a', 3, 1, 3, 'sinking'),
     die('b', 3, 2, 3, 'sinking'),
@@ -106,14 +105,10 @@ test('沈下中のまとまりへ同じ目を足すと追加分だけが連鎖�
     die('e', 1, 3, 4)
   );
 
-  const groups = findTriggeredGroups(map, 7);
-
-  assert.equal(groups.length, 1);
-  assert.equal(groups[0].isChain, true);
-  assert.deepEqual(groups[0].additions.map((item) => item.id), ['d']);
+  assert.deepEqual(findTriggeredGroups(map, 7), []);
 });
 
-test('沈下中を含めても必要数へ届かない場合は連鎖しない', () => {
+test('沈下中のサイコロだけでは通常消去しない', () => {
   const map = diceMap(
     die('a', 3, 2, 4, 'sinking'),
     die('b', 3, 3, 4)
