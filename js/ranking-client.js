@@ -320,7 +320,10 @@ export class RankingClient {
     };
 
     try {
-      const response = await this.fetchImpl(`${this.url}/rest/v1/rpc/${functionName}`, {
+      // Native browser fetch is a Window/WorkerGlobalScope method. Calling an
+      // extracted fetch as this.fetchImpl(...) rebinds `this` to RankingClient
+      // and can fail with "Illegal invocation" before a request reaches Supabase.
+      const response = await this.fetchImpl.call(globalThis, `${this.url}/rest/v1/rpc/${functionName}`, {
         method: 'POST',
         headers,
         body: JSON.stringify(parameters),
