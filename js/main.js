@@ -483,6 +483,8 @@ function renderRankingStorageWarning(submission) {
       '未送信記録が上限に達したため、この結果を端末へ保存できませんでした。画面を閉じると失われます。',
     'storage-unavailable':
       'この結果を端末へ保存できませんでした。画面を閉じると失われます。通信に失敗した場合は「記録を再送する」を押してください。',
+    'storage-timeout':
+      '端末の保存領域の応答が遅いため、結果を一時的に画面へ保持しています。「記録を再送する」を押してください。',
     'submission-conflict':
       '安全な登録番号を確保できなかったため、この結果の送信を止めました。',
     'invalid-submission':
