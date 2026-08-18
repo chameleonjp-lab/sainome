@@ -79,6 +79,15 @@ test('ホームと結果画面から実験場へ戻れる', () => {
   assert.match(css, /\.result-lab-link\s*\{[^}]*grid-column:\s*1\s*\/\s*-1/s);
 });
 
+test('トップと結果画面にシェアボタンを表示する', () => {
+  assert.match(html, /id="home-share-button"[^>]*class="share-button home-share-button"/);
+  assert.match(html, /id="result-share-button"[^>]*class="share-button"/);
+  assert.match(html, /id="home-share-status"[^>]*role="status"/);
+  assert.match(main, /createHomeShareContent/);
+  assert.match(main, /async function handleHomeShare/);
+  assert.match(css, /\.home-share-button\s*\{[^}]*grid-column:\s*1\s*\/\s*-1/s);
+});
+
 test('再読み込み後に保存状態を確認して続きから再開できる', () => {
   for (const id of ['game-recovery-panel', 'game-recovery-status', 'game-recovery-resume', 'game-recovery-discard']) {
     assert.match(html, new RegExp(`\\bid="${id}"`));
