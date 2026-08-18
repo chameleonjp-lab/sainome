@@ -21,6 +21,23 @@ export function normalizeShareUrl(pageUrl) {
   return url.href;
 }
 
+export function createHomeShareContent({ pageUrl }) {
+  const url = normalizeShareUrl(pageUrl);
+  const text = [
+    'サイノメ',
+    'サイコロを転がし、上面の目と同じ数以上を縦横につなげて消す、300秒の3Dブラウザパズルゲームです。',
+    `URL: ${url}`,
+    '#サイノメ'
+  ].join('\n');
+
+  return Object.freeze({
+    title: 'サイノメ',
+    text,
+    url,
+    copyText: text
+  });
+}
+
 export function createResultShareContent({
   result,
   recordMessage,
@@ -39,6 +56,7 @@ export function createResultShareContent({
     `サイノメの${mode.label}モードで${formatNumber(score)}点！`,
     `消した数${formatNumber(clearedDice)}個`,
     recordMessage.trim(),
+    `URL: ${url}`,
     '#サイノメ'
   ].join('\n');
 
@@ -46,7 +64,7 @@ export function createResultShareContent({
     title: 'サイノメ',
     text,
     url,
-    copyText: `${text}\n${url}`
+    copyText: text
   });
 }
 
