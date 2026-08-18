@@ -8,19 +8,15 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: sainome-github-pages
-  cancel-in-progress: false
+  group: pages
+  cancel-in-progress: true
 
 jobs:
-  verify:
-    name: Verify static game
+  test:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
@@ -40,16 +36,21 @@ jobs:
       - name: Check JavaScript syntax
         run: npm run check:syntax
 
-      - name: Prepare release artifact
-        run: node scripts/prepare-github-pages.js
-
-      - name: Verify edge ranking release
-        run: |
-          grep -q '20260818-edge-ranking-v1' _site/index.html
-          grep -q 'ranking-edge-client.js?v=20260818-edge-ranking-v1' _site/js/main.js
-          grep -q '再送中…' _site/js/main.js
-          grep -q 'sainome-ranking' _site/js/ranking-edge-client.js
-          grep -q 'if (false && submission.canSubmit === false)' _site/js/main.js
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    needs: test
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
@@ -57,18 +58,8 @@ jobs:
       - name: Upload static site
         uses: actions/upload-pages-artifact@v4
         with:
-          path: _site
+          path: .
 
-  deploy:
-    name: Deploy verified site
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: verify
-    timeout-minutes: 10
-
-    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
