@@ -15,7 +15,7 @@ export function isInsideBoard(row, column, boardSize) {
 
 function isMatchable(die) {
   return die
-    && (die.state === 'normal' || die.state === 'sinking')
+    && die.state === 'normal'
     && die.top >= 2;
 }
 
@@ -58,8 +58,7 @@ export function findTriggeredGroups(diceByKey, boardSize) {
     triggered.push({
       value: start.top,
       members,
-      additions,
-      isChain: members.some((die) => die.state === 'sinking')
+      additions
     });
   }
 
