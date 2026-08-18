@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   test:
-    name: Node tests and syntax
+    name: Node tests and release verification
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -35,3 +35,13 @@ jobs:
 
       - name: Check JavaScript syntax
         run: npm run check:syntax
+
+      - name: Build versioned release artifact
+        env:
+          SAINOME_RELEASE: ${{ github.sha }}
+        run: npm run build:pages
+
+      - name: Verify versioned release artifact
+        env:
+          SAINOME_RELEASE: ${{ github.sha }}
+        run: npm run verify:pages
