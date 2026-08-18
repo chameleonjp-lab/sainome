@@ -36,6 +36,9 @@ jobs:
       - name: Check JavaScript syntax
         run: npm run check:syntax
 
+      - name: Check release script syntax
+        run: npm run check:release-syntax
+
   deploy:
     if: github.ref == 'refs/heads/main'
     needs: test
