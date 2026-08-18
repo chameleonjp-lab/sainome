@@ -82,7 +82,7 @@ test('プレイ終了時に結果を固定して結果画面へ移る', () => {
     modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS,
     score: 3200,
     clearedDice: 12,
-    maxChain: 4,
+    maxChain: 0,
     endedReason: 'time-up'
   });
   assert.equal(Object.isFrozen(finished.result), true);
