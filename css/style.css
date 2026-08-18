@@ -56,7 +56,7 @@ button:disabled { opacity: .55; }
 .hud-stats {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(170px, max-content) repeat(4, minmax(54px, 70px));
+  grid-template-columns: minmax(170px, max-content) repeat(3, minmax(54px, 70px));
   gap: 7px;
 }
 .pause-button {
@@ -95,10 +95,6 @@ button:disabled { opacity: .55; }
   font-variant-numeric: tabular-nums;
   letter-spacing: -.04em;
   text-overflow: ellipsis;
-}
-.hud-item.chain-active {
-  border-color: rgba(255, 167, 45, .72);
-  animation: chainPulse .48s ease-in-out infinite alternate;
 }
 .hud-item.time-warning {
   border-color: rgba(255, 91, 73, .78);
@@ -822,7 +818,7 @@ button:disabled { opacity: .55; }
 .result-stats {
   width: min(100%, 330px);
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 8px;
   margin: 0;
 }
@@ -951,7 +947,6 @@ button:disabled { opacity: .55; }
 }
 
 .stage.impact { animation: stageImpact .18s ease-out; }
-.stage.chain-hit { animation: chainHit .38s ease-out; }
 
 .app-footer {
   width: min(100%, 760px);
@@ -1002,7 +997,7 @@ button:disabled { opacity: .55; }
 
 @media (max-height: 720px) {
   .app { gap: 6px; }
-  .hud-stats { grid-template-columns: minmax(150px, max-content) repeat(4, minmax(48px, 60px)); }
+  .hud-stats { grid-template-columns: minmax(150px, max-content) repeat(3, minmax(48px, 60px)); }
   .brand, .hud-item, .pause-button { min-height: 48px; border-radius: 13px; }
   .pause-button { min-width: 68px; padding-inline: 8px; font-size: .64rem; }
   .brand strong { font-size: 1.05rem; }
@@ -1022,7 +1017,7 @@ button:disabled { opacity: .55; }
   .hud-stats {
     flex: 1 1 auto;
     width: calc(100% - 69px);
-    grid-template-columns: minmax(82px, 1fr) repeat(4, minmax(0, 1fr));
+    grid-template-columns: minmax(82px, 1fr) repeat(3, minmax(0, 1fr));
     gap: 5px;
   }
   .brand, .hud-item, .pause-button { min-height: 52px; border-radius: 13px; }
@@ -1036,7 +1031,7 @@ button:disabled { opacity: .55; }
 }
 
 @media (max-width: 370px) {
-  .hud-stats { width: calc(100% - 61px); grid-template-columns: 72px repeat(4, minmax(0, 1fr)); gap: 4px; }
+  .hud-stats { width: calc(100% - 61px); grid-template-columns: 72px repeat(3, minmax(0, 1fr)); gap: 4px; }
   .pause-button { min-width: 56px; padding-inline: 5px; font-size: .52rem; }
   .brand span { display: none; }
   .brand strong { font-size: .88rem; }
@@ -1056,15 +1051,6 @@ button:disabled { opacity: .55; }
 
 @keyframes stageImpact {
   45% { transform: translateY(2px) scale(.997); filter: brightness(1.13); }
-}
-
-@keyframes chainHit {
-  30% { transform: scale(1.006); filter: brightness(1.2) saturate(1.15); }
-  62% { transform: scale(.998); }
-}
-
-@keyframes chainPulse {
-  to { box-shadow: 0 0 18px rgba(255, 135, 22, .32), inset 0 1px rgba(255,255,255,.08); }
 }
 
 @keyframes timePulse {

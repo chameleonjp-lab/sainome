@@ -176,7 +176,7 @@ test('フリック・転がり・消去・生成は別の音として再生で�
   const afterFlick = context.started;
   assert.equal(sounds.playRoll(), true);
   const afterRoll = context.started;
-  assert.equal(sounds.playClear({ chain: 2 }), true);
+  assert.equal(sounds.playClear(), true);
   const afterClear = context.started;
   assert.equal(sounds.playSpawn({ count: 3 }), true);
   const afterSpawn = context.started;

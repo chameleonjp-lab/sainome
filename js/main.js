@@ -70,7 +70,6 @@ const remainingTime = document.querySelector('#remaining-time');
 const timePanel = document.querySelector('#time-panel');
 const scoreCount = document.querySelector('#score-count');
 const scorePanel = document.querySelector('#score-panel');
-const chainCount = document.querySelector('#chain-count');
 const clearCount = document.querySelector('#clear-count');
 const homeScreen = document.querySelector('#home-screen');
 const countdownScreen = document.querySelector('#countdown-screen');
@@ -99,7 +98,6 @@ const resultRecordWarning = document.querySelector('#result-record-warning');
 const resultRankingStorageWarning = document.querySelector('#result-ranking-storage-warning');
 const resultPlayerName = document.querySelector('#result-player-name');
 const resultCleared = document.querySelector('#result-cleared');
-const resultChain = document.querySelector('#result-chain');
 const playNote = document.querySelector('#play-note');
 const startButton = document.querySelector('#start-button');
 const replayButton = document.querySelector('#replay-button');
@@ -303,8 +301,6 @@ function resetHudDisplay(mode = selectedMode) {
     remainingMs: mode.durationMs,
     score: 0
   });
-  chainCount.textContent = '0';
-  chainCount.parentElement.classList.remove('chain-active');
   clearCount.textContent = '0';
 }
 
@@ -1229,21 +1225,11 @@ const gameCallbacks = {
   onRollStart: () => {
     soundEffects.playRoll();
   },
-  onClearStart: ({ chain }) => {
-    soundEffects.playClear({ chain });
+  onClearStart: () => {
+    soundEffects.playClear();
   },
   onSpawn: ({ count }) => {
     soundEffects.playSpawn({ count });
-  },
-  onChain: ({ chain, isChain }) => {
-    chainCount.textContent = String(chain);
-    chainCount.parentElement.classList.toggle('chain-active', chain > 0);
-    if (chain > 0 && !motionPreferences.reducedMotion) {
-      stage.classList.remove('chain-hit');
-      void stage.offsetWidth;
-      stage.classList.add('chain-hit');
-      window.setTimeout(() => stage.classList.remove('chain-hit'), isChain ? 430 : 300);
-    }
   },
   onClear: (count) => {
     clearCount.textContent = String(count);
@@ -1480,7 +1466,6 @@ function renderFlow(snapshot = flow.getSnapshot()) {
     resultPlayerName.textContent = latestRankingSubmission?.displayName ?? activePlayerName;
     resultScore.textContent = numberFormatter.format(snapshot.result.score);
     resultCleared.textContent = numberFormatter.format(snapshot.result.clearedDice);
-    resultChain.textContent = numberFormatter.format(snapshot.result.maxChain);
     if (latestRecordOutcome) renderResultRecord(latestRecordOutcome);
   }
 }

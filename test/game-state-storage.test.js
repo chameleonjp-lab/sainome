@@ -98,6 +98,8 @@ test('ゲーム状態を版付きで正規化し、盤面とプレイ番号を�
   assert.equal(restored.game.dice[0].top, 3);
   assert.equal(restored.game.player.activeKey, '3,3');
   assert.equal(restored.playTicket.submissionId, '11111111-1111-4111-8111-111111111111');
+  assert.equal(restored.game.session.maxChain, 0);
+  assert.equal(restored.game.chainCount, 0);
 });
 
 test('未知版、重複位置、面の矛盾は復元しない', () => {

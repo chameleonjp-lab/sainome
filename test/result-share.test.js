@@ -36,12 +36,13 @@ test('結果と自己ベスト判定をURLの前へまとめる', () => {
   assert.equal(
     share.text,
     'サイノメの60秒モードで3,200点！\n'
-      + '消した数12個 / 最大連鎖4\n'
+      + '消した数12個\n'
       + '自己ベスト更新！ +400点\n'
       + '#サイノメ'
   );
   assert.equal(share.url, 'https://example.com/sainome/');
   assert.equal(share.copyText, `${share.text}\n${share.url}`);
+  assert.doesNotMatch(share.text, /連鎖|CHAIN/);
   assert.equal(share.copyText.endsWith(share.url), true);
 });
 

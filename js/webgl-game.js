@@ -218,7 +218,6 @@ export class WebGLSainome {
     this.queuedDirection = null;
     this.queueTimerId = null;
     this.rollCount = 0;
-    this.chainCount = 0;
     this.clearedCount = 0;
     this.diceSequence = 0;
     this.random = new GameRandom();
@@ -440,7 +439,6 @@ export class WebGLSainome {
     this.playerRow = 3;
     this.playerColumn = 3;
     this.rollCount = 0;
-    this.chainCount = 0;
     this.clearedCount = 0;
     this.sixtySecondSpawnedCount = 0;
     this.pendingSpawnCount = 0;
@@ -455,7 +453,6 @@ export class WebGLSainome {
     this.lastSessionSignature = '';
     this.emitSession(this.session.getSnapshot(), true);
     this.callbacks.onRoll?.(this.rollCount, this.dice.get(this.activeKey)?.top);
-    this.callbacks.onChain?.({ chain: 0, count: 0, value: 0, isChain: false });
     this.callbacks.onClear?.(this.clearedCount);
     this.callbacks.onMessage?.('同じ目を、目の数以上つなげます');
   }
@@ -617,7 +614,7 @@ export class WebGLSainome {
       }))),
       diceSequence: this.diceSequence,
       rollCount: this.rollCount,
-      chainCount: this.chainCount,
+      chainCount: 0,
       clearedCount: this.clearedCount,
       sixtySecondSpawnedCount: this.sixtySecondSpawnedCount,
       pendingSpawnCount: this.pendingSpawnCount,
@@ -687,7 +684,6 @@ export class WebGLSainome {
     this.player.rotation.set(0, state.player.rotationY, 0);
     this.player.rotation.z = 0;
     this.rollCount = state.rollCount;
-    this.chainCount = state.chainCount;
     this.clearedCount = state.clearedCount;
     this.sixtySecondSpawnedCount = state.sixtySecondSpawnedCount;
     this.pendingSpawnCount = state.pendingSpawnCount;
@@ -700,12 +696,6 @@ export class WebGLSainome {
     this.lastSessionSignature = '';
     this.emitSession(session, true);
     this.callbacks.onRoll?.(this.rollCount, this.dice.get(this.activeKey)?.top);
-    this.callbacks.onChain?.({
-      chain: this.chainCount,
-      count: 0,
-      value: 0,
-      isChain: this.chainCount > 0
-    });
     this.callbacks.onClear?.(this.clearedCount);
     this.callbacks.onMessage?.('前回のプレイを再開しました');
     return session;
@@ -998,39 +988,26 @@ export class WebGLSainome {
     const groups = findTriggeredGroups(this.dice, BOARD_SIZE);
     const now = this.getGameTime();
     for (const group of groups) {
-      this.chainCount = group.isChain ? this.chainCount + 1 : 1;
       for (const die of group.additions) {
         die.state = 'sinking';
         die.sinkStartedAt = now;
         const material = die.mesh.userData.bodyMaterial;
-        material.emissive.setHex(group.isChain ? 0x8a2700 : 0x694000);
-        material.emissiveIntensity = group.isChain ? 0.72 : 0.46;
+        material.emissive.setHex(0x694000);
+        material.emissiveIntensity = 0.46;
       }
 
       this.callbacks.onClearStart?.({
         type: 'normal',
         value: group.value,
-        count: group.additions.length,
-        chain: this.chainCount
+        count: group.additions.length
       });
 
-      this.callbacks.onChain?.({
-        chain: this.chainCount,
-        count: group.additions.length,
-        value: group.value,
-        isChain: group.isChain
-      });
       this.recordClearScore({
         type: 'normal',
         value: group.value,
-        count: group.additions.length,
-        chain: this.chainCount
+        count: group.additions.length
       });
-      this.callbacks.onMessage?.(
-        group.isChain
-          ? `${this.chainCount}連鎖！ ${group.value}の目を追加`
-          : `${group.value}の目が${group.members.length}個つながりました`
-      );
+      this.callbacks.onMessage?.(`${group.value}の目が${group.members.length}個つながりました`);
     }
 
     const specialOne = this.resolveSpecialOnes(now);
@@ -1058,15 +1035,13 @@ export class WebGLSainome {
     this.callbacks.onClearStart?.({
       type: 'special-one',
       value: 1,
-      count: special.members.length,
-      chain: Math.max(1, this.chainCount)
+      count: special.members.length
     });
 
     this.recordClearScore({
       type: 'special-one',
       value: 1,
-      count: special.members.length,
-      chain: Math.max(1, this.chainCount)
+      count: special.members.length
     });
 
     this.callbacks.onMessage?.(
@@ -1142,8 +1117,6 @@ export class WebGLSainome {
         (die) => die.state === 'sinking' || die.state === 'one-clearing'
       )
     ) {
-      this.chainCount = 0;
-      this.callbacks.onChain?.({ chain: 0, count: 0, value: 0, isChain: false });
       this.callbacks.onMessage?.(
         buriedRescue && !this.activeKey
           ? '床に沈んだサイコロへ乗ると上へ戻れます'

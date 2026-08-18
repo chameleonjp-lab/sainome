@@ -34,11 +34,10 @@ export function createResultShareContent({
   const mode = getGameMode(result.modeId);
   const score = requireNonNegativeSafeInteger(result.score, 'score');
   const clearedDice = requireNonNegativeSafeInteger(result.clearedDice, 'clearedDice');
-  const maxChain = requireNonNegativeSafeInteger(result.maxChain, 'maxChain');
   const url = normalizeShareUrl(pageUrl);
   const text = [
     `サイノメの${mode.label}モードで${formatNumber(score)}点！`,
-    `消した数${formatNumber(clearedDice)}個 / 最大連鎖${formatNumber(maxChain)}`,
+    `消した数${formatNumber(clearedDice)}個`,
     recordMessage.trim(),
     '#サイノメ'
   ].join('\n');

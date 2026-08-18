@@ -334,18 +334,17 @@ export class SoundEffects {
     return true;
   }
 
-  playClear({ chain = 1 } = {}) {
+  playClear() {
     const context = this.getPlayableContext();
     if (!context) return false;
     const now = context.currentTime;
     if (now - this.lastClearAt < 0.045) return false;
     this.lastClearAt = now;
-    const lift = Math.min(3, Math.max(0, chain - 1)) * 35;
     for (const [index, frequency] of [392, 523.25, 659.25].entries()) {
       this.playTone({
         when: now + index * 0.065,
-        frequency: frequency + lift,
-        endFrequency: frequency + lift,
+        frequency,
+        endFrequency: frequency,
         duration: 0.17,
         gain: 0.12 - index * 0.012,
         type: 'triangle'
