@@ -482,7 +482,10 @@ test('受付後の保存削除が応答しなくても結果画面を止めな�
   const removed = await pending.markAccepted(submission);
 
   assert.equal(removed.ok, false);
-  assert.equal(removed.code, 'storage-unavailable');
+  assert.equal(removed.code, 'storage-timeout');
+  const retry = await pending.markAccepted(submission);
+  assert.equal(retry.ok, false);
+  assert.equal(retry.code, 'storage-timeout');
 });
 
 test('対象の保存値が壊れた場合はnot-found成功にせず保持する', async () => {
