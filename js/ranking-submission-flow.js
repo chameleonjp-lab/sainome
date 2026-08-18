@@ -6,7 +6,7 @@ import {
   RANKING_GAME_SLUGS,
   RANKING_NAME_CONTRACT_VERSION,
   RANKING_SUBMISSION_CONTRACT_VERSION
-} from './ranking-client.js?v=20260818-ranking-submit-retry';
+} from './ranking-client.js';
 import { validatePlayerName } from './player-profile.js';
 
 function requireCanonicalPlayerName(displayName) {
