@@ -982,12 +982,30 @@ export class PendingRankingSubmissions {
 
     if (!this.storage) {
       const removed = this.volatileItems.delete(submission.submissionId);
+      if (removed) {
+        await this.refresh();
+        return freezeResult({
+          ok: true,
+          removed: true,
+          persisted: false,
+          code: 'removed'
+        });
+      }
+      const storageFailureCode = this.storageFailureCode;
+      if (storageFailureCode) {
+        return freezeResult({
+          ok: false,
+          removed: false,
+          persisted: false,
+          code: storageFailureCode
+        });
+      }
       await this.refresh();
       return freezeResult({
         ok: true,
-        removed,
+        removed: false,
         persisted: false,
-        code: removed ? 'removed' : 'not-found'
+        code: 'not-found'
       });
     }
 
@@ -1003,6 +1021,9 @@ export class PendingRankingSubmissions {
       this.storageAvailable = true;
     } catch (error) {
       this.storageAvailable = false;
+      const storageErrorCode = error?.code === 'storage-timeout'
+        ? 'storage-timeout'
+        : 'storage-unavailable';
       if (error?.code === 'storage-timeout') {
         this.storageFailureCode = 'storage-timeout';
         this.storage = null;
@@ -1012,7 +1033,7 @@ export class PendingRankingSubmissions {
         ok: false,
         removed: false,
         persisted: false,
-        code: 'storage-unavailable'
+        code: storageErrorCode
       });
     }
 
