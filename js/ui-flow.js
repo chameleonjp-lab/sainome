@@ -29,7 +29,8 @@ function normalizeResult(result) {
     modeId: mode.id,
     score: result.score,
     clearedDice: Math.max(0, Number(result.clearedDice) || 0),
-    maxChain: Math.max(0, Number(result.maxChain) || 0),
+    // 旧結果との互換用。画面や共有文には表示しない。
+    maxChain: 0,
     endedReason: result.endedReason ?? 'time-up'
   });
 }
