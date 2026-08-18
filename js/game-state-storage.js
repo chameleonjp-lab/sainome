@@ -150,6 +150,9 @@ export function normalizeGameRuntimeState(value) {
     return normalized;
   });
 
+  requireSafeInteger(session.maxChain ?? 0, 'session.maxChain', { min: 0, max: MAX_COUNTER });
+  requireSafeInteger(source.chainCount ?? 0, 'chainCount', { min: 0, max: MAX_COUNTER });
+
   const player = requireObject(source.player, 'game state player');
   const playerRow = requireSafeInteger(player.row, 'player.row', { min: 0, max: BOARD_SIZE - 1 });
   const playerColumn = requireSafeInteger(player.column, 'player.column', { min: 0, max: BOARD_SIZE - 1 });
@@ -176,7 +179,8 @@ export function normalizeGameRuntimeState(value) {
       elapsedMs,
       score: requireSafeInteger(session.score, 'session.score', { min: 0, max: MAX_SCORE }),
       clearedDice: requireSafeInteger(session.clearedDice, 'session.clearedDice', { min: 0, max: MAX_COUNTER }),
-      maxChain: requireSafeInteger(session.maxChain, 'session.maxChain', { min: 0, max: MAX_COUNTER }),
+      // 旧保存との互換用。チェインは復元しない。
+      maxChain: 0,
       clearEvents: requireSafeInteger(session.clearEvents, 'session.clearEvents', { min: 0, max: MAX_COUNTER }),
       specialOneEvents: requireSafeInteger(session.specialOneEvents, 'session.specialOneEvents', { min: 0, max: MAX_COUNTER })
     }),
@@ -189,7 +193,8 @@ export function normalizeGameRuntimeState(value) {
     dice: Object.freeze(normalizedDice),
     diceSequence: requireSafeInteger(source.diceSequence, 'diceSequence', { min: normalizedDice.length, max: MAX_COUNTER }),
     rollCount: requireSafeInteger(source.rollCount, 'rollCount', { min: 0, max: MAX_COUNTER }),
-    chainCount: requireSafeInteger(source.chainCount, 'chainCount', { min: 0, max: MAX_COUNTER }),
+    // 旧保存との互換用。チェインは復元しない。
+    chainCount: 0,
     clearedCount: requireSafeInteger(source.clearedCount, 'clearedCount', { min: 0, max: MAX_COUNTER }),
     sixtySecondSpawnedCount: requireSafeInteger(
       source.sixtySecondSpawnedCount,
