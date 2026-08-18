@@ -12,10 +12,10 @@ import {
 
 function result(overrides = {}) {
   return {
-    modeId: GAME_MODE_IDS.SIXTY_SECONDS,
+    modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS,
     score: 3200,
     clearedDice: 12,
-    maxChain: 4,
+    maxChain: 0,
     ...overrides
   };
 }
@@ -30,13 +30,13 @@ function content(overrides = {}) {
   });
 }
 
-test('結果共有文にスコアとURLを含める', () => {
+test('結果共有文に300秒のスコアとURLを含める', () => {
   const share = content();
 
   assert.equal(share.title, 'サイノメ');
   assert.equal(
     share.text,
-    'サイノメの60秒モードで3,200点！\n'
+    'サイノメの300秒モードで3,200点！\n'
       + '消した数12個\n'
       + '自己ベスト更新！ +400点\n'
       + 'URL: https://example.com/sainome/\n'
@@ -48,19 +48,14 @@ test('結果共有文にスコアとURLを含める', () => {
   assert.doesNotMatch(share.text, /連鎖|CHAIN/);
 });
 
-test('300秒モードを60秒へ置き換えずに表示する', () => {
+test('初回の300秒記録も正しいモード名で表示する', () => {
   const share = content({
-    result: result({
-      modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS,
-      score: 900,
-      clearedDice: 3,
-      maxChain: 1
-    }),
+    result: result({ score: 900, clearedDice: 3 }),
     recordMessage: '初回記録'
   });
 
-  assert.match(share.text, /^サイノメの300秒モードで900点！/);
-  assert.match(share.text, /初回記録/);
+  assert.match(share.text, /^サイノメの300秒モードで900点！/u);
+  assert.match(share.text, /初回記録/u);
 });
 
 test('トップ共有文に紹介文とURLを含める', () => {
@@ -70,14 +65,14 @@ test('トップ共有文に紹介文とURLを含める', () => {
 
   assert.equal(share.title, 'サイノメ');
   assert.equal(share.url, 'https://example.com/sainome/');
-  assert.match(share.text, /サイコロを転がし、上面の目と同じ数以上/);
+  assert.match(share.text, /サイコロを転がし、上面の目と同じ数以上/u);
   assert.equal(share.text.includes(`URL: ${share.url}`), true);
   assert.equal(share.copyText, share.text);
 });
 
 test('共有URLから検索文字とページ内位置だけを除く', () => {
   assert.equal(
-    normalizeShareUrl('https://example.com/game/index.html?mode=60#result'),
+    normalizeShareUrl('https://example.com/game/index.html?mode=300#result'),
     'https://example.com/game/index.html'
   );
 });
@@ -118,14 +113,13 @@ test('共有機能がない場合は全文をコピーする', async () => {
 
 test('共有できないデータと判定された場合は全文をコピーする', async () => {
   let shareCalled = false;
-  const share = content();
   const navigatorObject = {
     canShare: () => false,
     share: async () => { shareCalled = true; },
     clipboard: { writeText: async () => {} }
   };
 
-  const status = await shareResult(share, navigatorObject);
+  const status = await shareResult(content(), navigatorObject);
 
   assert.equal(status, RESULT_SHARE_STATUSES.COPIED);
   assert.equal(shareCalled, false);
