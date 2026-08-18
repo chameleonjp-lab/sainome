@@ -14,6 +14,8 @@ import {
 } from '../js/game-state-storage.js';
 import { GAME_MODE_IDS } from '../js/game-modes.js';
 
+const MODE_ID = GAME_MODE_IDS.THREE_HUNDRED_SECONDS;
+
 function createDie({ id, row, column, top = 1 } = {}) {
   const orientations = {
     1: { top: 1, bottom: 6, front: 2, back: 5, left: 3, right: 4 },
@@ -39,11 +41,11 @@ function createDie({ id, row, column, top = 1 } = {}) {
 function createState(overrides = {}) {
   const game = {
     version: GAME_STATE_VERSION,
-    modeId: GAME_MODE_IDS.SIXTY_SECONDS,
+    modeId: MODE_ID,
     session: {
       phase: 'running',
-      modeId: GAME_MODE_IDS.SIXTY_SECONDS,
-      durationMs: 60_000,
+      modeId: MODE_ID,
+      durationMs: 300_000,
       elapsedMs: 1_234,
       score: 900,
       clearedDice: 3,
@@ -52,7 +54,10 @@ function createState(overrides = {}) {
       specialOneEvents: 0
     },
     player: { row: 3, column: 3, activeKey: '3,3', rotationY: 0 },
-    dice: [createDie({ id: 'die-1', row: 3, column: 3, top: 3 }), createDie({ id: 'die-2', row: 2, column: 3, top: 2 })],
+    dice: [
+      createDie({ id: 'die-1', row: 3, column: 3, top: 3 }),
+      createDie({ id: 'die-2', row: 2, column: 3, top: 2 })
+    ],
     diceSequence: 2,
     rollCount: 1,
     chainCount: 1,
@@ -70,11 +75,11 @@ function createState(overrides = {}) {
     playTicket: {
       submissionId: '11111111-1111-4111-8111-111111111111',
       displayName: 'プレイヤー',
-      gameSlug: 'sainome_60_seconds',
-      clientVersion: 'sainome-web-2',
+      gameSlug: 'sainome_300_seconds',
+      clientVersion: 'sainome-web-3',
       contractVersion: 'sainome-play-v2',
       issuedAt: 1_785_000_000_000,
-      earliestSubmitAt: 1_785_000_063_000,
+      earliestSubmitAt: 1_785_000_303_000,
       expiresAt: 1_785_086_400_000
     },
     game: { ...game, ...overrides, session: { ...game.session, ...overrides.session } }
@@ -95,11 +100,21 @@ test('ゲーム状態を版付きで正規化し、盤面とプレイ番号を�
   const restored = deserializePersistedGameState(serialized);
 
   assert.equal(restored.version, GAME_STATE_VERSION);
+  assert.equal(restored.game.modeId, MODE_ID);
   assert.equal(restored.game.dice[0].top, 3);
   assert.equal(restored.game.player.activeKey, '3,3');
+  assert.equal(restored.playTicket.gameSlug, 'sainome_300_seconds');
   assert.equal(restored.playTicket.submissionId, '11111111-1111-4111-8111-111111111111');
   assert.equal(restored.game.session.maxChain, 0);
   assert.equal(restored.game.chainCount, 0);
+});
+
+test('廃止モードの保存状態は復元しない', () => {
+  const legacy = createState({
+    modeId: '60-seconds',
+    session: { modeId: '60-seconds', durationMs: 60_000 }
+  });
+  assert.throws(() => serializePersistedGameState(legacy), /Unknown game mode/);
 });
 
 test('未知版、重複位置、面の矛盾は復元しない', () => {
@@ -113,7 +128,10 @@ test('未知版、重複位置、面の矛盾は復元しない', () => {
       ...createState(),
       game: {
         ...createState().game,
-        dice: [createDie({ id: 'die-1', row: 3, column: 3 }), createDie({ id: 'die-2', row: 3, column: 3 })]
+        dice: [
+          createDie({ id: 'die-1', row: 3, column: 3 }),
+          createDie({ id: 'die-2', row: 3, column: 3 })
+        ]
       }
     }),
     /positions/
@@ -124,7 +142,10 @@ test('未知版、重複位置、面の矛盾は復元しない', () => {
       ...createState(),
       game: {
         ...createState().game,
-        dice: [{ ...createDie({ id: 'die-1', row: 3, column: 3 }), bottom: 4 }, createDie({ id: 'die-2', row: 2, column: 3 })]
+        dice: [
+          { ...createDie({ id: 'die-1', row: 3, column: 3 }), bottom: 4 },
+          createDie({ id: 'die-2', row: 2, column: 3 })
+        ]
       }
     }),
     /orientation/
@@ -217,10 +238,9 @@ test('IndexedDBの実行時失敗後はlocalStorageへ切り替えて保存と�
   const storage = new GameStateStorage({
     adapter: new FallbackGameStateStorage({ primary, fallback })
   });
-  const state = createState();
 
   assert.equal((await storage.load()).status, 'unavailable');
-  const saved = await storage.save(state);
+  const saved = await storage.save(createState());
   assert.equal(saved.ok, false);
   assert.equal(saved.code, 'storage-unavailable');
   assert.equal((await storage.load()).status, 'unavailable');
@@ -273,7 +293,6 @@ test('IndexedDBが失敗しlocalStorageにも対象がない削除は成功扱�
   const result = await storage.clear({ expectedSerialized: 'saved-state' });
   assert.equal(result.status, 'unavailable');
 });
-
 
 test('IndexedDBへの保存失敗時は保存対象をlocalStorageへ退避する', async () => {
   const values = new Map();
