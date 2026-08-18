@@ -4,29 +4,24 @@ import assert from 'node:assert/strict';
 import {
   DEFAULT_GAME_MODE_ID,
   GAME_MODE_IDS,
+  GAME_MODES,
   getGameMode
 } from '../js/game-modes.js';
 
-test('新しいプレイの既定モードは300秒になる', () => {
+test('新しいプレイは300秒モードだけを使う', () => {
   const mode = getGameMode();
 
+  assert.deepEqual(Object.keys(GAME_MODE_IDS), ['THREE_HUNDRED_SECONDS']);
+  assert.deepEqual(Object.keys(GAME_MODES), ['300-seconds']);
   assert.equal(mode.id, DEFAULT_GAME_MODE_ID);
   assert.equal(mode.id, GAME_MODE_IDS.THREE_HUNDRED_SECONDS);
   assert.equal(mode.durationMs, 300_000);
-});
-
-test('保存済み記録との互換用に60秒モードを読み取れる', () => {
-  const mode = getGameMode(GAME_MODE_IDS.SIXTY_SECONDS);
-
-  assert.equal(mode.durationMs, 60_000);
-  assert.equal(mode.label, '60秒');
-});
-
-test('300秒モードは5分の制限時間を持つ', () => {
-  const mode = getGameMode(GAME_MODE_IDS.THREE_HUNDRED_SECONDS);
-
-  assert.equal(mode.durationMs, 300_000);
   assert.equal(mode.label, '300秒');
+});
+
+test('廃止した60秒・180秒モードは読み取れない', () => {
+  assert.throws(() => getGameMode('60-seconds'), /Unknown game mode/);
+  assert.throws(() => getGameMode('180-seconds'), /Unknown game mode/);
 });
 
 test('存在しないモードは開始できない', () => {
