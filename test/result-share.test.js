@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import { GAME_MODE_IDS } from '../js/game-modes.js';
 import {
+  createHomeShareContent,
   createResultShareContent,
   normalizeShareUrl,
   RESULT_SHARE_STATUSES,
@@ -29,7 +30,7 @@ function content(overrides = {}) {
   });
 }
 
-test('結果と自己ベスト判定をURLの前へまとめる', () => {
+test('結果共有文にスコアとURLを含める', () => {
   const share = content();
 
   assert.equal(share.title, 'サイノメ');
@@ -38,12 +39,13 @@ test('結果と自己ベスト判定をURLの前へまとめる', () => {
     'サイノメの60秒モードで3,200点！\n'
       + '消した数12個\n'
       + '自己ベスト更新！ +400点\n'
+      + 'URL: https://example.com/sainome/\n'
       + '#サイノメ'
   );
   assert.equal(share.url, 'https://example.com/sainome/');
-  assert.equal(share.copyText, `${share.text}\n${share.url}`);
+  assert.equal(share.copyText, share.text);
+  assert.equal(share.text.includes(share.url), true);
   assert.doesNotMatch(share.text, /連鎖|CHAIN/);
-  assert.equal(share.copyText.endsWith(share.url), true);
 });
 
 test('300秒モードを60秒へ置き換えずに表示する', () => {
@@ -59,6 +61,18 @@ test('300秒モードを60秒へ置き換えずに表示する', () => {
 
   assert.match(share.text, /^サイノメの300秒モードで900点！/);
   assert.match(share.text, /初回記録/);
+});
+
+test('トップ共有文に紹介文とURLを含める', () => {
+  const share = createHomeShareContent({
+    pageUrl: 'https://example.com/sainome/?from=home#top'
+  });
+
+  assert.equal(share.title, 'サイノメ');
+  assert.equal(share.url, 'https://example.com/sainome/');
+  assert.match(share.text, /サイコロを転がし、上面の目と同じ数以上/);
+  assert.equal(share.text.includes(`URL: ${share.url}`), true);
+  assert.equal(share.copyText, share.text);
 });
 
 test('共有URLから検索文字とページ内位置だけを除く', () => {
