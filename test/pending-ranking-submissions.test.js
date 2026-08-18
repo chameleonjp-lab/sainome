@@ -469,6 +469,22 @@ test('受付後の保存削除失敗では未送信結果を保持する', async
   assert.deepEqual(storage.peek(SUBMISSION_ID), recordFor(submission));
 });
 
+test('受付後の保存削除が応答しなくても結果画面を止めない', async () => {
+  const submission = createSubmission();
+  const storage = {
+    deleteIfMatch: () => new Promise(() => {})
+  };
+  const pending = new PendingRankingSubmissions({
+    storage,
+    storageTimeoutMs: Math.min(20, PENDING_RANKING_STORAGE_TIMEOUT_MS)
+  });
+
+  const removed = await pending.markAccepted(submission);
+
+  assert.equal(removed.ok, false);
+  assert.equal(removed.code, 'storage-unavailable');
+});
+
 test('対象の保存値が壊れた場合はnot-found成功にせず保持する', async () => {
   const submission = createSubmission();
   const broken = { submissionId: SUBMISSION_ID, serialized: '{broken-json' };
