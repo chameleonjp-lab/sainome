@@ -13,7 +13,8 @@ const forbidden = [
   '60-seconds',
   '180-seconds',
   'sainome_60_seconds',
-  'sainome_180_seconds'
+  'sainome_180_seconds',
+  'sixtySecondSpawnedCount'
 ];
 
 function listFiles(directory) {

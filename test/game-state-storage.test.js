@@ -62,7 +62,6 @@ function createState(overrides = {}) {
     rollCount: 1,
     chainCount: 1,
     clearedCount: 3,
-    sixtySecondSpawnedCount: 0,
     pendingSpawnCount: 0,
     spawnBlockedNotified: false,
     pendingMatchResolution: false,
