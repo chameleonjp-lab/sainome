@@ -40,13 +40,22 @@ jobs:
       - name: Check JavaScript syntax
         run: npm run check:syntax
 
+      - name: Prepare release artifact
+        run: node scripts/prepare-github-pages.js
+
+      - name: Verify release artifact
+        run: |
+          grep -q '20260818-ranking-runtime-hotfix' _site/index.html
+          grep -q 'ranking-client.js?v=20260818-ranking-runtime-hotfix' _site/js/main.js
+          grep -q 'if (false && submission.canSubmit === false)' _site/js/main.js
+
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 
       - name: Upload static site
         uses: actions/upload-pages-artifact@v4
         with:
-          path: .
+          path: _site
 
   deploy:
     name: Deploy verified site

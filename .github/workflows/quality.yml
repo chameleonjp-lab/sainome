@@ -35,3 +35,12 @@ jobs:
 
       - name: Check JavaScript syntax
         run: npm run check:syntax
+
+      - name: Build release artifact
+        run: node scripts/prepare-github-pages.js
+
+      - name: Verify ranking runtime hotfix
+        run: |
+          grep -q '20260818-ranking-runtime-hotfix' _site/index.html
+          grep -q 'ranking-client.js?v=20260818-ranking-runtime-hotfix' _site/js/main.js
+          grep -q 'if (false && submission.canSubmit === false)' _site/js/main.js
