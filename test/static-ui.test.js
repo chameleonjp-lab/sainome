@@ -121,6 +121,12 @@ test('WebGL復旧失敗時に再生成とホーム退避を選べる', () => {
   assert.match(css, /\.webgl-recovery-panel\s*\{/);
 });
 
+test('チェインを表示・演出する要素を残さない', () => {
+  assert.doesNotMatch(html, /CHAIN|連鎖/);
+  assert.doesNotMatch(main, /chainCount|resultChain|onChain|chain-hit/);
+  assert.doesNotMatch(css, /chain-active|chain-hit|chainPulse|chainHit/);
+});
+
 test('HTMLから読むローカルファイルはすべて存在する', () => {
   const paths = [...html.matchAll(/(?:src|href)="\.\/([^"?#]+)"/g)]
     .map((match) => match[1]);
