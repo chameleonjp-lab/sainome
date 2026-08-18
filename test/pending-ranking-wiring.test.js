@@ -48,7 +48,9 @@ test('結果画面の再送と順位再読込を別操作に分ける', () => {
   assert.match(main, /resultRankingRetryAction === 'submit'/);
   assert.match(main, /resultRankingRetryAction === 'ranking'/);
   assert.match(main, /syncResultRanking\(latestRankingSubmission, \{ submit: false \}\)/);
-  assert.match(main, /resultRankingRetryAction === 'submit' && latestRankingSubmission\.canSubmit/);
+  assert.match(main, /submission\.canSubmit !== false/);
+  assert.match(main, /latestRankingSubmission\.canSubmit !== false/);
+  assert.match(main, /記録を再送する/);
 });
 
 
