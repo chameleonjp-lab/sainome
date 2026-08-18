@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "test": "node --test",
-    "check:syntax": "node --check js/*.js && node --check scripts/*.js",
+    "check:syntax": "node --check js/*.js",
+    "check:release-syntax": "node --check scripts/*.js",
     "build:pages": "node scripts/prepare-github-pages.js",
     "verify:pages": "node scripts/verify-github-pages.js"
   },
