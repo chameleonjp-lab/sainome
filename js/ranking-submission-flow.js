@@ -149,7 +149,8 @@ export async function prepareRankingSubmission({
   // The result remains in memory and can be retried from the result screen.
   const canSubmit = queued?.ok === true
     || queued?.code === 'queue-full'
-    || queued?.code === 'storage-unavailable';
+    || queued?.code === 'storage-unavailable'
+    || queued?.code === 'storage-timeout';
 
   return Object.freeze({
     ...candidate,
@@ -191,7 +192,8 @@ export async function prepareDirectRankingSubmission({
   // The result remains in memory and can be retried from the result screen.
   const canSubmit = queued?.ok === true
     || queued?.code === 'queue-full'
-    || queued?.code === 'storage-unavailable';
+    || queued?.code === 'storage-unavailable'
+    || queued?.code === 'storage-timeout';
 
   return Object.freeze({
     ...candidate,
