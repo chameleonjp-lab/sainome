@@ -145,7 +145,11 @@ export async function prepareRankingSubmission({
   });
 
   const queued = await pendingSubmissions.enqueue(candidate);
-  const canSubmit = queued.ok || queued.code === 'queue-full';
+  // A local persistence failure must not suppress the direct network attempt.
+  // The result remains in memory and can be retried from the result screen.
+  const canSubmit = queued?.ok === true
+    || queued?.code === 'queue-full'
+    || queued?.code === 'storage-unavailable';
 
   return Object.freeze({
     ...candidate,
@@ -183,7 +187,11 @@ export async function prepareDirectRankingSubmission({
     createdAt: now()
   });
   const queued = await pendingSubmissions.enqueue(candidate);
-  const canSubmit = queued.ok || queued.code === 'queue-full';
+  // A local persistence failure must not suppress the direct network attempt.
+  // The result remains in memory and can be retried from the result screen.
+  const canSubmit = queued?.ok === true
+    || queued?.code === 'queue-full'
+    || queued?.code === 'storage-unavailable';
 
   return Object.freeze({
     ...candidate,
