@@ -474,6 +474,7 @@ export class PendingRankingSubmissions {
     this.quarantinedItems = [];
     this.storageAvailable = Boolean(storage);
     this.recoveryStorageAvailable = Boolean(storage);
+    this.storageFailureCode = null;
   }
 
   async refresh() {
@@ -495,7 +496,10 @@ export class PendingRankingSubmissions {
     } catch (error) {
       this.storageAvailable = false;
       this.recoveryStorageAvailable = false;
-      if (error?.code === 'storage-timeout') this.storage = null;
+      if (error?.code === 'storage-timeout') {
+        this.storageFailureCode = 'storage-timeout';
+        this.storage = null;
+      }
       this.items = sortSubmissions(
         [...this.volatileItems.values()].map((entry) => entry.submission)
       );
@@ -564,7 +568,10 @@ export class PendingRankingSubmissions {
         ];
       } catch (error) {
         this.recoveryStorageAvailable = false;
-        if (error?.code === 'storage-timeout') this.storage = null;
+        if (error?.code === 'storage-timeout') {
+          this.storageFailureCode = 'storage-timeout';
+          this.storage = null;
+        }
         this.quarantinedItems = [...this.volatileQuarantinedItems.values()];
       }
     } else {
@@ -650,12 +657,14 @@ export class PendingRankingSubmissions {
           ok: false, persisted: false, code: 'queue-full', submission: null
         });
       }
+      const storageFailureCode = this.storageFailureCode ?? 'storage-unavailable';
+      this.storageFailureCode = null;
       this.volatileItems.set(submission.submissionId, { submission, serialized });
       await this.refresh();
       return freezeResult({
         ok: true,
         persisted: false,
-        code: 'storage-unavailable',
+        code: storageFailureCode,
         submission
       });
     }
@@ -676,7 +685,10 @@ export class PendingRankingSubmissions {
       storageErrorCode = error?.code === 'storage-timeout'
         ? 'storage-timeout'
         : 'storage-unavailable';
-      if (storageErrorCode === 'storage-timeout') this.storage = null;
+      if (storageErrorCode === 'storage-timeout') {
+        this.storageFailureCode = 'storage-timeout';
+        this.storage = null;
+      }
       this.storageAvailable = false;
       this.volatileItems.set(submission.submissionId, { submission, serialized });
       await this.refresh();
