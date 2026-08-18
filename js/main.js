@@ -763,9 +763,10 @@ async function syncResultRanking(submission, { submit = true } = {}) {
     resultRankingStatus.textContent = rankingRows
       ? 'ランキングは表示しましたが、今回の記録を送信できませんでした'
       : '記録を送信できませんでした。通信状態を確認してください';
+    const canRetrySubmit = submission.canSubmit !== false && !submission.acceptedOutcome;
     setResultRankingRetryAction(
-      submission.canSubmit === false ? null : 'submit',
-      submission.canSubmit === false ? '' : '記録を再送する'
+      canRetrySubmit ? 'submit' : null,
+      canRetrySubmit ? '記録を再送する' : ''
     );
   } else if (cleanupError) {
     resultRankingStatus.textContent =
@@ -1811,7 +1812,11 @@ resultRankingRetry.addEventListener('click', () => {
     void syncResultRanking(latestRankingSubmission, { submit: false });
   } else if (resultRankingRetryAction === 'cleanup') {
     void retryAcceptedResultCleanup(latestRankingSubmission);
-  } else if (resultRankingRetryAction === 'submit' && latestRankingSubmission.canSubmit) {
+  } else if (
+    resultRankingRetryAction === 'submit'
+    && latestRankingSubmission.canSubmit !== false
+    && !latestRankingSubmission.acceptedOutcome
+  ) {
     void syncResultRanking(latestRankingSubmission);
   }
 });
