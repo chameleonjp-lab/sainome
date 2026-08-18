@@ -6,47 +6,29 @@ import {
 export const DEFAULT_GAME_DURATION_MS = getGameMode().durationMs;
 export const SCORE_UNIT = 100;
 
-const PHASES = Object.freeze({
-  IDLE: 'idle',
-  RUNNING: 'running',
-  FINISHING: 'finishing',
-  FINISHED: 'finished'
-});
-
+const PHASES = Object.freeze({ IDLE: 'idle', RUNNING: 'running', FINISHING: 'finishing', FINISHED: 'finished' });
 export const GAME_PHASES = PHASES;
 
 function requireFiniteNumber(value, name) {
   if (!Number.isFinite(value)) throw new TypeError(`${name} must be a finite number`);
   return value;
 }
-
 function requirePositiveInteger(value, name) {
   if (!Number.isInteger(value) || value < 1) throw new RangeError(`${name} must be a positive integer`);
   return value;
 }
-
 function requireNonNegativeInteger(value, name, maximum = Number.MAX_SAFE_INTEGER) {
-  if (!Number.isSafeInteger(value) || value < 0 || value > maximum) {
-    throw new RangeError(`${name} must be a non-negative safe integer`);
-  }
+  if (!Number.isSafeInteger(value) || value < 0 || value > maximum) throw new RangeError(`${name} must be a non-negative safe integer`);
   return value;
 }
 
 export function calculateClearScore({ value, count, type = 'normal' }) {
-  if (type !== 'normal' && type !== 'special-one') {
-    throw new RangeError(`Unknown clear type: ${type}`);
-  }
-
+  if (type !== 'normal' && type !== 'special-one') throw new RangeError(`Unknown clear type: ${type}`);
   const normalizedCount = requirePositiveInteger(count, 'count');
   const normalizedValue = requirePositiveInteger(value, 'value');
   if (normalizedValue > 6) throw new RangeError('value must be between 1 and 6');
-  if (type === 'normal' && normalizedValue < 2) {
-    throw new RangeError('normal clears require a value between 2 and 6');
-  }
-  if (type === 'special-one' && normalizedValue !== 1) {
-    throw new RangeError('special-one clears require value 1');
-  }
-
+  if (type === 'normal' && normalizedValue < 2) throw new RangeError('normal clears require a value between 2 and 6');
+  if (type === 'special-one' && normalizedValue !== 1) throw new RangeError('special-one clears require value 1');
   return normalizedValue * normalizedCount * SCORE_UNIT;
 }
 
@@ -59,6 +41,8 @@ function freezeSnapshot(session) {
     remainingMs: Math.max(0, session.durationMs - session.elapsedMs),
     score: session.score,
     clearedDice: session.clearedDice,
+    // 保存済みプレイとの互換用。チェイン機能としては使用しない。
+    maxChain: 0,
     clearEvents: session.clearEvents,
     specialOneEvents: session.specialOneEvents,
     endedReason: session.phase === PHASES.FINISHED ? session.endedReason : null
@@ -70,9 +54,7 @@ export class GameSession {
     const mode = getGameMode(modeId);
     const resolvedDuration = durationMs ?? mode.durationMs;
     requirePositiveInteger(resolvedDuration, 'durationMs');
-    if (resolvedDuration !== mode.durationMs) {
-      throw new RangeError('durationMs must match the selected game mode');
-    }
+    if (resolvedDuration !== mode.durationMs) throw new RangeError('durationMs must match the selected game mode');
     this.modeId = mode.id;
     this.durationMs = resolvedDuration;
     this.startedAt = 0;
@@ -105,21 +87,18 @@ export class GameSession {
   restore(snapshot, now = 0) {
     const currentTime = requireFiniteNumber(now, 'now');
     if (!snapshot || typeof snapshot !== 'object') throw new TypeError('session snapshot is required');
-    if (snapshot.modeId !== this.modeId || snapshot.durationMs !== this.durationMs) {
-      throw new RangeError('session snapshot mode does not match');
-    }
-    if (snapshot.phase !== PHASES.RUNNING && snapshot.phase !== PHASES.FINISHING) {
-      throw new RangeError('session snapshot phase is invalid');
-    }
+    if (snapshot.modeId !== this.modeId || snapshot.durationMs !== this.durationMs) throw new RangeError('session snapshot mode does not match');
+    if (snapshot.phase !== PHASES.RUNNING && snapshot.phase !== PHASES.FINISHING) throw new RangeError('session snapshot phase is invalid');
     const elapsedMs = requireFiniteNumber(snapshot.elapsedMs, 'elapsedMs');
     if (elapsedMs < 0 || elapsedMs > this.durationMs) throw new RangeError('elapsedMs is invalid');
-
     this.startedAt = currentTime - elapsedMs;
     this.lastNow = currentTime;
     this.phase = snapshot.phase;
     this.elapsedMs = elapsedMs;
     this.score = requireNonNegativeInteger(snapshot.score, 'score');
     this.clearedDice = requireNonNegativeInteger(snapshot.clearedDice, 'clearedDice');
+    // 旧保存の maxChain は検証だけ行い、ゲームへ復元しない。
+    requireNonNegativeInteger(snapshot.maxChain ?? 0, 'maxChain');
     this.clearEvents = requireNonNegativeInteger(snapshot.clearEvents, 'clearEvents');
     this.specialOneEvents = requireNonNegativeInteger(snapshot.specialOneEvents, 'specialOneEvents');
     this.endedReason = null;
@@ -137,9 +116,7 @@ export class GameSession {
     return this.getSnapshot();
   }
 
-  isAcceptingInput() {
-    return this.phase === PHASES.RUNNING;
-  }
+  isAcceptingInput() { return this.phase === PHASES.RUNNING; }
 
   recordClear(clear) {
     if (this.phase !== PHASES.RUNNING && this.phase !== PHASES.FINISHING) return null;
