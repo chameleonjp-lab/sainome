@@ -815,7 +815,7 @@ button:disabled { opacity: .55; }
   font-size: .68rem;
   font-weight: 750;
 }
- .result-stats {
+.result-stats {
   width: min(100%, 330px);
   display: grid;
   grid-template-columns: 1fr;
