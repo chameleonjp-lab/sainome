@@ -65,6 +65,12 @@ indexHtml = replaceRequired(
 );
 indexHtml = replaceRequired(
   indexHtml,
+  /<script type="module" src="\.\/js\/ranking-status-ui\.js(?:\?v=[^"]*)?"><\/script>/u,
+  `<script type="module" src="./js/ranking-status-ui.js?v=${release}"></script>`,
+  'ranking status module release query'
+);
+indexHtml = replaceRequired(
+  indexHtml,
   /<script type="module" src="\.\/js\/main\.js(?:\?v=[^"]*)?"><\/script>/u,
   `<script type="module" src="./js/main.js?v=${release}"></script>`,
   'main module release query'

@@ -238,7 +238,6 @@ export class WebGLSainome {
       onFrame: () => this.animate()
     });
     this.mode = getGameMode(initialModeId);
-    this.sixtySecondSpawnedCount = 0;
     this.pendingSpawnCount = 0;
     this.spawnBlockedNotified = false;
     this.pendingMatchResolution = false;
@@ -440,7 +439,6 @@ export class WebGLSainome {
     this.playerColumn = 3;
     this.rollCount = 0;
     this.clearedCount = 0;
-    this.sixtySecondSpawnedCount = 0;
     this.pendingSpawnCount = 0;
     this.spawnBlockedNotified = false;
     this.pendingMatchResolution = false;
@@ -616,7 +614,6 @@ export class WebGLSainome {
       rollCount: this.rollCount,
       chainCount: 0,
       clearedCount: this.clearedCount,
-      sixtySecondSpawnedCount: this.sixtySecondSpawnedCount,
       pendingSpawnCount: this.pendingSpawnCount,
       spawnBlockedNotified: this.spawnBlockedNotified,
       pendingMatchResolution: this.pendingMatchResolution,
@@ -685,7 +682,6 @@ export class WebGLSainome {
     this.player.rotation.z = 0;
     this.rollCount = state.rollCount;
     this.clearedCount = state.clearedCount;
-    this.sixtySecondSpawnedCount = state.sixtySecondSpawnedCount;
     this.pendingSpawnCount = state.pendingSpawnCount;
     this.spawnBlockedNotified = state.spawnBlockedNotified;
     this.pendingMatchResolution = state.pendingMatchResolution;

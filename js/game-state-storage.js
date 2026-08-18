@@ -196,11 +196,6 @@ export function normalizeGameRuntimeState(value) {
     // 旧保存との互換用。チェインは復元しない。
     chainCount: 0,
     clearedCount: requireSafeInteger(source.clearedCount, 'clearedCount', { min: 0, max: MAX_COUNTER }),
-    sixtySecondSpawnedCount: requireSafeInteger(
-      source.sixtySecondSpawnedCount,
-      'sixtySecondSpawnedCount',
-      { min: 0, max: 2 }
-    ),
     pendingSpawnCount: requireSafeInteger(source.pendingSpawnCount, 'pendingSpawnCount', { min: 0, max: MAX_DICE }),
     spawnBlockedNotified: source.spawnBlockedNotified === true,
     pendingMatchResolution: source.pendingMatchResolution === true,

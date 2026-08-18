@@ -2,16 +2,16 @@ import { GAME_MODE_IDS } from './game-modes.js';
 import { validatePlayerName } from './player-profile.js';
 
 export const RANKING_LIMIT = 10;
-export const RANKING_CLIENT_VERSION = 'sainome-web-2';
+export const RANKING_CLIENT_VERSION = 'sainome-web-3';
 export const RANKING_SUBMISSION_CONTRACT_VERSION = 'sainome-play-v2';
 export const RANKING_NAME_CONTRACT_VERSION = 'sainome-name-v1';
+export const RANKING_FAILURE_EVENT = 'sainome:ranking-failure';
 export const RANKING_GAME_SLUGS = Object.freeze({
-  [GAME_MODE_IDS.SIXTY_SECONDS]: 'sainome_60_seconds',
-  [GAME_MODE_IDS.ONE_EIGHTY_SECONDS]: 'sainome_180_seconds',
   [GAME_MODE_IDS.THREE_HUNDRED_SECONDS]: 'sainome_300_seconds'
 });
 
 const MAX_SCORE = 100_000_000;
+const SUBMISSION_DELAY_MS = 303_000;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const CLIENT_VERSION_PATTERN = /^[A-Za-z0-9._-]{1,40}$/u;
 
@@ -30,7 +30,11 @@ export class RankingError extends Error {
     retryable = false,
     status = null,
     rpcName = null,
-    serverCode = null
+    serverCode = null,
+    serverMessage = null,
+    serverHint = null,
+    serverDetails = null,
+    gameSlug = null
   } = {}) {
     super(message, cause ? { cause } : undefined);
     this.name = 'RankingError';
@@ -39,12 +43,50 @@ export class RankingError extends Error {
     this.status = Number.isInteger(status) ? status : null;
     this.rpcName = typeof rpcName === 'string' ? rpcName : null;
     this.serverCode = typeof serverCode === 'string' ? serverCode : null;
+    this.serverMessage = typeof serverMessage === 'string' ? serverMessage : null;
+    this.serverHint = typeof serverHint === 'string' ? serverHint : null;
+    this.serverDetails = typeof serverDetails === 'string' ? serverDetails : null;
+    this.gameSlug = typeof gameSlug === 'string' ? gameSlug : null;
   }
 }
 
 export function isRetryableRankingError(error) {
   return error instanceof RankingError
     && (error.retryable === true || error.code === 'network' || error.code === 'timeout');
+}
+
+export function createRankingFailureDetail(error) {
+  if (!(error instanceof RankingError)) {
+    throw new TypeError('ranking error is required');
+  }
+  return Object.freeze({
+    code: error.code,
+    retryable: error.retryable === true,
+    status: error.status,
+    rpcName: error.rpcName,
+    serverCode: error.serverCode,
+    serverMessage: error.serverMessage,
+    serverHint: error.serverHint,
+    serverDetails: error.serverDetails,
+    gameSlug: error.gameSlug
+  });
+}
+
+function reportRankingFailure(error) {
+  const detail = createRankingFailureDetail(error);
+  if (typeof globalThis.window !== 'undefined') {
+    console.error('[sainome-ranking]', detail);
+  }
+  try {
+    if (
+      typeof globalThis.dispatchEvent === 'function'
+      && typeof globalThis.CustomEvent === 'function'
+    ) {
+      globalThis.dispatchEvent(new globalThis.CustomEvent(RANKING_FAILURE_EVENT, { detail }));
+    }
+  } catch {
+    // Diagnostics must never replace the original ranking error.
+  }
 }
 
 function requireModeSlug(modeId) {
@@ -147,11 +189,6 @@ function parseIssueResponse(data, expected) {
   const issuedAt = parseIssuedAt(row.issued_at, '発行時刻');
   const earliestSubmitAt = parseIssuedAt(row.earliest_submit_at, '受付開始時刻');
   const expiresAt = parseIssuedAt(row.expires_at, '失効時刻');
-  const requiredDelay = expected.gameSlug === 'sainome_60_seconds'
-    ? 63_000
-    : expected.gameSlug === 'sainome_180_seconds'
-      ? 183_000
-      : 303_000;
   if (
     row.issued !== true
     || !isValidRankingSubmissionId(row.result_submission_id)
@@ -159,7 +196,7 @@ function parseIssueResponse(data, expected) {
     || row.result_game_slug !== expected.gameSlug
     || row.result_client_version !== RANKING_CLIENT_VERSION
     || row.result_contract_version !== RANKING_SUBMISSION_CONTRACT_VERSION
-    || earliestSubmitAt - issuedAt !== requiredDelay
+    || earliestSubmitAt - issuedAt !== SUBMISSION_DELAY_MS
     || expiresAt - issuedAt !== 86_400_000
     || !(issuedAt < earliestSubmitAt && earliestSubmitAt < expiresAt)
   ) {
@@ -244,7 +281,6 @@ export function createSubmissionId(cryptoObject = globalThis.crypto) {
   return `fallback_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 14)}`;
 }
 
-
 function parseSimpleStartResponse(data, expected) {
   const row = data && typeof data === 'object' && !Array.isArray(data) ? data : null;
   if (
@@ -310,9 +346,24 @@ export class RankingClient {
     this.timeoutMs = timeoutMs;
   }
 
+  #reportParsedFailure(error, functionName, parameters) {
+    const rankingError = error instanceof RankingError
+      ? error
+      : new RankingError('client', 'ランキング応答を処理できませんでした', error);
+    if (!rankingError.rpcName) rankingError.rpcName = functionName;
+    if (!rankingError.gameSlug && typeof parameters?.p_game_slug === 'string') {
+      rankingError.gameSlug = parameters.p_game_slug;
+    }
+    reportRankingFailure(rankingError);
+    throw rankingError;
+  }
+
   async #rpc(functionName, parameters) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
+    const gameSlug = typeof parameters?.p_game_slug === 'string'
+      ? parameters.p_game_slug
+      : null;
     const headers = {
       apikey: this.publishableKey,
       Accept: 'application/json',
@@ -320,9 +371,6 @@ export class RankingClient {
     };
 
     try {
-      // Native browser fetch is a Window/WorkerGlobalScope method. Calling an
-      // extracted fetch as this.fetchImpl(...) rebinds `this` to RankingClient
-      // and can fail with "Illegal invocation" before a request reaches Supabase.
       const response = await this.fetchImpl.call(globalThis, `${this.url}/rest/v1/rpc/${functionName}`, {
         method: 'POST',
         headers,
@@ -345,7 +393,7 @@ export class RankingClient {
         const serverError = data && typeof data === 'object' && !Array.isArray(data)
           ? data
           : {};
-        throw new RankingError(
+        const error = new RankingError(
           'request-failed',
           'ランキング通信に失敗しました',
           undefined,
@@ -353,27 +401,34 @@ export class RankingClient {
             retryable,
             status: response.status,
             rpcName: functionName,
-            serverCode: typeof serverError.code === 'string' ? serverError.code : null
+            serverCode: typeof serverError.code === 'string' ? serverError.code : null,
+            serverMessage: typeof serverError.message === 'string' ? serverError.message : null,
+            serverHint: typeof serverError.hint === 'string' ? serverError.hint : null,
+            serverDetails: typeof serverError.details === 'string' ? serverError.details : null,
+            gameSlug
           }
         );
+        reportRankingFailure(error);
+        throw error;
       }
       return data;
     } catch (error) {
       if (error instanceof RankingError) throw error;
-      if (error?.name === 'AbortError') {
-        throw new RankingError(
+      const rankingError = error?.name === 'AbortError'
+        ? new RankingError(
           'timeout',
           'ランキング通信が時間切れになりました',
           error,
-          { retryable: true }
+          { retryable: true, rpcName: functionName, gameSlug }
+        )
+        : new RankingError(
+          'network',
+          'ランキングへ接続できませんでした',
+          error,
+          { retryable: true, rpcName: functionName, gameSlug }
         );
-      }
-      throw new RankingError(
-        'network',
-        'ランキングへ接続できませんでした',
-        error,
-        { retryable: true }
-      );
+      reportRankingFailure(rankingError);
+      throw rankingError;
     } finally {
       clearTimeout(timeoutId);
     }
@@ -384,13 +439,18 @@ export class RankingClient {
       displayName: requireDisplayName(displayName),
       gameSlug: requireModeSlug(modeId)
     });
-    const data = await this.#rpc('record_game_play', {
+    const parameters = {
       p_display_name: expected.displayName,
       p_game_slug: expected.gameSlug,
       p_result_type: 'play',
       p_client_version: RANKING_CLIENT_VERSION
-    });
-    return parseSimpleStartResponse(data, expected);
+    };
+    const data = await this.#rpc('record_game_play', parameters);
+    try {
+      return parseSimpleStartResponse(data, expected);
+    } catch (error) {
+      return this.#reportParsedFailure(error, 'record_game_play', parameters);
+    }
   }
 
   async submitScoreDirect({ displayName, modeId, score }) {
@@ -399,13 +459,18 @@ export class RankingClient {
       gameSlug: requireModeSlug(modeId),
       score: requireScore(score)
     });
-    const data = await this.#rpc('submit_score', {
+    const parameters = {
       p_display_name: expected.displayName,
       p_game_slug: expected.gameSlug,
       p_score: expected.score,
       p_client_version: RANKING_CLIENT_VERSION
-    });
-    return parseSimpleSubmitResponse(data, expected);
+    };
+    const data = await this.#rpc('submit_score', parameters);
+    try {
+      return parseSimpleSubmitResponse(data, expected);
+    } catch (error) {
+      return this.#reportParsedFailure(error, 'submit_score', parameters);
+    }
   }
 
   async issuePlay({ displayName, modeId }) {
@@ -413,13 +478,18 @@ export class RankingClient {
       displayName: requireDisplayName(displayName),
       gameSlug: requireModeSlug(modeId)
     });
-    const data = await this.#rpc('issue_sainome_play_v2', {
+    const parameters = {
       p_display_name: expected.displayName,
       p_game_slug: expected.gameSlug,
       p_client_version: RANKING_CLIENT_VERSION,
       p_contract_version: RANKING_SUBMISSION_CONTRACT_VERSION
-    });
-    return parseIssueResponse(data, expected);
+    };
+    const data = await this.#rpc('issue_sainome_play_v2', parameters);
+    try {
+      return parseIssueResponse(data, expected);
+    } catch (error) {
+      return this.#reportParsedFailure(error, 'issue_sainome_play_v2', parameters);
+    }
   }
 
   async submitScore({
@@ -442,23 +512,33 @@ export class RankingClient {
       throw new TypeError('contractVersion is invalid');
     }
 
-    const data = await this.#rpc('submit_score_once', {
+    const parameters = {
       p_display_name: expected.displayName,
       p_game_slug: expected.gameSlug,
       p_score: expected.score,
       p_client_version: expected.clientVersion,
       p_submission_id: expected.submissionId,
       p_contract_version: expected.contractVersion
-    });
-    return parseSubmitResponse(data, expected);
+    };
+    const data = await this.#rpc('submit_score_once', parameters);
+    try {
+      return parseSubmitResponse(data, expected);
+    } catch (error) {
+      return this.#reportParsedFailure(error, 'submit_score_once', parameters);
+    }
   }
 
   async getTopRanking(modeId) {
-    const data = await this.#rpc('get_best_score_ranking', {
+    const parameters = {
       p_game_slug: requireModeSlug(modeId),
       p_limit: RANKING_LIMIT
-    });
-    return parseRankingResponse(data);
+    };
+    const data = await this.#rpc('get_best_score_ranking', parameters);
+    try {
+      return parseRankingResponse(data);
+    } catch (error) {
+      return this.#reportParsedFailure(error, 'get_best_score_ranking', parameters);
+    }
   }
 }
 

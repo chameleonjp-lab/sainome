@@ -82,7 +82,7 @@
         <div class="home-actions">
           <button id="start-button" class="primary-button" type="button">ゲーム開始</button>
           <button id="tutorial-button" class="secondary-button" type="button">遊び方を見る</button>
-          <button id="home-share-button" class="share-button home-share-button" type="button">このゲームをシェア</button>
+          <button id="home-share-button" class="share-button home-share-button" type="button">URLと紹介文をシェア</button>
         </div>
         <p id="home-share-status" class="result-share-status home-share-status" role="status" aria-live="polite"></p>
         <section id="game-recovery-panel" class="game-recovery-panel" aria-labelledby="game-recovery-title" hidden>
@@ -203,7 +203,7 @@
           <div><dt>消した数</dt><dd id="result-cleared">0</dd></div>
         </dl>
         <div class="result-actions">
-          <button id="result-share-button" class="share-button" type="button">結果をシェア</button>
+          <button id="result-share-button" class="share-button" type="button">URLとスコアをシェア</button>
           <button id="replay-button" class="primary-button" type="button">もう一度</button>
           <button id="result-home-button" class="secondary-button" type="button">ホームへ</button>
           <a
@@ -221,8 +221,15 @@
           <p id="result-ranking-status" class="result-ranking-status" role="status" aria-live="polite">
             ランキングを読み込んでいます…
           </p>
+          <p id="result-ranking-error-detail" class="result-record-warning" role="alert" hidden></p>
           <ol id="result-ranking-list" class="result-ranking-list"></ol>
-          <button id="result-ranking-retry" class="ranking-retry-button" type="button" hidden>
+          <button
+            id="result-ranking-retry"
+            class="ranking-retry-button"
+            type="button"
+            aria-describedby="result-ranking-status result-ranking-error-detail"
+            hidden
+          >
             記録を再送する
           </button>
         </section>
@@ -266,6 +273,7 @@
     </footer>
   </main>
 
+  <script type="module" src="./js/ranking-status-ui.js?v=20260818-direct-ranking-v1"></script>
   <script type="module" src="./js/main.js?v=20260818-direct-ranking-v1"></script>
 </body>
 </html>

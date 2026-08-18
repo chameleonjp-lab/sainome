@@ -40,7 +40,11 @@ function collectLocalSpecifiers(source) {
 const indexHtml = await readFile(join(out, 'index.html'), 'utf8');
 requireText(indexHtml, `<meta name="sainome-release" content="${release}">`, 'release meta');
 requireText(indexHtml, `./css/style.css?v=${release}`, 'stylesheet version');
+requireText(indexHtml, `./js/ranking-status-ui.js?v=${release}`, 'ranking status module version');
 requireText(indexHtml, `./js/main.js?v=${release}`, 'main module version');
+requireText(indexHtml, 'id="result-ranking-error-detail"', 'ranking error detail output');
+requireText(indexHtml, 'URLと紹介文をシェア', 'home share button');
+requireText(indexHtml, 'URLとスコアをシェア', 'result share button');
 
 const releaseInfo = JSON.parse(await readFile(join(out, 'release.json'), 'utf8'));
 if (releaseInfo.release !== release || releaseInfo.commit !== commit) {
@@ -80,5 +84,13 @@ const rankingClient = await readFile(join(out, 'js', 'ranking-client.js'), 'utf8
 requireText(rankingClient, "#rpc('record_game_play'", 'play start RPC');
 requireText(rankingClient, "#rpc('submit_score'", 'score submit RPC');
 requireText(rankingClient, "#rpc('get_best_score_ranking'", 'ranking read RPC');
+requireText(rankingClient, "sainome_300_seconds", '300 second ranking slug');
+if (rankingClient.includes('sainome_60_seconds') || rankingClient.includes('sainome_180_seconds')) {
+  throw new Error('Release verification failed: retired ranking slug remains');
+}
+
+const rankingStatusUi = await readFile(join(out, 'js', 'ranking-status-ui.js'), 'utf8');
+requireText(rankingStatusUi, 'result-ranking-error-detail', 'ranking failure visibility');
+requireText(rankingStatusUi, "retryButton.disabled = false", 'ranking retry reactivation');
 
 console.log(`Verified GitHub Pages release ${release}: ${localImportCount} local module imports`);
