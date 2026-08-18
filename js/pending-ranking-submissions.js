@@ -15,6 +15,7 @@ export const PENDING_RANKING_DATABASE_VERSION = 2;
 export const PENDING_RANKING_STORAGE_VERSION = 2;
 export const PENDING_RANKING_LEGACY_CONTRACT_VERSION = 'shared-v1';
 export const MAX_PENDING_RANKING_SUBMISSIONS = 50;
+export const PENDING_RANKING_STORAGE_TIMEOUT_MS = 2_000;
 
 const MAX_SCORE = 100_000_000;
 const MAX_CLEARED_DICE = 1_000_000;
@@ -34,6 +35,20 @@ function requestResult(request) {
     request.addEventListener('success', () => resolve(request.result), { once: true });
     request.addEventListener('error', () => reject(request.error), { once: true });
   });
+}
+
+function storageTimeoutError() {
+  const error = new Error('ranking storage operation timed out');
+  error.code = 'storage-timeout';
+  return error;
+}
+
+function withStorageTimeout(promise, timeoutMs) {
+  let timeoutId;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => reject(storageTimeoutError()), timeoutMs);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId));
 }
 
 function transactionDone(transaction) {
@@ -435,13 +450,21 @@ function sortSubmissions(items) {
 }
 
 export class PendingRankingSubmissions {
-  constructor({ storage = defaultStorage(), maxItems = MAX_PENDING_RANKING_SUBMISSIONS } = {}) {
+  constructor({
+    storage = defaultStorage(),
+    maxItems = MAX_PENDING_RANKING_SUBMISSIONS,
+    storageTimeoutMs = PENDING_RANKING_STORAGE_TIMEOUT_MS
+  } = {}) {
     if (!Number.isInteger(maxItems) || maxItems < 1) {
       throw new RangeError('maxItems is invalid');
+    }
+    if (!Number.isFinite(storageTimeoutMs) || storageTimeoutMs < 1) {
+      throw new RangeError('storageTimeoutMs is invalid');
     }
 
     this.storage = storage;
     this.maxItems = maxItems;
+    this.storageTimeoutMs = storageTimeoutMs;
     this.items = [];
     this.volatileItems = new Map();
     this.volatileQuarantinedItems = new Map();
@@ -451,6 +474,7 @@ export class PendingRankingSubmissions {
     this.quarantinedItems = [];
     this.storageAvailable = Boolean(storage);
     this.recoveryStorageAvailable = Boolean(storage);
+    this.storageFailureCode = null;
   }
 
   async refresh() {
@@ -466,12 +490,16 @@ export class PendingRankingSubmissions {
 
     let records;
     try {
-      records = await this.storage.list();
+      records = await withStorageTimeout(this.storage.list(), this.storageTimeoutMs);
       if (!Array.isArray(records)) throw new TypeError('saved submissions are invalid');
       this.storageAvailable = true;
-    } catch {
+    } catch (error) {
       this.storageAvailable = false;
       this.recoveryStorageAvailable = false;
+      if (error?.code === 'storage-timeout') {
+        this.storageFailureCode = 'storage-timeout';
+        this.storage = null;
+      }
       this.items = sortSubmissions(
         [...this.volatileItems.values()].map((entry) => entry.submission)
       );
@@ -521,7 +549,10 @@ export class PendingRankingSubmissions {
     this.recoveryStorageAvailable = true;
     if (typeof this.storage.listQuarantined === 'function') {
       try {
-        const quarantined = await this.storage.listQuarantined();
+        const quarantined = await withStorageTimeout(
+          this.storage.listQuarantined(),
+          this.storageTimeoutMs
+        );
         if (!Array.isArray(quarantined)) throw new TypeError('quarantine records are invalid');
         this.quarantinedItems = [
           ...quarantined
@@ -535,8 +566,12 @@ export class PendingRankingSubmissions {
             })),
           ...this.volatileQuarantinedItems.values()
         ];
-      } catch {
+      } catch (error) {
         this.recoveryStorageAvailable = false;
+        if (error?.code === 'storage-timeout') {
+          this.storageFailureCode = 'storage-timeout';
+          this.storage = null;
+        }
         this.quarantinedItems = [...this.volatileQuarantinedItems.values()];
       }
     } else {
@@ -622,25 +657,38 @@ export class PendingRankingSubmissions {
           ok: false, persisted: false, code: 'queue-full', submission: null
         });
       }
+      const storageFailureCode = this.storageFailureCode ?? 'storage-unavailable';
+      this.storageFailureCode = null;
       this.volatileItems.set(submission.submissionId, { submission, serialized });
       await this.refresh();
       return freezeResult({
         ok: true,
         persisted: false,
-        code: 'storage-unavailable',
+        code: storageFailureCode,
         submission
       });
     }
 
     let added;
+    let storageErrorCode = 'storage-unavailable';
     try {
-      added = await this.storage.addIfAbsent({
-        submissionId: submission.submissionId,
-        serialized,
-        maxItems: this.maxItems
-      });
+      added = await withStorageTimeout(
+        this.storage.addIfAbsent({
+          submissionId: submission.submissionId,
+          serialized,
+          maxItems: this.maxItems
+        }),
+        this.storageTimeoutMs
+      );
       this.storageAvailable = true;
-    } catch {
+    } catch (error) {
+      storageErrorCode = error?.code === 'storage-timeout'
+        ? 'storage-timeout'
+        : 'storage-unavailable';
+      if (storageErrorCode === 'storage-timeout') {
+        this.storageFailureCode = 'storage-timeout';
+        this.storage = null;
+      }
       this.storageAvailable = false;
       this.volatileItems.set(submission.submissionId, { submission, serialized });
       await this.refresh();
@@ -666,7 +714,7 @@ export class PendingRankingSubmissions {
       return freezeResult({
         ok: true,
         persisted: false,
-        code: 'storage-unavailable',
+        code: storageErrorCode,
         submission
       });
     }
@@ -934,30 +982,58 @@ export class PendingRankingSubmissions {
 
     if (!this.storage) {
       const removed = this.volatileItems.delete(submission.submissionId);
+      if (removed) {
+        await this.refresh();
+        return freezeResult({
+          ok: true,
+          removed: true,
+          persisted: false,
+          code: 'removed'
+        });
+      }
+      const storageFailureCode = this.storageFailureCode;
+      if (storageFailureCode) {
+        return freezeResult({
+          ok: false,
+          removed: false,
+          persisted: false,
+          code: storageFailureCode
+        });
+      }
       await this.refresh();
       return freezeResult({
         ok: true,
-        removed,
+        removed: false,
         persisted: false,
-        code: removed ? 'removed' : 'not-found'
+        code: 'not-found'
       });
     }
 
     let deletion;
     try {
-      deletion = await this.storage.deleteIfMatch({
-        submissionId: submission.submissionId,
-        serialized
-      });
+      deletion = await withStorageTimeout(
+        this.storage.deleteIfMatch({
+          submissionId: submission.submissionId,
+          serialized
+        }),
+        this.storageTimeoutMs
+      );
       this.storageAvailable = true;
-    } catch {
+    } catch (error) {
       this.storageAvailable = false;
+      const storageErrorCode = error?.code === 'storage-timeout'
+        ? 'storage-timeout'
+        : 'storage-unavailable';
+      if (error?.code === 'storage-timeout') {
+        this.storageFailureCode = 'storage-timeout';
+        this.storage = null;
+      }
       await this.refresh();
       return freezeResult({
         ok: false,
         removed: false,
         persisted: false,
-        code: 'storage-unavailable'
+        code: storageErrorCode
       });
     }
 

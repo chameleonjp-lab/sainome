@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   MAX_PENDING_RANKING_SUBMISSIONS,
   PendingRankingSubmissions,
+  PENDING_RANKING_STORAGE_TIMEOUT_MS,
   PENDING_RANKING_STORAGE_VERSION
 } from '../js/pending-ranking-submissions.js';
 import {
@@ -413,6 +414,24 @@ test('隔離保存に失敗した場合は未送信記録を残す', async () =>
   assert.equal(storage.quarantineEntries().length, 0);
 });
 
+test('保存領域が応答しなくても揮発保存へ切り替える', async () => {
+  const storage = {
+    list: () => new Promise(() => {}),
+    listQuarantined: () => new Promise(() => {}),
+    addIfAbsent: () => new Promise(() => {})
+  };
+  const pending = new PendingRankingSubmissions({
+    storage,
+    storageTimeoutMs: Math.min(20, PENDING_RANKING_STORAGE_TIMEOUT_MS)
+  });
+  const result = await pending.enqueue(createSubmission());
+
+  assert.equal(result.ok, true);
+  assert.equal(result.persisted, false);
+  assert.equal(result.code, 'storage-timeout');
+  assert.equal((await pending.refresh()).count, 1);
+});
+
 test('保存不能でも現在の画面内では結果を保持し、既存の保存値を変更しない', async () => {
   const existing = createSubmission({ submissionId: ALTERNATE_IDS[1] });
   const storage = createAtomicMemoryStorage([recordFor(existing)], { failAdd: true });
@@ -448,6 +467,25 @@ test('受付後の保存削除失敗では未送信結果を保持する', async
   assert.equal(removed.ok, false);
   assert.equal(removed.code, 'storage-unavailable');
   assert.deepEqual(storage.peek(SUBMISSION_ID), recordFor(submission));
+});
+
+test('受付後の保存削除が応答しなくても結果画面を止めない', async () => {
+  const submission = createSubmission();
+  const storage = {
+    deleteIfMatch: () => new Promise(() => {})
+  };
+  const pending = new PendingRankingSubmissions({
+    storage,
+    storageTimeoutMs: Math.min(20, PENDING_RANKING_STORAGE_TIMEOUT_MS)
+  });
+
+  const removed = await pending.markAccepted(submission);
+
+  assert.equal(removed.ok, false);
+  assert.equal(removed.code, 'storage-timeout');
+  const retry = await pending.markAccepted(submission);
+  assert.equal(retry.ok, false);
+  assert.equal(retry.code, 'storage-timeout');
 });
 
 test('対象の保存値が壊れた場合はnot-found成功にせず保持する', async () => {

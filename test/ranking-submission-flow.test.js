@@ -238,6 +238,49 @@ test('名前だけ方式の未送信結果を保存して再送後に削除す�
   assert.equal(submitted.cleanup.ok, true);
 });
 
+test('端末保存が一時的に使えなくても名前のみ送信を許可する', async () => {
+  const pendingSubmissions = {
+    enqueue: async () => ({
+      ok: false,
+      persisted: false,
+      code: 'storage-unavailable',
+      submission: null
+    })
+  };
+  const submission = await prepareDirectRankingSubmission({
+    pendingSubmissions,
+    displayName: 'プレイヤー',
+    result: RESULT,
+    now: () => 100,
+    submissionId: 'direct-storage-12345678'
+  });
+
+  assert.equal(submission.pendingSaveCode, 'storage-unavailable');
+  assert.equal(submission.persisted, false);
+  assert.equal(submission.canSubmit, true);
+});
+
+test('端末保存が例外を投げても名前のみ送信を許可する', async () => {
+  const pendingSubmissions = {
+    enqueue: async () => {
+      const error = new Error('storage crashed');
+      error.code = 'storage-unavailable';
+      throw error;
+    }
+  };
+  const submission = await prepareDirectRankingSubmission({
+    pendingSubmissions,
+    displayName: 'プレイヤー',
+    result: RESULT,
+    now: () => 100,
+    submissionId: 'direct-storage-throw-12345678'
+  });
+
+  assert.equal(submission.pendingSaveCode, 'storage-unavailable');
+  assert.equal(submission.persisted, false);
+  assert.equal(submission.canSubmit, true);
+});
+
 test('通信失敗では受付削除へ進まない', async () => {
   let cleanupCalls = 0;
   const pendingSubmissions = {
@@ -389,6 +432,45 @@ test('未送信上限では画面内の送信を許すが保存失敗を明示�
 
   assert.equal(submission.persisted, false);
   assert.equal(submission.pendingSaveCode, 'queue-full');
+  assert.equal(submission.canSubmit, true);
+});
+
+test('受付番号方式も端末保存失敗時は送信を許可する', async () => {
+  const pendingSubmissions = {
+    enqueue: async () => ({
+      ok: false,
+      persisted: false,
+      code: 'storage-unavailable',
+      submission: null
+    })
+  };
+  const submission = await prepareRankingSubmission({
+    pendingSubmissions,
+    displayName: 'プレイヤー',
+    result: RESULT,
+    now: () => 100,
+    playTicket: PLAY_TICKET
+  });
+
+  assert.equal(submission.pendingSaveCode, 'storage-unavailable');
+  assert.equal(submission.persisted, false);
+  assert.equal(submission.canSubmit, true);
+});
+
+test('受付番号方式も端末保存例外時は送信を許可する', async () => {
+  const pendingSubmissions = {
+    enqueue: async () => { throw new Error('storage crashed'); }
+  };
+  const submission = await prepareRankingSubmission({
+    pendingSubmissions,
+    displayName: 'プレイヤー',
+    result: RESULT,
+    now: () => 100,
+    playTicket: PLAY_TICKET
+  });
+
+  assert.equal(submission.pendingSaveCode, 'storage-unavailable');
+  assert.equal(submission.persisted, false);
   assert.equal(submission.canSubmit, true);
 });
 

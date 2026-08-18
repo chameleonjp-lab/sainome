@@ -144,8 +144,27 @@ export async function prepareRankingSubmission({
     expiresAt: ticket.expiresAt
   });
 
-  const queued = await pendingSubmissions.enqueue(candidate);
-  const canSubmit = queued.ok || queued.code === 'queue-full';
+  let queued;
+  try {
+    queued = await pendingSubmissions.enqueue(candidate);
+  } catch (error) {
+    // A local storage exception must not suppress the direct network attempt.
+    // Keep the validated candidate in memory so the result screen can retry it.
+    console.error(error);
+    queued = {
+      ok: true,
+      persisted: false,
+      code: error?.code === 'storage-timeout'
+        ? 'storage-timeout'
+        : 'storage-unavailable'
+    };
+  }
+  // A local persistence failure must not suppress the direct network attempt.
+  // The result remains in memory and can be retried from the result screen.
+  const canSubmit = queued?.ok === true
+    || queued?.code === 'queue-full'
+    || queued?.code === 'storage-unavailable'
+    || queued?.code === 'storage-timeout';
 
   return Object.freeze({
     ...candidate,
@@ -182,8 +201,27 @@ export async function prepareDirectRankingSubmission({
     result,
     createdAt: now()
   });
-  const queued = await pendingSubmissions.enqueue(candidate);
-  const canSubmit = queued.ok || queued.code === 'queue-full';
+  let queued;
+  try {
+    queued = await pendingSubmissions.enqueue(candidate);
+  } catch (error) {
+    // A local storage exception must not suppress the direct network attempt.
+    // Keep the validated candidate in memory so the result screen can retry it.
+    console.error(error);
+    queued = {
+      ok: true,
+      persisted: false,
+      code: error?.code === 'storage-timeout'
+        ? 'storage-timeout'
+        : 'storage-unavailable'
+    };
+  }
+  // A local persistence failure must not suppress the direct network attempt.
+  // The result remains in memory and can be retried from the result screen.
+  const canSubmit = queued?.ok === true
+    || queued?.code === 'queue-full'
+    || queued?.code === 'storage-unavailable'
+    || queued?.code === 'storage-timeout';
 
   return Object.freeze({
     ...candidate,
