@@ -14,6 +14,55 @@ function requireNonNegativeSafeInteger(value, name) {
   return value;
 }
 
+function setButtonClass(button, className) {
+  if (!button) return;
+  if (typeof button.setAttribute === 'function') {
+    button.setAttribute('class', className);
+    return;
+  }
+  button.className = className;
+}
+
+export function configureShareEntryPoints(root = globalThis.document) {
+  if (!root || typeof root.querySelector !== 'function') {
+    return Object.freeze({ home: false, result: false });
+  }
+
+  const homeShareButton = root.querySelector('#home-share-button');
+  const homeLabLink = root.querySelector('#home-lab-link');
+  let homeConfigured = false;
+  if (homeShareButton) {
+    homeShareButton.textContent = 'ゲームをシェア';
+    setButtonClass(homeShareButton, 'lab-link home-lab-link');
+    homeShareButton.setAttribute?.('aria-label', 'サイノメをシェア');
+
+    const parent = homeLabLink?.parentNode;
+    if (
+      parent
+      && typeof parent.insertBefore === 'function'
+      && homeShareButton !== homeLabLink
+      && homeShareButton.nextSibling !== homeLabLink
+    ) {
+      parent.insertBefore(homeShareButton, homeLabLink);
+    }
+    homeConfigured = true;
+  }
+
+  const resultShareButton = root.querySelector('#result-share-button');
+  let resultConfigured = false;
+  if (resultShareButton) {
+    resultShareButton.textContent = '結果をシェア';
+    setButtonClass(resultShareButton, 'secondary-button');
+    resultShareButton.setAttribute?.('aria-label', '今回のスコアをシェア');
+    resultConfigured = true;
+  }
+
+  return Object.freeze({
+    home: homeConfigured,
+    result: resultConfigured
+  });
+}
+
 export function normalizeShareUrl(pageUrl) {
   const url = new URL(pageUrl);
   url.search = '';
@@ -110,4 +159,8 @@ export async function shareResult(content, navigatorObject = globalThis.navigato
 
   const copied = await copyShareText(navigatorObject, content.copyText);
   return copied ? RESULT_SHARE_STATUSES.COPIED : RESULT_SHARE_STATUSES.FAILED;
+}
+
+if (typeof globalThis.document?.querySelector === 'function') {
+  configureShareEntryPoints(globalThis.document);
 }
