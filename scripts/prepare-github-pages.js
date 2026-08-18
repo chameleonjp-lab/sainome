@@ -1,7 +1,7 @@
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
-const RELEASE = '20260818-ranking-runtime-hotfix';
+const RELEASE = '20260818-edge-ranking-v1';
 const root = process.cwd();
 const out = join(root, '_site');
 
@@ -35,9 +35,10 @@ await replaceRequired('index.html', [
 ]);
 
 const rankingClientVersioned = `./ranking-client.js?v=${RELEASE}`;
+const edgeRankingClientVersioned = `./ranking-edge-client.js?v=${RELEASE}`;
 
 await replaceRequired('js/main.js', [
-  ["} from './ranking-client.js';", `} from '${rankingClientVersioned}';`, 'main ranking-client import'],
+  ["} from './ranking-client.js';", `} from '${edgeRankingClientVersioned}';`, 'main edge ranking-client import'],
   ["} from './pending-ranking-submissions.js';", `} from './pending-ranking-submissions.js?v=${RELEASE}';`, 'main pending-ranking import'],
   ["} from './ranking-submission-flow.js';", `} from './ranking-submission-flow.js?v=${RELEASE}';`, 'main submission-flow import'],
   [
@@ -54,6 +55,16 @@ await replaceRequired('js/main.js', [
     "resultRankingRetryAction === 'submit'\n    && latestRankingSubmission.canSubmit !== false\n    && !latestRankingSubmission.acceptedOutcome",
     "resultRankingRetryAction === 'submit'\n    && !latestRankingSubmission.acceptedOutcome",
     'retry blocked by canSubmit'
+  ],
+  [
+    "  } else if (\n    resultRankingRetryAction === 'submit'\n    && !latestRankingSubmission.acceptedOutcome\n  ) {\n    void syncResultRanking(latestRankingSubmission);\n  }",
+    "  } else if (\n    resultRankingRetryAction === 'submit'\n    && !latestRankingSubmission.acceptedOutcome\n  ) {\n    resultRankingRetry.disabled = true;\n    resultRankingRetry.textContent = '再送中…';\n    resultRankingStatus.textContent = '記録を再送しています…';\n    void syncResultRanking(latestRankingSubmission);\n  }",
+    'retry visual feedback'
+  ],
+  [
+    "      ? 'ランキングは表示しましたが、今回の記録を送信できませんでした'\n      : '記録を送信できませんでした。通信状態を確認してください';",
+    "      ? `ランキングは表示しましたが、今回の記録を送信できませんでした（${submitError?.message ?? '原因不明'}）`\n      : `記録を送信できませんでした（${submitError?.message ?? '原因不明'}）`;",
+    'show concrete submit failure'
   ]
 ]);
 
@@ -63,6 +74,10 @@ await replaceRequired('js/ranking-submission-flow.js', [
 
 await replaceRequired('js/pending-ranking-submissions.js', [
   ["} from './ranking-client.js';", `} from '${rankingClientVersioned}';`, 'pending ranking-client import']
+]);
+
+await replaceRequired('js/ranking-edge-client.js', [
+  ["} from './ranking-client.js';", `} from '${rankingClientVersioned}';`, 'edge client base import']
 ]);
 
 console.log(`Prepared GitHub Pages release ${RELEASE}`);

@@ -43,10 +43,12 @@ jobs:
       - name: Prepare release artifact
         run: node scripts/prepare-github-pages.js
 
-      - name: Verify release artifact
+      - name: Verify edge ranking release
         run: |
-          grep -q '20260818-ranking-runtime-hotfix' _site/index.html
-          grep -q 'ranking-client.js?v=20260818-ranking-runtime-hotfix' _site/js/main.js
+          grep -q '20260818-edge-ranking-v1' _site/index.html
+          grep -q 'ranking-edge-client.js?v=20260818-edge-ranking-v1' _site/js/main.js
+          grep -q '再送中…' _site/js/main.js
+          grep -q 'sainome-ranking' _site/js/ranking-edge-client.js
           grep -q 'if (false && submission.canSubmit === false)' _site/js/main.js
 
       - name: Configure GitHub Pages
