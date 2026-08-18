@@ -439,6 +439,9 @@ button:disabled { opacity: .55; }
   grid-template-columns: 1.2fr 1fr;
   gap: 9px;
 }
+.home-share-button {
+  grid-column: 1 / -1;
+}
 .primary-button, .secondary-button {
   min-width: min(100%, 240px);
   min-height: 52px;

@@ -22,6 +22,7 @@ import {
   describeBestOutcome
 } from './best-records.js';
 import {
+  createHomeShareContent,
   createResultShareContent,
   RESULT_SHARE_STATUSES,
   shareResult
@@ -72,6 +73,8 @@ const scoreCount = document.querySelector('#score-count');
 const scorePanel = document.querySelector('#score-panel');
 const clearCount = document.querySelector('#clear-count');
 const homeScreen = document.querySelector('#home-screen');
+const homeShareButton = document.querySelector('#home-share-button');
+const homeShareStatus = document.querySelector('#home-share-status');
 const countdownScreen = document.querySelector('#countdown-screen');
 const countdownValue = document.querySelector('#countdown-value');
 const pauseScreen = document.querySelector('#pause-screen');
@@ -175,6 +178,7 @@ let countdownTimerId = null;
 let countdownRunId = 0;
 let startPending = false;
 let soundTogglePending = false;
+let homeSharePending = false;
 let resultSharePending = false;
 const rankingPendingRunIds = new Set();
 let selectedMode = getGameMode(DEFAULT_GAME_MODE_ID);
@@ -829,6 +833,12 @@ async function retryAcceptedResultCleanup(submission) {
   await syncResultRanking(submission, { submit: false });
 }
 
+function setHomeSharePending(pending) {
+  homeSharePending = pending;
+  homeShareButton.disabled = pending;
+  homeShareButton.textContent = pending ? '共有中…' : 'このゲームをシェア';
+}
+
 function setResultSharePending(pending) {
   resultSharePending = pending;
   resultShareButton.disabled = pending;
@@ -1442,6 +1452,7 @@ function renderFlow(snapshot = flow.getSnapshot()) {
   game?.setScreenPhase(snapshot.screen);
   if (!isWebGLRecoveryScreen(snapshot.screen)) hideWebGLRecovery();
   homeScreen.hidden = snapshot.screen !== SCREEN_PHASES.HOME;
+  if (snapshot.screen === SCREEN_PHASES.HOME) homeShareStatus.textContent = '';
   tutorialScreen.hidden = snapshot.screen !== SCREEN_PHASES.TUTORIAL;
   countdownScreen.hidden = snapshot.screen !== SCREEN_PHASES.COUNTDOWN;
   pauseScreen.hidden = snapshot.screen !== SCREEN_PHASES.PAUSED;
@@ -1467,6 +1478,33 @@ function renderFlow(snapshot = flow.getSnapshot()) {
     resultScore.textContent = numberFormatter.format(snapshot.result.score);
     resultCleared.textContent = numberFormatter.format(snapshot.result.clearedDice);
     if (latestRecordOutcome) renderResultRecord(latestRecordOutcome);
+  }
+}
+
+async function handleHomeShare() {
+  const snapshot = flow.getSnapshot();
+  if (homeSharePending || snapshot.screen !== SCREEN_PHASES.HOME) return;
+
+  setHomeSharePending(true);
+  homeShareStatus.textContent = '';
+
+  try {
+    const content = createHomeShareContent({
+      pageUrl: window.location.href
+    });
+    const status = await shareResult(content);
+    const messages = {
+      [RESULT_SHARE_STATUSES.SHARED]: 'ゲームを共有しました',
+      [RESULT_SHARE_STATUSES.COPIED]: 'シェア文をコピーしました',
+      [RESULT_SHARE_STATUSES.CANCELLED]: '共有をキャンセルしました',
+      [RESULT_SHARE_STATUSES.FAILED]: 'コピーできませんでした'
+    };
+    homeShareStatus.textContent = messages[status];
+  } catch (error) {
+    console.error(error);
+    homeShareStatus.textContent = 'コピーできませんでした';
+  } finally {
+    setHomeSharePending(false);
   }
 }
 
@@ -1789,6 +1827,7 @@ webglRecoveryRecreate.addEventListener('click', () => {
 webglRecoveryHome.addEventListener('click', () => {
   void leaveWebGLRecoveryForHome();
 });
+homeShareButton.addEventListener('click', handleHomeShare);
 resultShareButton.addEventListener('click', handleResultShare);
 resultRankingRetry.addEventListener('click', () => {
   if (
