@@ -8,6 +8,8 @@ import {
 } from '../js/ui-flow.js';
 import { GAME_MODE_IDS } from '../js/game-modes.js';
 
+const MODE_ID = GAME_MODE_IDS.THREE_HUNDRED_SECONDS;
+
 test('初期画面ではゲーム操作を受け付けない', () => {
   const flow = new GameFlow();
 
@@ -64,13 +66,13 @@ test('カウント中の開始し直しと余分な進行を無視する', () =>
   assert.equal(extra.snapshot.screen, SCREEN_PHASES.PLAYING);
 });
 
-test('プレイ終了時に結果を固定して結果画面へ移る', () => {
+test('プレイ終了時に300秒結果を固定して結果画面へ移る', () => {
   const flow = new GameFlow({ countdownFrom: 1 });
   flow.beginCountdown();
   flow.advanceCountdown();
 
   const finished = flow.finish({
-    modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS,
+    modeId: MODE_ID,
     score: 3200,
     clearedDice: 12,
     maxChain: 4,
@@ -79,7 +81,7 @@ test('プレイ終了時に結果を固定して結果画面へ移る', () => {
 
   assert.equal(finished.screen, SCREEN_PHASES.RESULT);
   assert.deepEqual(finished.result, {
-    modeId: GAME_MODE_IDS.THREE_HUNDRED_SECONDS,
+    modeId: MODE_ID,
     score: 3200,
     clearedDice: 12,
     maxChain: 0,
@@ -92,14 +94,11 @@ test('プレイ終了時に結果を固定して結果画面へ移る', () => {
 test('プレイ中以外の終了通知は画面を変えない', () => {
   const flow = new GameFlow();
 
-  assert.equal(flow.finish({
-    modeId: GAME_MODE_IDS.SIXTY_SECONDS,
-    score: 100
-  }), null);
+  assert.equal(flow.finish({ modeId: MODE_ID, score: 100 }), null);
   assert.equal(flow.getSnapshot().screen, SCREEN_PHASES.HOME);
 });
 
-test('結果にモードがない場合は60秒へ自動分類しない', () => {
+test('結果にモードがない場合は300秒へ自動分類しない', () => {
   const flow = new GameFlow({ countdownFrom: 1 });
   flow.beginCountdown();
   flow.advanceCountdown();
@@ -116,10 +115,11 @@ test('結果画面から再挑戦すると結果を消して3カウントへ戻�
   flow.beginCountdown();
   flow.advanceCountdown();
   flow.finish({
-    modeId: GAME_MODE_IDS.SIXTY_SECONDS,
+    modeId: MODE_ID,
     score: 900,
     clearedDice: 2,
-    maxChain: 1
+    maxChain: 1,
+    endedReason: 'time-up'
   });
 
   const replay = flow.beginCountdown();
@@ -154,7 +154,7 @@ test('ホームへ戻ると途中の状態と結果を初期化する', () => {
 });
 
 test('残り時間は端数を切り上げ、0未満と不正値を0にする', () => {
-  assert.equal(formatRemainingSeconds(60_000), 60);
+  assert.equal(formatRemainingSeconds(300_000), 300);
   assert.equal(formatRemainingSeconds(1), 1);
   assert.equal(formatRemainingSeconds(0), 0);
   assert.equal(formatRemainingSeconds(-100), 0);
