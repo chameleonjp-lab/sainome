@@ -24,7 +24,6 @@
         <div class="brand"><span id="mode-brand">300 SECOND PUZZLE</span><strong>サイノメ</strong></div>
         <div id="time-panel" class="hud-item"><span>TIME</span><strong id="remaining-time">300</strong></div>
         <div id="score-panel" class="hud-item hud-score"><span>SCORE</span><strong id="score-count">0</strong></div>
-        <div class="hud-item"><span>CHAIN</span><strong id="chain-count">0</strong></div>
         <div class="hud-item"><span>CLEAR</span><strong id="clear-count">0</strong></div>
       </div>
       <button id="pause-button" class="pause-button" type="button" aria-label="ゲームを一時停止" hidden>一時停止</button>
@@ -131,7 +130,7 @@
               <span>3</span><span>3</span><span>3</span><b>消去</b>
             </div>
             <p>上面の目と同じ個数以上を、盤面のマスに沿って縦横につなぐと消えます。2なら2個、3なら3個です。</p>
-            <p class="tutorial-tip">斜めにはつながりません。沈みきる前に同じ目を足すと連鎖します。</p>
+            <p class="tutorial-tip">斜めにはつながりません。同じ目を縦横にそろえる場所を先に考えましょう。</p>
           </article>
 
           <article class="tutorial-slide" data-tutorial-slide data-title="1の特殊消去" hidden>
@@ -153,7 +152,7 @@
             <div class="mode-rule-grid">
               <div><strong>1個消去</strong><span>1個生成<br>安全な空きマスへ</span></div>
             </div>
-            <p>消したサイコロ1個につき新しい1個が、プレイヤーと隣接マスを避けたランダムな空きマスに現れます。消すほど盤面が変わるので、次の連鎖の場所を残しましょう。</p>
+            <p>消したサイコロ1個につき新しい1個が、プレイヤーと隣接マスを避けたランダムな空きマスに現れます。消すほど盤面が変わるので、次に消せる場所を残しましょう。</p>
           </article>
         </div>
 
@@ -200,7 +199,6 @@
         <p id="result-ranking-storage-warning" class="result-record-warning" role="alert" hidden></p>
         <dl class="result-stats">
           <div><dt>消した数</dt><dd id="result-cleared">0</dd></div>
-          <div><dt>最大連鎖</dt><dd id="result-chain">0</dd></div>
         </dl>
         <div class="result-actions">
           <button id="result-share-button" class="share-button" type="button">結果をシェア</button>
