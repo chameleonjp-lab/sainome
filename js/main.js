@@ -31,11 +31,11 @@ import {
   createSubmissionId,
   isValidRankingSubmissionId,
   RankingClient
-} from './ranking-client.js?v=20260818-ranking-submit-retry';
+} from './ranking-client.js';
 import {
   PendingRankingSubmissions,
   PENDING_RANKING_CHANNEL_NAME
-} from './pending-ranking-submissions.js?v=20260818-ranking-submit-retry';
+} from './pending-ranking-submissions.js';
 import {
   prepareDirectRankingSubmission,
   prepareRankingSubmission,
@@ -44,7 +44,7 @@ import {
   submitPendingDirectRanking,
   submitPendingRanking,
   updateIfCurrentRankingSubmission
-} from './ranking-submission-flow.js?v=20260818-ranking-submit-retry';
+} from './ranking-submission-flow.js';
 import {
   SUPABASE_PUBLISHABLE_KEY,
   SUPABASE_URL
