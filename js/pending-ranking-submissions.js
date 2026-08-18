@@ -993,13 +993,20 @@ export class PendingRankingSubmissions {
 
     let deletion;
     try {
-      deletion = await this.storage.deleteIfMatch({
-        submissionId: submission.submissionId,
-        serialized
-      });
+      deletion = await withStorageTimeout(
+        this.storage.deleteIfMatch({
+          submissionId: submission.submissionId,
+          serialized
+        }),
+        this.storageTimeoutMs
+      );
       this.storageAvailable = true;
-    } catch {
+    } catch (error) {
       this.storageAvailable = false;
+      if (error?.code === 'storage-timeout') {
+        this.storageFailureCode = 'storage-timeout';
+        this.storage = null;
+      }
       await this.refresh();
       return freezeResult({
         ok: false,
