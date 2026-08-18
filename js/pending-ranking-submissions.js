@@ -5,7 +5,7 @@ import {
   isValidRankingSubmissionId,
   RANKING_NAME_CONTRACT_VERSION,
   RANKING_SUBMISSION_CONTRACT_VERSION
-} from './ranking-client.js';
+} from './ranking-client.js?v=20260818-ranking-submit-retry';
 
 export const PENDING_RANKING_DATABASE_NAME = 'sainome-ranking';
 export const PENDING_RANKING_OBJECT_STORE = 'pending-submissions-v1';
