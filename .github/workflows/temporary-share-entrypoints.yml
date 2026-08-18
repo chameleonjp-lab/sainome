@@ -1,0 +1,125 @@
+name: Temporary share entry point fix
+
+on:
+  push:
+    branches:
+      - agent/sainome-share-entrypoints
+
+permissions:
+  contents: write
+
+concurrency:
+  group: temporary-share-entrypoints
+  cancel-in-progress: false
+
+jobs:
+  fix:
+    if: ${{ !contains(github.event.head_commit.message, '[share-entrypoints]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v5
+        with:
+          ref: agent/sainome-share-entrypoints
+          fetch-depth: 0
+
+      - name: Align share buttons with other games
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          index_path = Path('index.html')
+          html = index_path.read_text()
+
+          old_home = '          <button id="home-share-button" class="share-button home-share-button" type="button">URLと紹介文をシェア</button>\n'
+          if html.count(old_home) != 1:
+              raise SystemExit(f'home share old markup count={html.count(old_home)}')
+          html = html.replace(old_home, '')
+
+          home_anchor = '''        <a
+          id="home-lab-link"
+          class="lab-link home-lab-link"
+          href="https://chameleonjp.codeberg.page/chameleonjp_lab/"
+        >他のゲームで遊ぶ</a>'''
+          home_replacement = '''        <button id="home-share-button" class="lab-link home-lab-link" type="button">ゲームをシェア</button>
+        <a
+          id="home-lab-link"
+          class="lab-link home-lab-link"
+          href="https://chameleonjp.codeberg.page/chameleonjp_lab/"
+        >他のゲームで遊ぶ</a>'''
+          if html.count(home_anchor) != 1:
+              raise SystemExit(f'home lab anchor count={html.count(home_anchor)}')
+          html = html.replace(home_anchor, home_replacement)
+
+          old_result = '<button id="result-share-button" class="share-button" type="button">URLとスコアをシェア</button>'
+          new_result = '<button id="result-share-button" class="secondary-button" type="button">結果をシェア</button>'
+          if html.count(old_result) != 1:
+              raise SystemExit(f'result share old markup count={html.count(old_result)}')
+          html = html.replace(old_result, new_result)
+          index_path.write_text(html)
+
+          css_path = Path('css/style.css')
+          css = css_path.read_text()
+          css = css.replace('.home-share-button {\n  grid-column: 1 / -1;\n}\n', '')
+          css = css.replace('.result-actions .share-button,\n', '')
+          share_block = '''.share-button {
+  min-height: 52px;
+  grid-column: 1 / -1;
+  padding: 12px 24px;
+  border: 1px solid rgba(245,196,81,.62);
+  border-radius: 15px;
+  background: rgba(245,196,81,.11);
+  color: #ffe8a3;
+  font-weight: 950;
+  touch-action: manipulation;
+}
+.share-button:active { background: rgba(245,196,81,.2); }
+'''
+          if css.count(share_block) != 1:
+              raise SystemExit(f'legacy share css count={css.count(share_block)}')
+          css = css.replace(share_block, '')
+          css_path.write_text(css)
+
+          for path in Path('test').glob('*.test.js'):
+              text = path.read_text()
+              next_text = text.replace('URLと紹介文をシェア', 'ゲームをシェア')
+              next_text = next_text.replace('URLとスコアをシェア', '結果をシェア')
+              if next_text != text:
+                  path.write_text(next_text)
+
+          Path('test/share-entry-points.test.js').write_text('''import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+
+const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+
+test('ホーム画面に他ゲーム同様の独立したシェア導線を表示する', () => {
+  assert.match(
+    html,
+    /<button id="home-share-button" class="lab-link home-lab-link" type="button">ゲームをシェア<\\/button>/
+  );
+  const homeActions = html.match(/<div class="home-actions">([\\s\\S]*?)<\\/div>/)?.[1] ?? '';
+  assert.doesNotMatch(homeActions, /home-share-button/);
+});
+
+test('結果画面に他ゲーム同様の結果シェアボタンを表示する', () => {
+  const resultActions = html.match(/<div class="result-actions">([\\s\\S]*?)<\\/div>/)?.[1] ?? '';
+  assert.match(
+    resultActions,
+    /<button id="result-share-button" class="secondary-button" type="button">結果をシェア<\\/button>/
+  );
+});
+''')
+          PY
+
+      - name: Run tests
+        run: npm ci && npm test
+
+      - name: Commit fix
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html css/style.css test
+          git commit -m 'fix: expose share buttons like other games [share-entrypoints]'
+          git push origin HEAD:agent/sainome-share-entrypoints
