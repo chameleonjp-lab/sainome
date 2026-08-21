@@ -45,6 +45,7 @@ test('結果共有文に300秒のスコアとURLを含める', () => {
   assert.equal(share.url, 'https://example.com/sainome/');
   assert.equal(share.copyText, share.text);
   assert.equal(share.text.includes(share.url), true);
+  assert.equal(share.text.split(share.url).length - 1, 1);
   assert.doesNotMatch(share.text, /連鎖|CHAIN/);
 });
 
@@ -82,7 +83,7 @@ test('端末の共有機能が使える場合はコピーしない', async () =>
   let copied = false;
   const share = content();
   const navigatorObject = {
-    canShare: (data) => data.url === share.url,
+    canShare: (data) => !('url' in data),
     share: async (data) => { sharedData = data; },
     clipboard: { writeText: async () => { copied = true; } }
   };
@@ -92,8 +93,7 @@ test('端末の共有機能が使える場合はコピーしない', async () =>
   assert.equal(status, RESULT_SHARE_STATUSES.SHARED);
   assert.deepEqual(sharedData, {
     title: share.title,
-    text: share.text,
-    url: share.url
+    text: share.text
   });
   assert.equal(copied, false);
 });

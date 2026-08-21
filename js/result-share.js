@@ -142,8 +142,7 @@ async function copyShareText(navigatorObject, text) {
 export async function shareResult(content, navigatorObject = globalThis.navigator) {
   const shareData = {
     title: content.title,
-    text: content.text,
-    url: content.url
+    text: content.text
   };
 
   if (supportsShare(navigatorObject, shareData)) {
