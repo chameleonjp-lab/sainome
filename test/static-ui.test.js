@@ -92,8 +92,8 @@ test('得点ルールは消去条件に合う例だけを案内する', () => {
   assert.match(html, /class="score-rule"/);
   assert.match(html, /目の数以上をつないで消します/);
   assert.match(html, /通常の得点は「目の数 × 消した個数 × 100点」/);
-  assert.match(html, /3のサイコロを3個消すと900点/);
-  assert.match(html, /3のサイコロを5個消すと1,500点/);
+  assert.match(html, /3 × 3 × 100 = 900点/);
+  assert.match(html, /3 × 5 × 100 = 1,500点/);
   assert.match(html, /6のサイコロは6個以上必要です/);
   assert.doesNotMatch(html, /6のサイコロを3個/);
 });
