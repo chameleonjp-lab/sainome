@@ -3,10 +3,15 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import {
+  CAMERA_POSITION,
   MIN_BOARD_VIEW_WIDTH,
   calculateCameraFrustum,
   getProjectedBoardWidth
 } from '../js/camera-framing.js';
+
+test('カメラの水平位置を対称にして盤面の向きをそろえる', () => {
+  assert.equal(CAMERA_POSITION.x, CAMERA_POSITION.z);
+});
 
 test('縦長の実機画像と同じ比率でも盤面全幅と余白を収める', () => {
   const frustum = calculateCameraFrustum(663, 930);
