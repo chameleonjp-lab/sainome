@@ -333,6 +333,15 @@ button:disabled { opacity: .55; }
   font-size: clamp(.88rem, 3.3vw, 1.04rem);
   line-height: 1.75;
 }
+.score-rule {
+  max-width: 460px;
+  margin: -5px 0 0;
+  color: #cfc9bc;
+  font-size: .78rem;
+  font-weight: 750;
+  line-height: 1.55;
+}
+.score-rule strong { color: var(--accent); }
 .player-name-field {
   width: min(100%, 460px);
   display: grid;

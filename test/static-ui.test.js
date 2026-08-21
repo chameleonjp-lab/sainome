@@ -88,6 +88,16 @@ test('トップと結果画面にシェアボタンを表示する', () => {
   assert.match(css, /\.home-share-button\s*\{[^}]*grid-column:\s*1\s*\/\s*-1/s);
 });
 
+test('得点ルールは消去条件に合う例だけを案内する', () => {
+  assert.match(html, /class="score-rule"/);
+  assert.match(html, /目の数以上をつないで消します/);
+  assert.match(html, /通常の得点は「目の数 × 消した個数 × 100点」/);
+  assert.match(html, /3 × 3 × 100 = 900点/);
+  assert.match(html, /3 × 5 × 100 = 1,500点/);
+  assert.match(html, /6のサイコロは6個以上必要です/);
+  assert.doesNotMatch(html, /6のサイコロを3個/);
+});
+
 test('再読み込み後に保存状態を確認して続きから再開できる', () => {
   for (const id of ['game-recovery-panel', 'game-recovery-status', 'game-recovery-resume', 'game-recovery-discard']) {
     assert.match(html, new RegExp(`\\bid="${id}"`));
