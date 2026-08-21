@@ -52,6 +52,7 @@
         <p id="home-kicker" class="screen-kicker">300秒で、消して、増やして、つなげる</p>
         <h1 id="game-title">サイノメ</h1>
         <p class="screen-lead">サイコロを転がし、上面の目と同じ数以上を縦横につなげて消します。最初は1・2・3が2個ずつ、消した分だけランダムな空きマスに増えます。</p>
+        <p class="score-rule"><strong>得点</strong> 目の数以上をつないで消します。得点は「目の数 × 消した個数 × 100点」。3を3個なら900点です。</p>
         <label class="player-name-field" for="player-name-input">
           <span>ランキング名 <b>必須</b></span>
           <input
@@ -131,8 +132,8 @@
             <div class="match-visual" aria-hidden="true">
               <span>3</span><span>3</span><span>3</span><b>消去</b>
             </div>
-            <p>上面の目と同じ個数以上を、盤面のマスに沿って縦横につなぐと消えます。2なら2個、3なら3個です。</p>
-            <p class="tutorial-tip">斜めにはつながりません。同じ目を縦横にそろえる場所を先に考えましょう。</p>
+            <p>上面の目と同じ個数以上を、盤面のマスに沿って縦横につなぐと消えます。2なら2個以上、3なら3個以上です。</p>
+            <p class="tutorial-tip">斜めにはつながりません。6のサイコロは6個以上必要です。通常の得点は「目の数 × 消した個数 × 100点」。3を3個消すと900点です。</p>
           </article>
 
           <article class="tutorial-slide" data-tutorial-slide data-title="1の特殊消去" hidden>
