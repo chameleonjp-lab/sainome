@@ -1761,6 +1761,13 @@ function retireRound() {
 
 function requestMove(direction) {
   if (!game || webglRecoveryVisible || !flow.canMove()) return;
+  const button = directionButtons.find(
+    (candidate) => candidate.dataset.direction === direction
+  );
+  if (button && !motionPreferences.reducedMotion) {
+    button.classList.add('is-active');
+    window.setTimeout(() => button.classList.remove('is-active'), 120);
+  }
   game.move(direction);
 }
 
