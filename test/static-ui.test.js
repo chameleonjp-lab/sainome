@@ -64,7 +64,7 @@ test('プレイ中の盤面外にタップできる斜め4方向を表示する'
 });
 
 test('ホームと結果画面から実験場へ戻れる', () => {
-  const labUrl = 'https://chameleonjp.codeberg.page/chameleonjp_lab/';
+  const labUrl = 'https://chameleonjp-lab.github.io/chameleonjp_lab/';
   const escapedLabUrl = labUrl.replaceAll('.', '\\.');
 
   for (const id of ['home-lab-link', 'result-lab-link']) {
