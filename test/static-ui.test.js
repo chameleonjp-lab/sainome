@@ -58,7 +58,8 @@ test('プレイ中の盤面外にタップできる斜め4方向を表示する'
   assert.match(html, /id="direction-controls"[^>]*role="group"/);
   assert.match(css, /\.app\[data-screen="playing"\] \.direction-controls/);
   assert.match(css, /\.direction-control\s*\{[^}]*min-height|\.direction-control\s*\{[\s\S]*?height:\s*clamp\(48px/s);
-  assert.match(main, /button\.addEventListener\('click'[\s\S]*?requestMove\(button\.dataset\.direction\)/);
+  assert.match(main, /button\.addEventListener\('pointerdown'[\s\S]*?requestMove\(event\.currentTarget\.dataset\.direction\)/);
+  assert.match(main, /button\.addEventListener\('click'[\s\S]*?event\.detail !== 0[\s\S]*?requestMove\(event\.currentTarget\.dataset\.direction\)/);
   assert.match(main, /button\.classList\.add\('is-active'\)/);
   assert.match(main, /斜め方向へフリックするか、矢印をタップします/);
 });
