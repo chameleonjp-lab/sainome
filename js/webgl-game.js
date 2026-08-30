@@ -29,6 +29,7 @@ import {
 import { SCREEN_PHASES } from './ui-flow.js';
 import { SimulationPause } from './simulation-pause.js';
 import { RenderLoopController } from './render-loop.js';
+import { getPerformanceProfile } from './performance-profile.js';
 import {
   GAME_STATE_VERSION,
   normalizeGameRuntimeState
@@ -114,7 +115,7 @@ function addFacePips(group, value, face) {
   }
 }
 
-function createDieMesh() {
+function createDieMesh(useShadows = true) {
   const group = new THREE.Group();
   const bodyMaterial = new THREE.MeshStandardMaterial({
     color: 0xf2ead6,
@@ -124,8 +125,8 @@ function createDieMesh() {
     emissiveIntensity: 0
   });
   const body = new THREE.Mesh(DIE_BODY_GEOMETRY, bodyMaterial);
-  body.castShadow = true;
-  body.receiveShadow = true;
+  body.castShadow = useShadows;
+  body.receiveShadow = useShadows;
   group.add(body);
 
   addFacePips(group, 1, 'top');
@@ -139,19 +140,19 @@ function createDieMesh() {
   return group;
 }
 
-function createPlayer() {
+function createPlayer(useShadows = true) {
   const player = new THREE.Group();
   const yellow = new THREE.MeshStandardMaterial({ color: 0xf6bd3f, roughness: 0.48 });
   const dark = new THREE.MeshStandardMaterial({ color: 0x32220f, roughness: 0.72 });
 
   const body = new THREE.Mesh(new RoundedBoxGeometry(0.27, 0.34, 0.20, 3, 0.07), yellow);
   body.position.y = 0.24;
-  body.castShadow = true;
+  body.castShadow = useShadows;
   player.add(body);
 
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.18, 20, 14), yellow);
   head.position.y = 0.57;
-  head.castShadow = true;
+  head.castShadow = useShadows;
   player.add(head);
 
   const eyeGeometry = new THREE.SphereGeometry(0.025, 8, 6);
@@ -166,13 +167,13 @@ function createPlayer() {
     const arm = new THREE.Mesh(limbGeometry, yellow);
     arm.position.set(x, 0.28, 0);
     arm.rotation.z = x < 0 ? -0.28 : 0.28;
-    arm.castShadow = true;
+    arm.castShadow = useShadows;
     player.add(arm);
   }
   for (const x of [-0.075, 0.075]) {
     const leg = new THREE.Mesh(limbGeometry, yellow);
     leg.position.set(x, 0.02, 0);
-    leg.castShadow = true;
+    leg.castShadow = useShadows;
     player.add(leg);
   }
 
@@ -192,16 +193,24 @@ export class WebGLSainome {
     this.shouldReduceMotion = typeof options.shouldReduceMotion === 'function'
       ? options.shouldReduceMotion
       : () => false;
+    this.performanceProfile = options.performanceProfile ?? getPerformanceProfile();
+    this.actionTimings = this.performanceProfile.actionTimings;
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x0b1018);
     this.scene.fog = new THREE.Fog(0x0b1018, 10, 19);
 
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    this.renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: this.performanceProfile.antialias,
+      powerPreference: 'high-performance'
+    });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.12;
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.enabled = this.performanceProfile.shadows;
+    if (this.performanceProfile.shadows) {
+      this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    }
 
     this.camera = new THREE.OrthographicCamera(-5, 5, 5, -5, 0.1, 50);
     this.camera.position.set(CAMERA_POSITION.x, CAMERA_POSITION.y, CAMERA_POSITION.z);
@@ -209,7 +218,7 @@ export class WebGLSainome {
 
     this.clock = new THREE.Clock();
     this.dice = new Map();
-    this.player = createPlayer();
+    this.player = createPlayer(this.performanceProfile.shadows);
     this.scene.add(this.player);
     this.activeKey = null;
     this.playerRow = 3;
@@ -368,7 +377,7 @@ export class WebGLSainome {
 
     const key = new THREE.DirectionalLight(0xffe0a0, 3.2);
     key.position.set(-4, 10, 6);
-    key.castShadow = true;
+    key.castShadow = this.performanceProfile.shadows;
     key.shadow.mapSize.set(1024, 1024);
     key.shadow.camera.left = -7;
     key.shadow.camera.right = 7;
@@ -388,8 +397,8 @@ export class WebGLSainome {
       new THREE.MeshStandardMaterial({ color: 0x171a20, roughness: 0.78, metalness: 0.08 })
     );
     base.position.y = -0.28;
-    base.receiveShadow = true;
-    base.castShadow = true;
+    base.receiveShadow = this.performanceProfile.shadows;
+    base.castShadow = this.performanceProfile.shadows;
     this.scene.add(base);
 
     const tileGeometry = new RoundedBoxGeometry(0.92, 0.10, 0.92, 3, 0.08);
@@ -402,7 +411,7 @@ export class WebGLSainome {
       for (let column = 0; column < BOARD_SIZE; column += 1) {
         const tile = new THREE.Mesh(tileGeometry, materials[(row + column) % 2]);
         tile.position.set(column - HALF_BOARD, FLOOR_Y, row - HALF_BOARD);
-        tile.receiveShadow = true;
+        tile.receiveShadow = this.performanceProfile.shadows;
         this.scene.add(tile);
       }
     }
@@ -715,7 +724,7 @@ export class WebGLSainome {
       column,
       initialOrientation
     );
-    die.mesh = createDieMesh();
+    die.mesh = createDieMesh(this.performanceProfile.shadows);
     die.mesh.position.copy(gridToWorld(row, column));
     die.state = state;
     die.sinkStartedAt = 0;
@@ -853,7 +862,13 @@ export class WebGLSainome {
       targetDie.column,
       targetDie.mesh.position.y + (PLAYER_Y - DICE_Y)
     );
-    const completed = await this.animatePlayerMove(start, end, 210, 0.34, epoch);
+    const completed = await this.animatePlayerMove(
+      start,
+      end,
+      this.actionTimings.hopMs,
+      0.34,
+      epoch
+    );
     if (!completed || epoch !== this.epoch) return;
 
     const currentTarget = this.dice.get(nextKey);
@@ -882,7 +897,13 @@ export class WebGLSainome {
     this.busy = true;
     const start = this.player.position.clone();
     const end = gridToWorld(nextRow, nextColumn, GROUND_PLAYER_Y);
-    const completed = await this.animatePlayerMove(start, end, steppingDown ? 230 : 170, steppingDown ? 0.12 : 0.04, epoch);
+    const completed = await this.animatePlayerMove(
+      start,
+      end,
+      steppingDown ? this.actionTimings.stepDownMs : this.actionTimings.walkMs,
+      steppingDown ? 0.12 : 0.04,
+      epoch
+    );
     if (!completed || epoch !== this.epoch) return;
 
     this.playerRow = nextRow;
@@ -929,7 +950,7 @@ export class WebGLSainome {
     const turn = new THREE.Quaternion().setFromAxisAngle(direction.axis, direction.angle);
     const endQuaternion = turn.clone().multiply(startQuaternion);
     const startTime = this.getGameTime();
-    const duration = 280;
+    const duration = this.actionTimings.rollMs;
 
     const completed = await new Promise((resolve) => {
       const step = () => {
@@ -1218,10 +1239,8 @@ export class WebGLSainome {
     const queued = this.queuedDirection;
     this.queuedDirection = null;
     window.clearTimeout(this.queueTimerId);
-    this.queueTimerId = window.setTimeout(() => {
-      this.queueTimerId = null;
-      this.move(queued);
-    }, 30);
+    this.queueTimerId = null;
+    this.move(queued);
   }
 
   getGameTime() {
@@ -1278,7 +1297,10 @@ export class WebGLSainome {
     const parent = this.canvas.parentElement;
     const width = Math.max(1, parent.clientWidth);
     const height = Math.max(1, parent.clientHeight);
-    const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+    const pixelRatio = Math.min(
+      window.devicePixelRatio || 1,
+      this.performanceProfile.pixelRatioCap
+    );
     this.renderer.setPixelRatio(pixelRatio);
     this.renderer.setSize(width, height, false);
 

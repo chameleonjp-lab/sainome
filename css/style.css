@@ -1080,6 +1080,17 @@ button:disabled { opacity: .55; }
   100% { opacity: 0; transform: scale(.88); }
 }
 
+@media (pointer: coarse) {
+  .message {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .stage {
+    box-shadow: 0 14px 36px rgba(0,0,0,.38), inset 0 1px rgba(255,255,255,.05);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation: none !important;

@@ -188,6 +188,7 @@ let latestRecordOutcome = null;
 let latestRankingSubmission = null;
 let activePlayTicket = null;
 let rankingRunId = 0;
+let stageImpactAnimation = null;
 let pendingRankingRetryCursor = 0;
 let resultRankingRetryAction = null;
 let recoveryActionCounter = 0;
@@ -1249,10 +1250,25 @@ const gameCallbacks = {
   },
   onImpact: () => {
     if (!motionPreferences.reducedMotion) {
-      stage.classList.remove('impact');
-      void stage.offsetWidth;
-      stage.classList.add('impact');
-      window.setTimeout(() => stage.classList.remove('impact'), 180);
+      stageImpactAnimation?.cancel?.();
+      if (typeof stage.animate === 'function') {
+        stageImpactAnimation = stage.animate(
+          [
+            { transform: 'translateY(0) scale(1)', filter: 'brightness(1)' },
+            {
+              transform: 'translateY(2px) scale(.997)',
+              filter: 'brightness(1.13)',
+              offset: 0.45
+            },
+            { transform: 'translateY(0) scale(1)', filter: 'brightness(1)' }
+          ],
+          { duration: 180, easing: 'ease-out' }
+        );
+      } else {
+        stage.classList.remove('impact');
+        stage.classList.add('impact');
+        window.setTimeout(() => stage.classList.remove('impact'), 180);
+      }
     }
     if (!motionPreferences.reducedMotion && navigator.vibrate) {
       navigator.vibrate(18);
@@ -1749,10 +1765,8 @@ function requestMove(direction) {
     (candidate) => candidate.dataset.direction === direction
   );
   if (button && !motionPreferences.reducedMotion) {
-    button.classList.remove('is-active');
-    void button.offsetWidth;
     button.classList.add('is-active');
-    window.setTimeout(() => button.classList.remove('is-active'), 180);
+    window.setTimeout(() => button.classList.remove('is-active'), 120);
   }
   game.move(direction);
 }
@@ -1803,11 +1817,23 @@ document.addEventListener('keydown', (event) => {
   requestMove(direction);
 });
 
+function handleDirectionButtonPointerDown(event) {
+  if (event.pointerType === 'mouse' && event.button !== 0) return;
+  event.preventDefault();
+  void soundEffects.unlock();
+  requestMove(event.currentTarget.dataset.direction);
+}
+
+function handleDirectionButtonClick(event) {
+  // pointerdownで処理したマウス・タッチの合成clickは二重入力にしない。
+  if (event.detail !== 0) return;
+  void soundEffects.unlock();
+  requestMove(event.currentTarget.dataset.direction);
+}
+
 for (const button of directionButtons) {
-  button.addEventListener('click', () => {
-    void soundEffects.unlock();
-    requestMove(button.dataset.direction);
-  });
+  button.addEventListener('pointerdown', handleDirectionButtonPointerDown);
+  button.addEventListener('click', handleDirectionButtonClick);
 }
 
 pauseButton.addEventListener('click', pauseRound);
