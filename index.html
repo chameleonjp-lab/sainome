@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0b1018">
   <meta name="sainome-release" content="20260818-direct-ranking-v1">
   <link rel="canonical" href="https://chameleonjp-lab.github.io/sainome/">
-  <title>サイノメ</title>
+  <title data-i18n>サイノメ</title>
   <link rel="stylesheet" href="./css/style.css?v=20260818-direct-ranking-v1">
   <script type="importmap">
   {
@@ -19,47 +19,50 @@
 </head>
 <body>
   <main id="app" class="app" data-screen="home">
-    <header class="hud" aria-label="ゲームの状況">
+    <header class="hud" aria-label="ゲームの状況" data-i18n-attrs="aria-label">
       <div class="hud-stats">
-        <div class="brand"><span id="mode-brand">300 SECOND PUZZLE</span><strong>サイノメ</strong></div>
+        <div class="brand"><span id="mode-brand">300 SECOND PUZZLE</span><strong data-i18n>サイノメ</strong></div>
         <div id="time-panel" class="hud-item"><span>TIME</span><strong id="remaining-time">300</strong></div>
         <div id="score-panel" class="hud-item hud-score"><span>SCORE</span><strong id="score-count">0</strong></div>
         <div class="hud-item"><span>CLEAR</span><strong id="clear-count">0</strong></div>
       </div>
-      <button id="pause-button" class="pause-button" type="button" aria-label="ゲームを一時停止" hidden>一時停止</button>
+      <button id="pause-button" class="pause-button" type="button" aria-label="ゲームを一時停止" hidden data-i18n data-i18n-attrs="aria-label">一時停止</button>
     </header>
 
-    <section id="stage" class="stage" aria-label="サイノメの3Dゲーム画面">
+    <section id="stage" class="stage" aria-label="サイノメの3Dゲーム画面" data-i18n-attrs="aria-label">
       <canvas id="game-canvas" tabindex="-1"></canvas>
-      <div id="loading" class="loading" role="status">3D盤面を準備中…</div>
-      <div id="message" class="message" aria-live="polite">盤面に沿って斜めにフリック</div>
-      <div id="direction-controls" class="direction-controls" role="group" aria-label="斜め方向の移動ボタン">
-        <button class="direction-control direction-control-left" type="button" data-direction="left" aria-label="左上へ移動">↖</button>
-        <button class="direction-control direction-control-up" type="button" data-direction="up" aria-label="右上へ移動">↗</button>
-        <button class="direction-control direction-control-down" type="button" data-direction="down" aria-label="左下へ移動">↙</button>
-        <button class="direction-control direction-control-right" type="button" data-direction="right" aria-label="右下へ移動">↘</button>
+      <div id="loading" class="loading" role="status"><span data-i18n>3D盤面を準備中…</span></div>
+      <div id="message" class="message" aria-live="polite"><span data-i18n>盤面に沿って斜めにフリック</span></div>
+      <div id="direction-controls" class="direction-controls" role="group" aria-label="斜め方向の移動ボタン" data-i18n-attrs="aria-label">
+        <button class="direction-control direction-control-left" type="button" data-direction="left" aria-label="左上へ移動" data-i18n-attrs="aria-label">↖</button>
+        <button class="direction-control direction-control-up" type="button" data-direction="up" aria-label="右上へ移動" data-i18n-attrs="aria-label">↗</button>
+        <button class="direction-control direction-control-down" type="button" data-direction="down" aria-label="左下へ移動" data-i18n-attrs="aria-label">↙</button>
+        <button class="direction-control direction-control-right" type="button" data-direction="right" aria-label="右下へ移動" data-i18n-attrs="aria-label">↘</button>
       </div>
       <section id="webgl-recovery-panel" class="webgl-recovery-panel" aria-labelledby="webgl-recovery-title" hidden>
-        <strong id="webgl-recovery-title">3D表示を復旧できません</strong>
+        <strong id="webgl-recovery-title" data-i18n>3D表示を復旧できません</strong>
         <p id="webgl-recovery-status" role="status" aria-live="polite"></p>
         <div class="webgl-recovery-actions">
-          <button id="webgl-recovery-recreate" class="primary-button" type="button">3D表示を再生成</button>
-          <button id="webgl-recovery-home" class="secondary-button" type="button">ホームへ</button>
+          <button id="webgl-recovery-recreate" class="primary-button" type="button" data-i18n>3D表示を再生成</button>
+          <button id="webgl-recovery-home" class="secondary-button" type="button" data-i18n>ホームへ</button>
         </div>
       </section>
 
       <section id="home-screen" class="screen-panel home-screen" aria-labelledby="game-title">
-        <p id="home-kicker" class="screen-kicker">300秒で、消して、増やして、つなげる</p>
-        <h1 id="game-title">サイノメ</h1>
-        <p class="screen-lead">サイコロを転がし、上面の目と同じ数以上を縦横につなげて消します。最初は1・2・3が2個ずつ、消した分だけランダムな空きマスに増えます。</p>
+        <div class="home-topline">
+          <button id="language-toggle" class="language-toggle" type="button" aria-label="Switch to English" lang="en">English🇺🇸</button>
+        </div>
+        <p id="home-kicker" class="screen-kicker" data-i18n>300秒で、消して、増やして、つなげる</p>
+        <h1 id="game-title" data-i18n>サイノメ</h1>
+        <p class="screen-lead" data-i18n>サイコロを転がし、上面の目と同じ数以上を縦横につなげて消します。最初は1・2・3が2個ずつ、消した分だけランダムな空きマスに増えます。</p>
         <p class="score-rule">
-          <strong>得点</strong> 目の数以上をつないで消します。<br>
-          得点は「目の数 × 消した個数 × 100点」。<br>
-          例：3のサイコロを3個消す → 3 × 3 × 100 = 900点<br>
-          例：3のサイコロを5個消す → 3 × 5 × 100 = 1,500点
+          <strong data-i18n>得点</strong> <span data-i18n>目の数以上をつないで消します。</span><br>
+          <span data-i18n>得点は「目の数 × 消した個数 × 100点」。</span><br>
+          <span data-i18n>例：3のサイコロを3個消す → 3 × 3 × 100 = 900点</span><br>
+          <span data-i18n>例：3のサイコロを5個消す → 3 × 5 × 100 = 1,500点</span>
         </p>
         <label class="player-name-field" for="player-name-input">
-          <span>ランキング名 <b>必須</b></span>
+          <span><span data-i18n>ランキング名</span> <b data-i18n>必須</b></span>
           <input
             id="player-name-input"
             name="player-name"
@@ -71,39 +74,40 @@
             spellcheck="false"
             aria-describedby="player-name-help player-name-error"
             placeholder="名前を入力"
+            data-i18n-attrs="placeholder"
           >
-          <small id="player-name-help">1〜20文字。ランキングに公開され、次回も同じ名前を使います</small>
+          <small id="player-name-help" data-i18n>1〜20文字。ランキングに公開され、次回も同じ名前を使います</small>
         </label>
         <p id="player-name-error" class="player-name-error" role="alert" hidden></p>
         <p class="home-best-record">
-          <span>300秒の自己ベスト</span>
-          <strong id="home-best-score" aria-live="polite">記録なし</strong>
+          <span data-i18n>300秒の自己ベスト</span>
+          <strong id="home-best-score" aria-live="polite" data-i18n>記録なし</strong>
         </p>
-        <ol class="quick-rules" aria-label="遊び方">
-          <li><b>1</b> 盤面に沿って斜めフリック</li>
-          <li><b>2</b> 目の数以上を縦横につなぐ</li>
-          <li><b>3</b> 消した分だけランダムに補充</li>
+        <ol class="quick-rules" aria-label="遊び方" data-i18n-attrs="aria-label">
+          <li><b>1</b> <span data-i18n>盤面に沿って斜めフリック</span></li>
+          <li><b>2</b> <span data-i18n>目の数以上を縦横につなぐ</span></li>
+          <li><b>3</b> <span data-i18n>消した分だけランダムに補充</span></li>
         </ol>
         <p id="home-error" class="home-error" role="alert" hidden></p>
         <div class="home-actions">
-          <button id="start-button" class="primary-button" type="button">ゲーム開始</button>
-          <button id="tutorial-button" class="secondary-button" type="button">遊び方を見る</button>
-          <button id="home-share-button" class="share-button home-share-button" type="button">URLと紹介文をシェア</button>
+          <button id="start-button" class="primary-button" type="button" data-i18n>ゲーム開始</button>
+          <button id="tutorial-button" class="secondary-button" type="button" data-i18n>遊び方を見る</button>
+          <button id="home-share-button" class="share-button home-share-button" type="button" data-i18n>URLと紹介文をシェア</button>
         </div>
         <p id="home-share-status" class="result-share-status home-share-status" role="status" aria-live="polite"></p>
         <section id="game-recovery-panel" class="game-recovery-panel" aria-labelledby="game-recovery-title" hidden>
-          <strong id="game-recovery-title">前回のプレイを続けられます</strong>
+          <strong id="game-recovery-title" data-i18n>前回のプレイを続けられます</strong>
           <p id="game-recovery-status" role="status" aria-live="polite"></p>
           <div class="game-recovery-actions">
-            <button id="game-recovery-resume" class="primary-button" type="button">続きから再開</button>
-            <button id="game-recovery-discard" class="secondary-button" type="button">保存を削除</button>
+            <button id="game-recovery-resume" class="primary-button" type="button" data-i18n>続きから再開</button>
+            <button id="game-recovery-discard" class="secondary-button" type="button" data-i18n>保存を削除</button>
           </div>
         </section>
-        <section id="pending-ranking-panel" class="pending-ranking-panel" aria-label="未送信のランキング記録" hidden>
+        <section id="pending-ranking-panel" class="pending-ranking-panel" aria-label="未送信のランキング記録" hidden data-i18n-attrs="aria-label">
           <p id="pending-ranking-status" role="status" aria-live="polite"></p>
-          <button id="pending-ranking-retry" type="button">未送信記録を再送</button>
+          <button id="pending-ranking-retry" type="button" data-i18n>未送信記録を再送</button>
           <div class="pending-ranking-recovery-actions">
-            <button id="pending-ranking-export" type="button" hidden>保全データを書き出す</button>
+            <button id="pending-ranking-export" type="button" hidden data-i18n>保全データを書き出す</button>
           </div>
           <p id="pending-ranking-recovery-status" class="pending-ranking-recovery-status" role="status" aria-live="polite" hidden></p>
           <ul id="pending-ranking-recovery-list" class="pending-ranking-recovery-list" hidden></ul>
@@ -112,6 +116,7 @@
           id="home-lab-link"
           class="lab-link home-lab-link"
           href="https://chameleonjp-lab.github.io/chameleonjp_lab/"
+          data-i18n
         >他のゲームで遊ぶ</a>
       </section>
 
@@ -120,47 +125,47 @@
           <p class="screen-kicker">HOW TO PLAY</p>
           <p id="tutorial-progress" class="tutorial-progress" aria-live="polite">1 / 5</p>
         </div>
-        <h2 id="tutorial-title" tabindex="-1">斜めにフリック</h2>
+        <h2 id="tutorial-title" tabindex="-1" data-i18n>斜めにフリック</h2>
 
         <div class="tutorial-deck" aria-live="polite">
-          <article class="tutorial-slide" data-tutorial-slide data-title="斜めにフリック">
+          <article class="tutorial-slide" data-tutorial-slide data-title="斜めにフリック" data-i18n-attrs="data-title">
             <div class="swipe-grid" aria-hidden="true">
               <span>↖</span><i></i><span>↗</span>
-              <i></i><strong>自分</strong><i></i>
+              <i></i><strong data-i18n>自分</strong><i></i>
               <span>↙</span><i></i><span>↘</span>
             </div>
-            <p>盤面の傾きに合わせて、右上・右下・左下・左上へフリックします。</p>
-            <p class="tutorial-tip">パソコンでは矢印キーかW・A・S・Dで動かせます。</p>
+            <p data-i18n>盤面の傾きに合わせて、右上・右下・左下・左上へフリックします。</p>
+            <p class="tutorial-tip" data-i18n>パソコンでは矢印キーかW・A・S・Dで動かせます。</p>
           </article>
 
-          <article class="tutorial-slide" data-tutorial-slide data-title="目のルール" hidden>
+          <article class="tutorial-slide" data-tutorial-slide data-title="目のルール" hidden data-i18n-attrs="data-title">
             <div class="match-visual" aria-hidden="true">
-              <span>3</span><span>3</span><span>3</span><b>消去</b>
+              <span>3</span><span>3</span><span>3</span><b data-i18n>消去</b>
             </div>
-            <p>上面の目と同じ個数以上を、盤面のマスに沿って縦横につなぐと消えます。2なら2個以上、3なら3個以上です。</p>
-            <p class="tutorial-tip">斜めにはつながりません。6のサイコロは6個以上必要です。<br>通常の得点は「目の数 × 消した個数 × 100点」。<br>3個なら 3 × 3 × 100 = 900点。5個なら 3 × 5 × 100 = 1,500点です。</p>
+            <p data-i18n>上面の目と同じ個数以上を、盤面のマスに沿って縦横につなぐと消えます。2なら2個以上、3なら3個以上です。</p>
+            <p class="tutorial-tip"><span data-i18n>斜めにはつながりません。6のサイコロは6個以上必要です。</span><br><span data-i18n>通常の得点は「目の数 × 消した個数 × 100点」。</span><br><span data-i18n>3個なら 3 × 3 × 100 = 900点。5個なら 3 × 5 × 100 = 1,500点です。</span></p>
           </article>
 
-          <article class="tutorial-slide" data-tutorial-slide data-title="1の特殊消去" hidden>
+          <article class="tutorial-slide" data-tutorial-slide data-title="1の特殊消去" hidden data-i18n-attrs="data-title">
             <div class="match-visual" aria-hidden="true">
-              <span>1</span><span>1</span><span>1</span><b>特殊</b>
+              <span>1</span><span>1</span><span>1</span><b data-i18n>特殊</b>
             </div>
-            <p>上面が1のサイコロは、通常の個数つなぎでは消えません。沈下中のサイコロへ1を隣接させると、盤面の1をまとめて消せます。</p>
-            <p class="tutorial-tip">消去中の場所へ近づくタイミングを見極めましょう。</p>
+            <p data-i18n>上面が1のサイコロは、通常の個数つなぎでは消えません。沈下中のサイコロへ1を隣接させると、盤面の1をまとめて消せます。</p>
+            <p class="tutorial-tip" data-i18n>消去中の場所へ近づくタイミングを見極めましょう。</p>
           </article>
 
-          <article class="tutorial-slide" data-tutorial-slide data-title="300秒モード" hidden>
+          <article class="tutorial-slide" data-tutorial-slide data-title="300秒モード" hidden data-i18n-attrs="data-title">
             <div class="mode-rule-grid">
-              <div><strong>300秒</strong><span>最初は6個<br>1・2・3が各2個</span></div>
+              <div><strong data-i18n>300秒</strong><span><span data-i18n>最初は6個</span><br><span data-i18n>1・2・3が各2個</span></span></div>
             </div>
-            <p>ゲーム開始時は1・2・3のサイコロが2個ずつ。盤面中央のサイコロからスタートします。</p>
+            <p data-i18n>ゲーム開始時は1・2・3のサイコロが2個ずつ。盤面中央のサイコロからスタートします。</p>
           </article>
 
-          <article class="tutorial-slide" data-tutorial-slide data-title="消した分だけ増える" hidden>
+          <article class="tutorial-slide" data-tutorial-slide data-title="消した分だけ増える" hidden data-i18n-attrs="data-title">
             <div class="mode-rule-grid">
-              <div><strong>1個消去</strong><span>1個生成<br>安全な空きマスへ</span></div>
+              <div><strong data-i18n>1個消去</strong><span><span data-i18n>1個生成</span><br><span data-i18n>安全な空きマスへ</span></span></div>
             </div>
-            <p>消したサイコロ1個につき新しい1個が、プレイヤーと隣接マスを避けたランダムな空きマスに現れます。消すほど盤面が変わるので、次に消せる場所を残しましょう。</p>
+            <p data-i18n>消したサイコロ1個につき新しい1個が、プレイヤーと隣接マスを避けたランダムな空きマスに現れます。消すほど盤面が変わるので、次に消せる場所を残しましょう。</p>
           </article>
         </div>
 
@@ -168,9 +173,9 @@
           <span class="is-active"></span><span></span><span></span><span></span><span></span>
         </div>
         <div class="tutorial-actions">
-          <button id="tutorial-home-button" class="secondary-button" type="button">ホームへ</button>
-          <button id="tutorial-previous-button" class="secondary-button" type="button" disabled>前へ</button>
-          <button id="tutorial-next-button" class="primary-button" type="button">次へ</button>
+          <button id="tutorial-home-button" class="secondary-button" type="button" data-i18n>ホームへ</button>
+          <button id="tutorial-previous-button" class="secondary-button" type="button" disabled data-i18n>前へ</button>
+          <button id="tutorial-next-button" class="primary-button" type="button" data-i18n>次へ</button>
         </div>
       </section>
 
@@ -181,50 +186,51 @@
 
       <section id="pause-screen" class="screen-panel pause-screen" aria-labelledby="pause-title" hidden>
         <p class="screen-kicker">GAME PAUSED</p>
-        <h2 id="pause-title">一時停止中</h2>
-        <p class="pause-lead">時間は止まっています</p>
+        <h2 id="pause-title" data-i18n>一時停止中</h2>
+        <p class="pause-lead" data-i18n>時間は止まっています</p>
         <div class="pause-actions">
-          <button id="resume-button" class="primary-button" type="button">再開</button>
-          <button id="retire-button" class="secondary-button" type="button">リタイア</button>
+          <button id="resume-button" class="primary-button" type="button" data-i18n>再開</button>
+          <button id="retire-button" class="secondary-button" type="button" data-i18n>リタイア</button>
         </div>
       </section>
 
       <section id="result-screen" class="screen-panel result-screen" aria-labelledby="result-title" hidden>
-        <p id="result-kicker" class="screen-kicker">300秒モード · TIME UP</p>
-        <h2 id="result-title">結果</h2>
+        <p id="result-kicker" class="screen-kicker" data-i18n>300秒モード · TIME UP</p>
+        <h2 id="result-title" data-i18n>結果</h2>
         <div class="result-score">
           <span>SCORE</span>
           <strong id="result-score">0</strong>
         </div>
         <div class="result-record" aria-live="polite">
-          <strong id="result-record-message">初回記録</strong>
-          <span>自己ベスト <b id="result-best-score">0点</b></span>
+          <strong id="result-record-message" data-i18n>初回記録</strong>
+          <span><span data-i18n>自己ベスト</span> <b id="result-best-score" data-i18n>0点</b></span>
         </div>
-        <p class="result-player">ランキング名 <bdi dir="auto"><strong id="result-player-name">―</strong></bdi></p>
-        <p id="result-record-warning" class="result-record-warning" role="status" hidden>
+        <p class="result-player"><span data-i18n>ランキング名</span> <bdi dir="auto"><strong id="result-player-name">―</strong></bdi></p>
+        <p id="result-record-warning" class="result-record-warning" role="status" hidden data-i18n>
           この端末へ自己ベストを保存できませんでした
         </p>
         <p id="result-ranking-storage-warning" class="result-record-warning" role="alert" hidden></p>
         <dl class="result-stats">
-          <div><dt>消した数</dt><dd id="result-cleared">0</dd></div>
+          <div><dt data-i18n>消した数</dt><dd id="result-cleared">0</dd></div>
         </dl>
         <div class="result-actions">
-          <button id="result-share-button" class="share-button" type="button">URLとスコアをシェア</button>
-          <button id="replay-button" class="primary-button" type="button">もう一度</button>
-          <button id="result-home-button" class="secondary-button" type="button">ホームへ</button>
+          <button id="result-share-button" class="share-button" type="button" data-i18n>URLとスコアをシェア</button>
+          <button id="replay-button" class="primary-button" type="button" data-i18n>もう一度</button>
+          <button id="result-home-button" class="secondary-button" type="button" data-i18n>ホームへ</button>
           <a
             id="result-lab-link"
             class="lab-link result-lab-link"
             href="https://chameleonjp-lab.github.io/chameleonjp_lab/"
+            data-i18n
           >実験場へ戻る</a>
         </div>
         <p id="result-share-status" class="result-share-status" role="status" aria-live="polite"></p>
         <section class="result-ranking" aria-labelledby="result-ranking-title">
           <header>
-            <h3 id="result-ranking-title">300秒ランキング</h3>
-            <span>上位10名</span>
+            <h3 id="result-ranking-title" data-i18n>300秒ランキング</h3>
+            <span data-i18n>上位10名</span>
           </header>
-          <p id="result-ranking-status" class="result-ranking-status" role="status" aria-live="polite">
+          <p id="result-ranking-status" class="result-ranking-status" role="status" aria-live="polite" data-i18n>
             ランキングを読み込んでいます…
           </p>
           <p id="result-ranking-error-detail" class="result-record-warning" role="alert" hidden></p>
@@ -235,6 +241,7 @@
             type="button"
             aria-describedby="result-ranking-status result-ranking-error-detail"
             hidden
+            data-i18n
           >
             記録を再送する
           </button>
@@ -249,12 +256,12 @@
       hidden
     >
       <div class="release-diagnostics-heading">
-        <strong id="release-diagnostics-title">実機試験モード</strong>
-        <span>通常URLでは表示されません</span>
+        <strong id="release-diagnostics-title" data-i18n>実機試験モード</strong>
+        <span data-i18n>通常URLでは表示されません</span>
       </div>
       <div class="release-diagnostics-actions">
-        <button id="release-diagnostics-lose-button" type="button">WebGLを消失</button>
-        <button id="release-diagnostics-restore-button" type="button">WebGLを復元</button>
+        <button id="release-diagnostics-lose-button" type="button" data-i18n>WebGLを消失</button>
+        <button id="release-diagnostics-restore-button" type="button" data-i18n>WebGLを復元</button>
       </div>
       <pre id="release-diagnostics-output" aria-live="polite"></pre>
       <p id="release-diagnostics-status" role="status" aria-live="polite"></p>
@@ -262,8 +269,8 @@
 
     <footer class="app-footer">
       <aside id="play-note" class="prototype-note" hidden>
-        <strong id="play-note-title">300秒</strong>
-        <span id="play-note-text">消したサイコロと同じ数が、ランダムな安全な空きマスに現れる。</span>
+        <strong id="play-note-title" data-i18n>300秒</strong>
+        <span id="play-note-text" data-i18n>消したサイコロと同じ数が、ランダムな安全な空きマスに現れる。</span>
       </aside>
       <button
         id="sound-toggle"
@@ -271,9 +278,10 @@
         type="button"
         aria-pressed="false"
         aria-label="効果音をオンにする"
+        data-i18n-attrs="aria-label"
       >
         <span id="sound-toggle-icon" aria-hidden="true">🔇</span>
-        <span id="sound-toggle-label">効果音 オフ</span>
+        <span id="sound-toggle-label" data-i18n>効果音 オフ</span>
       </button>
       <p id="sound-status" class="visually-hidden" aria-live="polite"></p>
     </footer>

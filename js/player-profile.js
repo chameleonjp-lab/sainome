@@ -1,3 +1,4 @@
+import { t } from './i18n.js';
 import {
   PLAYER_NAME_FORBIDDEN_RANGES,
   PLAYER_NAME_JOIN_CONTROL_RANGES,
@@ -330,20 +331,20 @@ function hasValidMarkContexts(value) {
 
 export function validatePlayerName(value) {
   if (typeof value !== 'string') {
-    return invalidResult('empty', 'ランキング名を入力してください');
+    return invalidResult('empty', t('ランキング名を入力してください'));
   }
 
   const raw = readCodePoints(value, PLAYER_NAME_MAX_RAW_CODE_POINTS);
   if (raw.overflow) {
     return invalidResult(
       'too-long',
-      `ランキング名は${PLAYER_NAME_MAX_LENGTH}文字以内にしてください`
+      t('ランキング名は{0}文字以内にしてください', { 0: PLAYER_NAME_MAX_LENGTH })
     );
   }
   if (containsForbiddenCodePoint(raw.codePoints)) {
     return invalidResult(
       'invalid-characters',
-      '改行、制御文字、見えない文字は使えません'
+      t('改行、制御文字、見えない文字は使えません')
     );
   }
 
@@ -351,25 +352,25 @@ export function validatePlayerName(value) {
   try {
     normalizedValue = value.normalize('NFKC');
   } catch {
-    return invalidResult('invalid-characters', 'この文字はランキング名に使えません');
+    return invalidResult('invalid-characters', t('この文字はランキング名に使えません'));
   }
 
   const normalized = readCodePoints(normalizedValue);
   if (containsForbiddenCodePoint(normalized.codePoints)) {
     return invalidResult(
       'invalid-characters',
-      '改行、制御文字、見えない文字は使えません'
+      t('改行、制御文字、見えない文字は使えません')
     );
   }
 
   const collapsed = collapseSpaces(normalized.codePoints);
   if (collapsed.length === 0) {
-    return invalidResult('empty', 'ランキング名を入力してください');
+    return invalidResult('empty', t('ランキング名を入力してください'));
   }
   if (!collapsed.some(isVisibleBase)) {
     return invalidResult(
       'invisible-only',
-      '文字として表示されるランキング名を入力してください'
+      t('文字として表示されるランキング名を入力してください')
     );
   }
   const name = collapsed.map(({ symbol }) => symbol).join('');
@@ -379,7 +380,7 @@ export function validatePlayerName(value) {
   ) {
     return invalidResult(
       'invalid-characters',
-      '見えない文字や結合記号の並びが不正です'
+      t('見えない文字や結合記号の並びが不正です')
     );
   }
 
@@ -387,7 +388,7 @@ export function validatePlayerName(value) {
   if (length > PLAYER_NAME_MAX_LENGTH) {
     return invalidResult(
       'too-long',
-      `ランキング名は${PLAYER_NAME_MAX_LENGTH}文字以内にしてください`
+      t('ランキング名は{0}文字以内にしてください', { 0: PLAYER_NAME_MAX_LENGTH })
     );
   }
 

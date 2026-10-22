@@ -1,3 +1,4 @@
+import { t, getLanguage, translate } from './i18n.js';
 import { getGameMode } from './game-modes.js';
 
 export const RESULT_SHARE_STATUSES = Object.freeze({
@@ -32,9 +33,11 @@ export function configureShareEntryPoints(root = globalThis.document) {
   const homeLabLink = root.querySelector('#home-lab-link');
   let homeConfigured = false;
   if (homeShareButton) {
-    homeShareButton.textContent = 'ゲームをシェア';
+    homeShareButton.textContent = t('ゲームをシェア');
+    homeShareButton.setAttribute?.('data-i18n', 'ゲームをシェア');
     setButtonClass(homeShareButton, 'lab-link home-lab-link');
     homeShareButton.setAttribute?.('aria-label', 'サイノメをシェア');
+    homeShareButton.setAttribute?.('data-i18n-attrs', 'aria-label');
 
     const parent = homeLabLink?.parentNode;
     if (
@@ -51,9 +54,11 @@ export function configureShareEntryPoints(root = globalThis.document) {
   const resultShareButton = root.querySelector('#result-share-button');
   let resultConfigured = false;
   if (resultShareButton) {
-    resultShareButton.textContent = '結果をシェア';
+    resultShareButton.textContent = t('結果をシェア');
+    resultShareButton.setAttribute?.('data-i18n', '結果をシェア');
     setButtonClass(resultShareButton, 'secondary-button');
     resultShareButton.setAttribute?.('aria-label', '今回のスコアをシェア');
+    resultShareButton.setAttribute?.('data-i18n-attrs', 'aria-label');
     resultConfigured = true;
   }
 
@@ -70,17 +75,18 @@ export function normalizeShareUrl(pageUrl) {
   return url.href;
 }
 
-export function createHomeShareContent({ pageUrl }) {
+export function createHomeShareContent({ pageUrl, language = getLanguage() }) {
+  const t = (source, parameters) => translate(source, parameters, language);
   const url = normalizeShareUrl(pageUrl);
   const text = [
-    'サイノメ',
-    'サイコロを転がし、上面の目と同じ数以上を縦横につなげて消す、300秒の3Dブラウザパズルゲームです。',
+    t('サイノメ'),
+    t('サイコロを転がし、上面の目と同じ数以上を縦横につなげて消す、300秒の3Dブラウザパズルゲームです。'),
     `URL: ${url}`,
-    '#サイノメ'
+    t('#サイノメ')
   ].join('\n');
 
   return Object.freeze({
-    title: 'サイノメ',
+    title: t('サイノメ'),
     text,
     url,
     copyText: text
@@ -91,8 +97,10 @@ export function createResultShareContent({
   result,
   recordMessage,
   pageUrl,
-  formatNumber = String
+  formatNumber = String,
+  language = getLanguage()
 }) {
+  const t = (source, parameters) => translate(source, parameters, language);
   if (!result || typeof recordMessage !== 'string' || !recordMessage.trim()) {
     throw new TypeError('result and record message are required');
   }
@@ -102,15 +110,15 @@ export function createResultShareContent({
   const clearedDice = requireNonNegativeSafeInteger(result.clearedDice, 'clearedDice');
   const url = normalizeShareUrl(pageUrl);
   const text = [
-    `サイノメの${mode.label}モードで${formatNumber(score)}点！`,
-    `消した数${formatNumber(clearedDice)}個`,
+    t('サイノメの{0}モードで{1}点！', { 0: language === 'en' ? mode.durationMs / 1000 : mode.label, 1: formatNumber(score) }),
+    t('消した数{0}個', { 0: formatNumber(clearedDice) }),
     recordMessage.trim(),
     `URL: ${url}`,
-    '#サイノメ'
+    t('#サイノメ')
   ].join('\n');
 
   return Object.freeze({
-    title: 'サイノメ',
+    title: t('サイノメ'),
     text,
     url,
     copyText: text

@@ -1,3 +1,4 @@
+import { t } from './i18n.js';
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
@@ -271,7 +272,7 @@ export class WebGLSainome {
       this.syncSimulationPause();
       this.renderLoop.refresh();
       this.callbacks.onStateSnapshot?.(this.getStateSnapshot());
-      this.callbacks.onMessage?.('3D表示を復帰しています…操作を一時停止します');
+      this.callbacks.onMessage?.(t('3D表示を復帰しています…操作を一時停止します'));
       this.callbacks.onContextLost?.({ screenPhase: this.screenPhase });
     };
 
@@ -285,7 +286,7 @@ export class WebGLSainome {
 
       this.contextLost = false;
       this.syncSimulationPause();
-      this.callbacks.onMessage?.('3D表示が復帰しました');
+      this.callbacks.onMessage?.(t('3D表示が復帰しました'));
       this.clock.getDelta();
       this.renderLoop.refresh();
       this.callbacks.onContextRestored?.({ screenPhase: this.screenPhase });
@@ -461,7 +462,7 @@ export class WebGLSainome {
     this.emitSession(this.session.getSnapshot(), true);
     this.callbacks.onRoll?.(this.rollCount, this.dice.get(this.activeKey)?.top);
     this.callbacks.onClear?.(this.clearedCount);
-    this.callbacks.onMessage?.('同じ目を、目の数以上つなげます');
+    this.callbacks.onMessage?.(t('同じ目を、目の数以上つなげます'));
   }
 
   startSession() {
@@ -492,7 +493,7 @@ export class WebGLSainome {
     this.epoch += 1;
     this.emitSession(result, true);
     this.callbacks.onFinish?.(result);
-    this.callbacks.onMessage?.(`${this.mode.label}をリタイアしました。得点は${result.score}点です`);
+    this.callbacks.onMessage?.(t('{0}をリタイアしました。得点は{1}点です', { 0: t(this.mode.label), 1: result.score }));
     return result;
   }
 
@@ -702,7 +703,7 @@ export class WebGLSainome {
     this.emitSession(session, true);
     this.callbacks.onRoll?.(this.rollCount, this.dice.get(this.activeKey)?.top);
     this.callbacks.onClear?.(this.clearedCount);
-    this.callbacks.onMessage?.('前回のプレイを再開しました');
+    this.callbacks.onMessage?.(t('前回のプレイを再開しました'));
     return session;
   }
 
@@ -784,15 +785,15 @@ export class WebGLSainome {
     if (!DIRECTIONS[directionName]) return;
     if (!this.isVisible) return;
     if (this.contextLost) {
-      this.callbacks.onMessage?.('3D表示を復帰するまで操作できません');
+      this.callbacks.onMessage?.(t('3D表示を復帰するまで操作できません'));
       return;
     }
     this.emitSession(this.session.tick(this.getGameTime()));
     if (!this.session.isAcceptingInput()) {
       this.callbacks.onMessage?.(
         this.session.getSnapshot().phase === GAME_PHASES.FINISHING
-          ? `${this.mode.label}終了。消去が終わるまで待ちます`
-          : 'ゲーム終了。やり直すと再開します'
+          ? t('{0}終了。消去が終わるまで待ちます', { 0: t(this.mode.label) })
+          : t('ゲーム終了。やり直すと再開します')
       );
       return;
     }
@@ -805,7 +806,7 @@ export class WebGLSainome {
     const nextRow = this.playerRow + direction.row;
     const nextColumn = this.playerColumn + direction.column;
     if (!isInsideBoard(nextRow, nextColumn, BOARD_SIZE)) {
-      this.callbacks.onMessage?.('盤面の端です');
+      this.callbacks.onMessage?.(t('盤面の端です'));
       return;
     }
 
@@ -828,7 +829,7 @@ export class WebGLSainome {
     }
 
     if (currentDie?.state === 'rising') {
-      this.callbacks.onMessage?.('サイコロが上がりきるまで待ちます');
+      this.callbacks.onMessage?.(t('サイコロが上がりきるまで待ちます'));
       return;
     }
 
@@ -849,7 +850,7 @@ export class WebGLSainome {
       return;
     }
 
-    this.callbacks.onMessage?.('サイコロが低くなるまで待ちます');
+    this.callbacks.onMessage?.(t('サイコロが低くなるまで待ちます'));
   }
 
   async hopTo(targetDie, nextKey, directionName) {
@@ -882,11 +883,11 @@ export class WebGLSainome {
       targetDie.state = 'rising';
       targetDie.riseStartedAt = this.getGameTime();
       targetDie.riseStartY = targetDie.mesh.position.y;
-      this.callbacks.onMessage?.('沈んだサイコロに乗りました。上へ戻ります');
+      this.callbacks.onMessage?.(t('沈んだサイコロに乗りました。上へ戻ります'));
     }
     const matched = this.resolvePendingMatches();
     if (!matched && !wasBuried) {
-      this.callbacks.onMessage?.(this.activeKey ? 'サイコロの上を移動' : '床へ着地');
+      this.callbacks.onMessage?.(this.activeKey ? t('サイコロの上を移動') : t('床へ着地'));
     }
     this.emitStateSnapshot();
     this.consumeQueue();
@@ -913,7 +914,7 @@ export class WebGLSainome {
     this.busy = false;
     const matched = this.resolvePendingMatches();
     if (!matched) {
-      this.callbacks.onMessage?.('床を移動中。近くのサイコロへ移動すると登れます');
+      this.callbacks.onMessage?.(t('床を移動中。近くのサイコロへ移動すると登れます'));
     }
     this.emitStateSnapshot();
     this.consumeQueue();
@@ -993,7 +994,7 @@ export class WebGLSainome {
     this.callbacks.onRoll?.(this.rollCount, die.top);
     this.callbacks.onImpact?.();
     const matched = this.resolveMatches();
-    if (!matched) this.callbacks.onMessage?.(`上面は${die.top}。同じ目を${die.top}個以上つなげます`);
+    if (!matched) this.callbacks.onMessage?.(t('上面は{0}。同じ目を{1}個以上つなげます', { 0: die.top, 1: die.top }));
     this.busy = false;
     this.emitStateSnapshot();
     this.consumeQueue();
@@ -1024,7 +1025,7 @@ export class WebGLSainome {
         value: group.value,
         count: group.additions.length
       });
-      this.callbacks.onMessage?.(`${group.value}の目が${group.members.length}個つながりました`);
+      this.callbacks.onMessage?.(t('{0}の目が{1}個つながりました', { 0: group.value, 1: group.members.length }));
     }
 
     const specialOne = this.resolveSpecialOnes(now);
@@ -1063,8 +1064,8 @@ export class WebGLSainome {
 
     this.callbacks.onMessage?.(
       special.protected
-        ? `1の特殊消去！ 足元以外の${special.members.length}個が消えます`
-        : `1の特殊消去！ ${special.members.length}個が消えます`
+        ? t('1の特殊消去！ 足元以外の{0}個が消えます', { 0: special.members.length })
+        : t('1の特殊消去！ {0}個が消えます', { 0: special.members.length })
     );
     return true;
   }
@@ -1136,8 +1137,8 @@ export class WebGLSainome {
     ) {
       this.callbacks.onMessage?.(
         buriedRescue && !this.activeKey
-          ? '床に沈んだサイコロへ乗ると上へ戻れます'
-          : '消去完了。空きマスを使って次の目をそろえます'
+          ? t('床に沈んだサイコロへ乗ると上へ戻れます')
+          : t('消去完了。空きマスを使って次の目をそろえます')
       );
     }
   }
@@ -1165,7 +1166,7 @@ export class WebGLSainome {
         die.mesh.userData.bodyMaterial.emissive.setHex(0x000000);
         die.mesh.userData.bodyMaterial.emissiveIntensity = 0;
         if (this.activeKey === key) {
-          this.callbacks.onMessage?.('サイコロの上へ戻りました');
+          this.callbacks.onMessage?.(t('サイコロの上へ戻りました'));
         }
         completed = true;
       }
@@ -1202,7 +1203,7 @@ export class WebGLSainome {
     const cells = selectSpawnBatch(candidates, spawnCount, () => this.random.next());
     if (cells.length === 0) {
       if (!this.spawnBlockedNotified) {
-        this.callbacks.onMessage?.('生成できる安全な空きマスがありません');
+        this.callbacks.onMessage?.(t('生成できる安全な空きマスがありません'));
         this.spawnBlockedNotified = true;
       }
       return;
@@ -1221,7 +1222,7 @@ export class WebGLSainome {
       die.mesh.position.y = die.riseStartY;
     }
     this.callbacks.onSpawn?.({ count: cells.length });
-    this.callbacks.onMessage?.(`消した数と同じ${cells.length}個のサイコロがランダムに現れます`);
+    this.callbacks.onMessage?.(t('消した数と同じ{0}個のサイコロがランダムに現れます', { 0: cells.length }));
   }
 
   removeDie(die, disposeMaterial) {
@@ -1290,7 +1291,7 @@ export class WebGLSainome {
     this.queueTimerId = null;
     this.emitSession(result, true);
     this.callbacks.onFinish?.(result);
-    this.callbacks.onMessage?.(`${this.mode.label}終了。得点は${result.score}点です`);
+    this.callbacks.onMessage?.(t('{0}終了。得点は{1}点です', { 0: t(this.mode.label), 1: result.score }));
   }
 
   resize() {
