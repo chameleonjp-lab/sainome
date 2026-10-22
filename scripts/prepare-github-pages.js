@@ -48,6 +48,7 @@ await mkdir(out, { recursive: true });
 await copy('index.html');
 await copy('css');
 await copy('js');
+await copy('assets');
 
 const indexPath = join(out, 'index.html');
 let indexHtml = await readFile(indexPath, 'utf8');
