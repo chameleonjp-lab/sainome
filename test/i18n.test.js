@@ -2,6 +2,61 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createI18n, LANGUAGE_STORAGE_KEY, translate } from '../js/i18n.js';
 
+test('initial language follows supported browser preferences, including English outside the US', () => {
+  const cases = [
+    [['ja-JP', 'en-GB'], 'ja'],
+    [['en-GB', 'ja-JP'], 'en'],
+    [['en-AU'], 'en'],
+    [['fr-FR', 'ja-JP'], 'ja'],
+    [['fr-FR', 'en-CA'], 'en'],
+    [['JA-jp'], 'ja'],
+    [['fr-FR', 'de-DE'], 'en']
+  ];
+  for (const [languages, expected] of cases) {
+    const i18n = createI18n({ storage: null, navigatorObject: { languages } });
+    assert.equal(i18n.getLanguage(), expected, languages.join(', '));
+  }
+  assert.equal(createI18n({
+    storage: null,
+    navigatorObject: { language: 'en-NZ' }
+  }).getLanguage(), 'en');
+  assert.equal(createI18n({
+    storage: null,
+    navigatorObject: { languages: [], language: 'ja-JP' }
+  }).getLanguage(), 'ja');
+  assert.equal(createI18n({ storage: null, navigatorObject: null }).getLanguage(), 'ja');
+});
+
+test('browser detection is not saved, and explicit choices override later browser preferences', () => {
+  const values = new Map();
+  const storage = { getItem: (key) => values.get(key), setItem: (key, value) => values.set(key, value) };
+  const englishBrowser = { languages: ['en-GB'] };
+  const japaneseBrowser = { languages: ['ja-JP'] };
+  const automaticEnglish = createI18n({ storage, navigatorObject: englishBrowser });
+  assert.equal(automaticEnglish.getLanguage(), 'en');
+  assert.equal(values.has(LANGUAGE_STORAGE_KEY), false);
+  assert.equal(createI18n({ storage, navigatorObject: japaneseBrowser }).getLanguage(), 'ja');
+  automaticEnglish.setLanguage('ja');
+  assert.equal(createI18n({ storage, navigatorObject: englishBrowser }).getLanguage(), 'ja');
+  automaticEnglish.setLanguage('en');
+  assert.equal(createI18n({ storage, navigatorObject: japaneseBrowser }).getLanguage(), 'en');
+});
+
+test('unavailable storage and invalid saved preferences still use the browser language', () => {
+  const navigatorObject = { languages: ['en-AU'] };
+  const blocked = createI18n({
+    navigatorObject,
+    storage: { getItem() { throw new Error('blocked'); }, setItem() { throw new Error('blocked'); } }
+  });
+  assert.equal(blocked.getLanguage(), 'en');
+  blocked.setLanguage('ja');
+  assert.equal(blocked.getLanguage(), 'ja');
+  assert.equal(createI18n({
+    navigatorObject,
+    storage: { getItem: () => 'unknown' }
+  }).getLanguage(), 'en');
+});
+
 test('language defaults to Japanese and remembers an explicit English choice', () => {
   const values = new Map();
   const storage = { getItem: (key) => values.get(key), setItem: (key, value) => values.set(key, value) };

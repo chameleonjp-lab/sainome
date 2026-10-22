@@ -21,10 +21,25 @@ export function translate(source, parameters = {}, language = 'ja') {
   ));
 }
 
-export function createI18n({ storage = safeStorage() } = {}) {
-  let language = 'ja';
+function browserLanguage(navigatorObject) {
+  const languages = Array.isArray(navigatorObject?.languages) ? navigatorObject.languages : [];
+  const preferences = [...languages, navigatorObject?.language]
+    .filter((value) => typeof value === 'string' && value.trim());
+  for (const locale of preferences) {
+    const language = locale.trim().toLowerCase().split('-')[0];
+    if (language === 'ja' || language === 'en') return language;
+  }
+  return preferences.length > 0 ? 'en' : 'ja';
+}
+
+export function createI18n({
+  storage = safeStorage(),
+  navigatorObject = globalThis.window?.navigator
+} = {}) {
+  let language = browserLanguage(navigatorObject);
   try {
-    if (storage?.getItem(LANGUAGE_STORAGE_KEY) === 'en') language = 'en';
+    const savedLanguage = storage?.getItem(LANGUAGE_STORAGE_KEY);
+    if (savedLanguage === 'ja' || savedLanguage === 'en') language = savedLanguage;
   } catch {
     // Language selection also works when browser storage is unavailable.
   }
