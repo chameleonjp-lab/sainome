@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const gameUrl = 'https://chameleonjp-lab.github.io/sainome/';
-const imageUrl = new URL('assets/sainome-ogp.png', gameUrl).href;
+const imageUrl = new URL('assets/sainome-ogp.jpg', gameUrl).href;
 
 function metadata(html) {
   const head = html.match(/<head\b[^>]*>([\s\S]*?)<\/head>/iu)?.[1] ?? '';
@@ -29,9 +29,9 @@ function assertPreview(html) {
   assert.equal(meta.get('og:title'), 'サイノメ');
   assert.match(meta.get('og:description') ?? '', /300秒/u);
   assert.equal(meta.get('og:image'), imageUrl, 'OG image must be an absolute public URL');
-  assert.equal(meta.get('og:image:type'), 'image/png');
-  assert.equal(meta.get('og:image:width'), '1200');
-  assert.equal(meta.get('og:image:height'), '630');
+  assert.equal(meta.get('og:image:type'), 'image/jpeg');
+  assert.equal(meta.get('og:image:width'), '1280');
+  assert.equal(meta.get('og:image:height'), '672');
   assert.ok(meta.get('og:image:alt'));
   assert.equal(meta.get('twitter:card'), 'summary_large_image');
   assert.equal(meta.get('twitter:title'), meta.get('og:title'));
@@ -65,13 +65,11 @@ test('Pagesの公開物にSNS画像を同梱し、欠落や画像指定の破損
   const html = readFileSync(htmlPath, 'utf8');
   assertPreview(html);
 
-  const imagePath = join(directory, '_site', 'assets', 'sainome-ogp.png');
+  const imagePath = join(directory, '_site', 'assets', 'sainome-ogp.jpg');
   const image = readFileSync(imagePath);
-  assert.deepEqual(image, readFileSync(join(root, 'assets', 'sainome-ogp.png')));
-  assert.equal(image.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
-  assert.equal(image.toString('ascii', 12, 16), 'IHDR');
-  assert.equal(image.readUInt32BE(16), 1200);
-  assert.equal(image.readUInt32BE(20), 630);
+  assert.deepEqual(image, readFileSync(join(root, 'assets', 'sainome-ogp.jpg')));
+  assert.equal(image.subarray(0, 3).toString('hex'), 'ffd8ff');
+  assert.equal(image.subarray(-2).toString('hex'), 'ffd9');
 
   const verified = runScript('verify-github-pages.js', directory);
   assert.equal(verified.status, 0, verified.stderr);
@@ -90,5 +88,5 @@ test('Pagesの公開物にSNS画像を同梱し、欠落や画像指定の破損
   rmSync(imagePath);
   const missingImage = runScript('verify-github-pages.js', directory);
   assert.notEqual(missingImage.status, 0, 'A missing thumbnail must fail release verification');
-  assert.match(missingImage.stderr, /sainome-ogp\.png/u);
+  assert.match(missingImage.stderr, /sainome-ogp\.jpg/u);
 });

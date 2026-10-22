@@ -46,12 +46,12 @@ requireText(indexHtml, 'id="result-ranking-error-detail"', 'ranking error detail
 requireText(indexHtml, 'URLと紹介文をシェア', 'home share button');
 requireText(indexHtml, 'URLとスコアをシェア', 'result share button');
 
-const previewImageUrl = 'https://chameleonjp-lab.github.io/sainome/assets/sainome-ogp.png';
+const previewImageUrl = 'https://chameleonjp-lab.github.io/sainome/assets/sainome-ogp.jpg';
 requireText(indexHtml, '<meta property="og:url" content="https://chameleonjp-lab.github.io/sainome/">', 'social preview URL');
 requireText(indexHtml, `<meta property="og:image" content="${previewImageUrl}">`, 'social preview image');
 requireText(indexHtml, '<meta name="twitter:card" content="summary_large_image">', 'social preview card');
 requireText(indexHtml, `<meta name="twitter:image" content="${previewImageUrl}">`, 'social preview Twitter image');
-await access(join(out, 'assets', 'sainome-ogp.png'));
+await access(join(out, 'assets', 'sainome-ogp.jpg'));
 
 const releaseInfo = JSON.parse(await readFile(join(out, 'release.json'), 'utf8'));
 if (releaseInfo.release !== release || releaseInfo.commit !== commit) {
