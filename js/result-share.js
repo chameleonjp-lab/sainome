@@ -110,7 +110,7 @@ export function createResultShareContent({
   const clearedDice = requireNonNegativeSafeInteger(result.clearedDice, 'clearedDice');
   const url = normalizeShareUrl(pageUrl);
   const text = [
-    t('サイノメの{0}モードで{1}点！', { 0: language === 'en' ? mode.durationMs / 1000 : mode.label, 1: formatNumber(score) }),
+    t('サイノメの{0}モードで{1}点！', { 0: language === 'ja' ? mode.label : mode.durationMs / 1000, 1: formatNumber(score) }),
     t('消した数{0}個', { 0: formatNumber(clearedDice) }),
     recordMessage.trim(),
     `URL: ${url}`,

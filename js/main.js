@@ -1,4 +1,11 @@
-import { t, getLanguage, applyTranslations, setLanguage } from './i18n.js';
+import {
+  t,
+  getLanguage,
+  getLanguageLocale,
+  SUPPORTED_LANGUAGES,
+  applyTranslations,
+  setLanguage
+} from './i18n.js';
 import {
   formatRemainingSeconds,
   GameFlow,
@@ -74,7 +81,7 @@ const scoreCount = document.querySelector('#score-count');
 const scorePanel = document.querySelector('#score-panel');
 const clearCount = document.querySelector('#clear-count');
 const homeScreen = document.querySelector('#home-screen');
-const languageToggle = document.querySelector('#language-toggle');
+const languageSelect = document.querySelector('#language-select');
 const homeShareButton = document.querySelector('#home-share-button');
 const homeShareStatus = document.querySelector('#home-share-status');
 const countdownScreen = document.querySelector('#countdown-screen');
@@ -172,7 +179,7 @@ try {
 } catch (error) {
   console.error(error);
 }
-let numberFormatter = new Intl.NumberFormat(getLanguage() === 'en' ? 'en-US' : 'ja-JP');
+let numberFormatter = new Intl.NumberFormat(getLanguageLocale(getLanguage()));
 let homeStartError = '';
 let game = null;
 let gameLoadPromise = null;
@@ -317,7 +324,7 @@ function getNewGameMode() {
 }
 
 function applyModeLabels(mode) {
-  modeBrand.textContent = mode.brand;
+  modeBrand.textContent = t(mode.brand);
   homeKicker.textContent = t(mode.kicker);
   playNoteTitle.textContent = t(mode.label);
   playNoteText.textContent = mode.id === GAME_MODE_IDS.THREE_HUNDRED_SECONDS
@@ -838,7 +845,7 @@ async function retryAcceptedResultCleanup(submission) {
 }
 
 function setHomeSharePending(pending) {
-  languageToggle.disabled = pending || startPending;
+  languageSelect.disabled = pending || startPending;
   homeSharePending = pending;
   homeShareButton.disabled = pending;
   homeShareButton.textContent = pending ? t('共有中…') : t('このゲームをシェア');
@@ -853,7 +860,7 @@ function setResultSharePending(pending) {
 }
 
 function setStartPending(pending) {
-  languageToggle.disabled = pending || homeSharePending;
+  languageSelect.disabled = pending || homeSharePending;
   startPending = pending;
   startButton.disabled = pending;
   replayButton.disabled = pending || resultSharePending;
@@ -1490,8 +1497,8 @@ function renderFlow(snapshot = flow.getSnapshot()) {
     const resultMode = getGameMode(snapshot.result.modeId);
     resultShareStatus.textContent = '';
     const resultReason = snapshot.result.endedReason === 'retired'
-      ? 'RETIRED'
-      : 'TIME UP';
+      ? t('RETIRED')
+      : t('TIME UP');
     resultKicker.textContent = t('{0}モード · {1}', { 0: t(resultMode.label), 1: resultReason });
     resultRankingTitle.textContent = t('{0}ランキング', { 0: t(resultMode.label) });
     resultPlayerName.textContent = latestRankingSubmission?.displayName ?? activePlayerName;
@@ -1844,9 +1851,16 @@ for (const button of directionButtons) {
 pauseButton.addEventListener('click', pauseRound);
 resumeButton.addEventListener('click', resumeRound);
 retireButton.addEventListener('click', retireRound);
-languageToggle.addEventListener('click', () => {
+languageSelect.replaceChildren(...SUPPORTED_LANGUAGES.map(({ id, name }) => {
+  const option = document.createElement('option');
+  option.value = id;
+  option.textContent = name;
+  option.lang = id;
+  return option;
+}));
+languageSelect.addEventListener('change', () => {
   if (startPending || homeSharePending) return;
-  setLanguage(getLanguage() === 'ja' ? 'en' : 'ja');
+  setLanguage(languageSelect.value);
   refreshLanguage();
 });
 startButton.addEventListener('click', startRound);
@@ -1974,6 +1988,7 @@ playerNameInput.addEventListener('change', () => {
 
 document.addEventListener('contextmenu', (event) => {
   if (event.target.closest('input, textarea, a')) return;
+  if (event.target.closest('select')) return;
   event.preventDefault();
 });
 document.addEventListener('gesturestart', (event) => event.preventDefault());
@@ -2010,11 +2025,9 @@ window.addEventListener('pagehide', () => {
 
 function refreshLanguage() {
   applyTranslations();
-  const english = getLanguage() === 'en';
-  languageToggle.textContent = english ? '日本語🇯🇵' : 'English';
-  languageToggle.lang = english ? 'ja' : 'en';
-  languageToggle.setAttribute('aria-label', english ? '日本語に切り替える' : 'Switch to English');
-  numberFormatter = new Intl.NumberFormat(english ? 'en-US' : 'ja-JP');
+  languageSelect.value = getLanguage();
+  languageSelect.lang = getLanguage();
+  numberFormatter = new Intl.NumberFormat(getLanguageLocale(getLanguage()));
   applyModeLabels(selectedMode);
   renderSoundToggle();
   renderGameRecovery();

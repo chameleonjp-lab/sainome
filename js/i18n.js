@@ -1,4 +1,6 @@
-import { ENGLISH_MESSAGES } from './translations-en.js';
+import { TRANSLATIONS } from './translations.js';
+import { isSupportedLanguage, languageFromLocale } from './language-options.js';
+export { SUPPORTED_LANGUAGES, getLanguageLocale } from './language-options.js';
 
 export const LANGUAGE_STORAGE_KEY = 'sainome.language.v1';
 
@@ -13,8 +15,9 @@ function safeStorage() {
 // Japanese source text is the message ID. Parameters stay separate from the
 // message so scores and other changing values use the same translation.
 export function translate(source, parameters = {}, language = 'ja') {
-  const message = language === 'en' && Object.hasOwn(ENGLISH_MESSAGES, source)
-    ? ENGLISH_MESSAGES[source]
+  const catalog = Object.hasOwn(TRANSLATIONS, language) ? TRANSLATIONS[language] : null;
+  const message = catalog && Object.hasOwn(catalog, source)
+    ? catalog[source]
     : source;
   return message.replace(/\{(\d+)\}/gu, (placeholder, key) => (
     Object.hasOwn(parameters, key) ? String(parameters[key]) : placeholder
@@ -26,8 +29,8 @@ function browserLanguage(navigatorObject) {
   const preferences = [...languages, navigatorObject?.language]
     .filter((value) => typeof value === 'string' && value.trim());
   for (const locale of preferences) {
-    const language = locale.trim().toLowerCase().split('-')[0];
-    if (language === 'ja' || language === 'en') return language;
+    const language = languageFromLocale(locale);
+    if (language) return language;
   }
   return preferences.length > 0 ? 'en' : 'ja';
 }
@@ -39,7 +42,7 @@ export function createI18n({
   let language = browserLanguage(navigatorObject);
   try {
     const savedLanguage = storage?.getItem(LANGUAGE_STORAGE_KEY);
-    if (savedLanguage === 'ja' || savedLanguage === 'en') language = savedLanguage;
+    if (isSupportedLanguage(savedLanguage)) language = savedLanguage;
   } catch {
     // Language selection also works when browser storage is unavailable.
   }
@@ -47,7 +50,7 @@ export function createI18n({
   return Object.freeze({
     getLanguage: () => language,
     setLanguage(next) {
-      if (next !== 'ja' && next !== 'en') return;
+      if (!isSupportedLanguage(next)) return;
       language = next;
       try {
         storage?.setItem(LANGUAGE_STORAGE_KEY, language);

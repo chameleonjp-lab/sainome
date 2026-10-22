@@ -1,10 +1,27 @@
-import { t, getLanguage, translate } from './i18n.js';
+import { t, getLanguage, translate, SUPPORTED_LANGUAGES } from './i18n.js';
 import { RANKING_FAILURE_EVENT } from './ranking-client.js';
 
 const SUBMIT_RPCS = new Set(['submit_score', 'submit_score_once']);
-const SUCCESS_PATTERN = /^(?:初回記録を登録しました|ランキングの自己ベストを更新しました|記録を登録しました|First score submitted|Leaderboard personal best updated|Score submitted)$/u;
-const FAILURE_PATTERN = /(?:記録を送信できません|ランキングを読み込めません|[Cc]ould not submit your score|[Cc]ould not load the leaderboard)/u;
-const PENDING_PATTERN = /(?:送信しています|通信中|読み込んでいます|Submitting|Connecting|Loading|Checking submission)/u;
+function statusTranslations(sources) {
+  return new Set(SUPPORTED_LANGUAGES.flatMap(({ id }) => (
+    sources.map((source) => translate(source, {}, id))
+  )));
+}
+
+const SUCCESS_STATUSES = statusTranslations([
+  '初回記録を登録しました', 'ランキングの自己ベストを更新しました', '記録を登録しました'
+]);
+const FAILURE_STATUSES = statusTranslations([
+  'ランキングは表示しましたが、今回の記録を送信できませんでした',
+  '記録を送信できませんでした。通信状態を確認してください',
+  '記録は登録しましたが、ランキングを読み込めませんでした',
+  'ランキングを読み込めませんでした',
+  '現在オフラインのため記録を送信できません。接続後に「記録を再送する」を押してください'
+]);
+const PENDING_STATUSES = statusTranslations([
+  '記録を送信しています…', '通信中…', 'ランキングを読み込んでいます…', '登録状態を確認しています…'
+]);
+const CONNECTING_LABELS = statusTranslations(['通信中…']);
 
 function textOrNull(value) {
   return typeof value === 'string' && value.length > 0 ? value : null;
@@ -75,10 +92,9 @@ export function shouldEnableRankingRetry({
   const described = describeRankingFailure(detail);
   return described.retryable
     && described.isScoreSubmission
-    && FAILURE_PATTERN.test(statusText)
-    && !PENDING_PATTERN.test(statusText)
-    && buttonText !== '通信中…'
-    && buttonText !== 'Connecting…';
+    && FAILURE_STATUSES.has(statusText)
+    && !PENDING_STATUSES.has(statusText)
+    && !CONNECTING_LABELS.has(buttonText);
 }
 
 export function setupRankingStatusUi({
@@ -98,7 +114,7 @@ export function setupRankingStatusUi({
 
   const render = () => {
     const statusText = status.textContent ?? '';
-    if (SUCCESS_PATTERN.test(statusText)) {
+    if (SUCCESS_STATUSES.has(statusText)) {
       lastFailure = null;
       detailOutput.hidden = true;
       detailOutput.textContent = '';
@@ -106,7 +122,7 @@ export function setupRankingStatusUi({
       return;
     }
 
-    if (!lastFailure || !FAILURE_PATTERN.test(statusText) || PENDING_PATTERN.test(statusText)) {
+    if (!lastFailure || !FAILURE_STATUSES.has(statusText) || PENDING_STATUSES.has(statusText)) {
       detailOutput.hidden = true;
       detailOutput.textContent = '';
       return;

@@ -37,10 +37,10 @@
   <main id="app" class="app" data-screen="home">
     <header class="hud" aria-label="ゲームの状況" data-i18n-attrs="aria-label">
       <div class="hud-stats">
-        <div class="brand"><span id="mode-brand">300 SECOND PUZZLE</span><strong data-i18n>サイノメ</strong></div>
-        <div id="time-panel" class="hud-item"><span>TIME</span><strong id="remaining-time">300</strong></div>
-        <div id="score-panel" class="hud-item hud-score"><span>SCORE</span><strong id="score-count">0</strong></div>
-        <div class="hud-item"><span>CLEAR</span><strong id="clear-count">0</strong></div>
+        <div class="brand"><span id="mode-brand" data-i18n>300 SECOND PUZZLE</span><strong data-i18n>サイノメ</strong></div>
+        <div id="time-panel" class="hud-item"><span data-i18n>TIME</span><strong id="remaining-time">300</strong></div>
+        <div id="score-panel" class="hud-item hud-score"><span data-i18n>SCORE</span><strong id="score-count">0</strong></div>
+        <div class="hud-item"><span data-i18n>CLEAR</span><strong id="clear-count">0</strong></div>
       </div>
       <button id="pause-button" class="pause-button" type="button" aria-label="ゲームを一時停止" hidden data-i18n data-i18n-attrs="aria-label">一時停止</button>
     </header>
@@ -66,7 +66,9 @@
 
       <section id="home-screen" class="screen-panel home-screen" aria-labelledby="game-title">
         <div class="home-topline">
-          <button id="language-toggle" class="language-toggle" type="button" aria-label="Switch to English" lang="en">English</button>
+          <select id="language-select" class="language-select" aria-label="言語を選択" data-i18n-attrs="aria-label">
+            <option value="ja" lang="ja">日本語</option>
+          </select>
         </div>
         <p id="home-kicker" class="screen-kicker" data-i18n>300秒で、消して、増やして、つなげる</p>
         <h1 id="game-title" data-i18n>サイノメ</h1>
@@ -138,7 +140,7 @@
 
       <section id="tutorial-screen" class="screen-panel tutorial-screen" aria-labelledby="tutorial-title" hidden>
         <div class="tutorial-topline">
-          <p class="screen-kicker">HOW TO PLAY</p>
+          <p class="screen-kicker" data-i18n>HOW TO PLAY</p>
           <p id="tutorial-progress" class="tutorial-progress" aria-live="polite">1 / 5</p>
         </div>
         <h2 id="tutorial-title" tabindex="-1" data-i18n>斜めにフリック</h2>
@@ -196,12 +198,12 @@
       </section>
 
       <section id="countdown-screen" class="screen-panel countdown-screen" aria-live="assertive" hidden>
-        <p>READY</p>
+        <p data-i18n>READY</p>
         <strong id="countdown-value">3</strong>
       </section>
 
       <section id="pause-screen" class="screen-panel pause-screen" aria-labelledby="pause-title" hidden>
-        <p class="screen-kicker">GAME PAUSED</p>
+        <p class="screen-kicker" data-i18n>GAME PAUSED</p>
         <h2 id="pause-title" data-i18n>一時停止中</h2>
         <p class="pause-lead" data-i18n>時間は止まっています</p>
         <div class="pause-actions">
@@ -214,7 +216,7 @@
         <p id="result-kicker" class="screen-kicker" data-i18n>300秒モード · TIME UP</p>
         <h2 id="result-title" data-i18n>結果</h2>
         <div class="result-score">
-          <span>SCORE</span>
+          <span data-i18n>SCORE</span>
           <strong id="result-score">0</strong>
         </div>
         <div class="result-record" aria-live="polite">

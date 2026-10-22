@@ -7,10 +7,10 @@ test('initial language follows supported browser preferences, including English 
     [['ja-JP', 'en-GB'], 'ja'],
     [['en-GB', 'ja-JP'], 'en'],
     [['en-AU'], 'en'],
-    [['fr-FR', 'ja-JP'], 'ja'],
-    [['fr-FR', 'en-CA'], 'en'],
+    [['fr-FR', 'ja-JP'], 'fr'],
+    [['fr-FR', 'en-CA'], 'fr'],
     [['JA-jp'], 'ja'],
-    [['fr-FR', 'de-DE'], 'en']
+    [['xx-XX', 'de-DE'], 'de']
   ];
   for (const [languages, expected] of cases) {
     const i18n = createI18n({ storage: null, navigatorObject: { languages } });
@@ -79,9 +79,9 @@ test('blocked storage and unknown saved languages do not prevent switching', () 
   } });
   blocked.setLanguage('en');
   assert.equal(blocked.t('盤面の端です'), 'Edge of the board');
-  const unknown = createI18n({ storage: { getItem: () => 'fr' } });
+  const unknown = createI18n({ storage: { getItem: () => 'unknown' } });
   assert.equal(unknown.getLanguage(), 'ja');
-  unknown.setLanguage('fr');
+  unknown.setLanguage('unknown');
   assert.equal(unknown.getLanguage(), 'ja');
 });
 
