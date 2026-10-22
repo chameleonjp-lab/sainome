@@ -58,7 +58,7 @@ test('ランキング名と得点はHTML文字列ではなく文字として表�
   assert.match(main, /document\.createElement\('bdi'\)/);
   assert.match(main, /name\.dir = 'auto'/);
   assert.match(main, /name\.textContent = row\.displayName/);
-  assert.match(main, /score\.textContent = `\$\{numberFormatter\.format\(row\.score\)\}点`/);
+  assert.match(main, /score\.textContent = [^\n]*numberFormatter\.format\(row\.score\)/);
   assert.doesNotMatch(main, /resultRankingList\.innerHTML/);
 });
 

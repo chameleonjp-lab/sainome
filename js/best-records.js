@@ -1,3 +1,4 @@
+import { getLanguage, translate } from './i18n.js';
 import { getGameMode } from './game-modes.js';
 
 export const BEST_RECORDS_STORAGE_KEY = 'sainome.best-records.v1';
@@ -59,16 +60,17 @@ function createPayload(records) {
   });
 }
 
-export function describeBestOutcome(outcome, formatScore = String) {
+export function describeBestOutcome(outcome, formatScore = String, language = getLanguage()) {
+  const t = (source, parameters) => translate(source, parameters, language);
   switch (outcome.status) {
     case BEST_OUTCOMES.FIRST:
-      return '初回記録';
+      return t('初回記録');
     case BEST_OUTCOMES.NEW:
-      return `自己ベスト更新！ +${formatScore(outcome.difference)}点`;
+      return t('自己ベスト更新！ +{0}点', { 0: formatScore(outcome.difference) });
     case BEST_OUTCOMES.TIE:
-      return '自己ベストと同点';
+      return t('自己ベストと同点');
     case BEST_OUTCOMES.LOWER:
-      return `自己ベストまであと${formatScore(outcome.difference)}点`;
+      return t('自己ベストまであと{0}点', { 0: formatScore(outcome.difference) });
     default:
       throw new TypeError('unknown best outcome');
   }

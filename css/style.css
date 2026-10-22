@@ -326,6 +326,24 @@ button:disabled { opacity: .55; }
 .screen-panel h1, .screen-panel h2 { margin: 0; letter-spacing: .1em; }
 .screen-panel h1 { font-size: clamp(2.5rem, 12vw, 5rem); line-height: .95; }
 .screen-panel h2 { font-size: clamp(2rem, 9vw, 3.5rem); }
+.home-screen { align-content: start; }
+.home-topline {
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+}
+.language-toggle {
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 1px solid rgba(245,196,81,.48);
+  border-radius: 12px;
+  background: rgba(245,196,81,.08);
+  color: #ffe3a0;
+  font-size: .8rem;
+  font-weight: 800;
+  touch-action: manipulation;
+}
+.language-toggle:active { background: rgba(245,196,81,.24); }
 .screen-lead {
   max-width: 480px;
   margin: 0;

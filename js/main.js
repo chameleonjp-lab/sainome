@@ -1,3 +1,4 @@
+import { t, getLanguage, applyTranslations, setLanguage } from './i18n.js';
 import {
   formatRemainingSeconds,
   GameFlow,
@@ -27,7 +28,7 @@ import {
   RESULT_SHARE_STATUSES,
   shareResult
 } from './result-share.js';
-import { PlayerProfile } from './player-profile.js';
+import { PlayerProfile, validatePlayerName } from './player-profile.js';
 import {
   createSubmissionId,
   isValidRankingSubmissionId,
@@ -73,6 +74,7 @@ const scoreCount = document.querySelector('#score-count');
 const scorePanel = document.querySelector('#score-panel');
 const clearCount = document.querySelector('#clear-count');
 const homeScreen = document.querySelector('#home-screen');
+const languageToggle = document.querySelector('#language-toggle');
 const homeShareButton = document.querySelector('#home-share-button');
 const homeShareStatus = document.querySelector('#home-share-status');
 const countdownScreen = document.querySelector('#countdown-screen');
@@ -170,7 +172,8 @@ try {
 } catch (error) {
   console.error(error);
 }
-const numberFormatter = new Intl.NumberFormat('ja-JP');
+let numberFormatter = new Intl.NumberFormat(getLanguage() === 'en' ? 'en-US' : 'ja-JP');
+let homeStartError = '';
 let game = null;
 let gameLoadPromise = null;
 let pointerStart = null;
@@ -250,19 +253,19 @@ function renderReleaseDiagnostics() {
   if (releaseDiagnosticsRestoreButton) releaseDiagnosticsRestoreButton.disabled = !canUseGame;
 
   if (!snapshot) {
-    releaseDiagnosticsOutput.textContent = 'ゲーム開始後に診断値を表示します';
+    releaseDiagnosticsOutput.textContent = t('ゲーム開始後に診断値を表示します');
     return;
   }
 
   releaseDiagnosticsOutput.textContent = [
-    `画面: ${snapshot.screenPhase}`,
-    `WebGL消失: ${snapshot.contextLost ? 'はい' : 'いいえ'}`,
-    `描画フレーム: ${snapshot.frameCount}`,
-    `描画予約: ${snapshot.scheduledFrames ? 'あり' : 'なし'}`,
-    `サイコロ / シーン: ${snapshot.diceCount} / ${snapshot.sceneChildren}`,
-    `GPU形状 / テクスチャ: ${formatReleaseDiagnosticValue(snapshot.geometries)} / ${formatReleaseDiagnosticValue(snapshot.textures)}`,
-    `直近の描画呼び出し: ${formatReleaseDiagnosticValue(snapshot.renderCalls)}`,
-    `アニメーション予約: ${snapshot.animationTasks}`
+    t('画面: {0}', { 0: snapshot.screenPhase }),
+    t('WebGL消失: {0}', { 0: t(snapshot.contextLost ? 'はい' : 'いいえ') }),
+    t('描画フレーム: {0}', { 0: snapshot.frameCount }),
+    t('描画予約: {0}', { 0: t(snapshot.scheduledFrames ? 'あり' : 'なし') }),
+    t('サイコロ / シーン: {0} / {1}', { 0: snapshot.diceCount, 1: snapshot.sceneChildren }),
+    t('GPU形状 / テクスチャ: {0} / {1}', { 0: formatReleaseDiagnosticValue(snapshot.geometries), 1: formatReleaseDiagnosticValue(snapshot.textures) }),
+    t('直近の描画呼び出し: {0}', { 0: formatReleaseDiagnosticValue(snapshot.renderCalls) }),
+    t('アニメーション予約: {0}', { 0: snapshot.animationTasks })
   ].join('\n');
 }
 
@@ -273,21 +276,21 @@ function setupReleaseDiagnostics() {
 
   releaseDiagnosticsLoseButton?.addEventListener('click', () => {
     if (!isWebGLRecoveryScreen()) {
-      releaseDiagnosticsStatus.textContent = 'ゲーム中に実行してください';
+      releaseDiagnosticsStatus.textContent = t('ゲーム中に実行してください');
       return;
     }
     const result = game?.forceContextLossForDiagnostics?.();
     releaseDiagnosticsStatus.textContent = result?.ok
-      ? 'WebGLを消失させました。5秒後の退避表示、または「WebGLを復元」を確認してください'
-      : 'この端末ではWebGL強制消失を実行できません';
+      ? t('WebGLを消失させました。5秒後の退避表示、または「WebGLを復元」を確認してください')
+      : t('この端末ではWebGL強制消失を実行できません');
     renderReleaseDiagnostics();
   });
 
   releaseDiagnosticsRestoreButton?.addEventListener('click', () => {
     const result = game?.restoreContextForDiagnostics?.();
     releaseDiagnosticsStatus.textContent = result?.ok
-      ? 'WebGLの復元を要求しました。ゲームが同じ状態へ戻るか確認してください'
-      : 'WebGL復元を実行できません';
+      ? t('WebGLの復元を要求しました。ゲームが同じ状態へ戻るか確認してください')
+      : t('WebGL復元を実行できません');
     renderReleaseDiagnostics();
   });
 
@@ -315,15 +318,15 @@ function getNewGameMode() {
 
 function applyModeLabels(mode) {
   modeBrand.textContent = mode.brand;
-  homeKicker.textContent = mode.kicker;
-  playNoteTitle.textContent = mode.label;
+  homeKicker.textContent = t(mode.kicker);
+  playNoteTitle.textContent = t(mode.label);
   playNoteText.textContent = mode.id === GAME_MODE_IDS.THREE_HUNDRED_SECONDS
-    ? '消したサイコロと同じ数が、ランダムな安全な空きマスに現れる。'
-    : '斜めフリックで移動。同じ目を、目の数以上つなげる。';
+    ? t('消したサイコロと同じ数が、ランダムな安全な空きマスに現れる。')
+    : t('斜めフリックで移動。同じ目を、目の数以上つなげる。');
   const bestScore = bestRecords.getBest(mode.id);
   homeBestScore.textContent = bestScore === null
-    ? '記録なし'
-    : `${numberFormatter.format(bestScore)}点`;
+    ? t('記録なし')
+    : t('{0}点', { 0: numberFormatter.format(bestScore) });
 }
 
 function formatRecordMessage(outcome) {
@@ -335,7 +338,7 @@ function formatRecordMessage(outcome) {
 
 function renderResultRecord(outcome) {
   resultRecordMessage.textContent = formatRecordMessage(outcome);
-  resultBestScore.textContent = `${numberFormatter.format(outcome.bestScore)}点`;
+  resultBestScore.textContent = t('{0}点', { 0: numberFormatter.format(outcome.bestScore) });
   resultRecordWarning.hidden = outcome.persisted;
 }
 
@@ -356,7 +359,7 @@ function capturePlayerName() {
   playerNameInput.value = saved.name;
   showPlayerNameError(saved.persisted
     ? ''
-    : 'この端末へ名前を保存できませんが、今回のランキングには使えます', {
+    : t('この端末へ名前を保存できませんが、今回のランキングには使えます'), {
     invalid: false
   });
   return saved.name;
@@ -387,7 +390,7 @@ function appendRecoveryRecord(record, label, { disabled = false } = {}) {
   const actionId = `recovery-${++recoveryActionCounter}`;
   const button = document.createElement('button');
   button.type = 'button';
-  button.textContent = '確認して削除';
+  button.textContent = t('確認して削除');
   button.disabled = disabled;
   button.dataset.recoveryAction = actionId;
   recoveryActionRecords.set(actionId, record);
@@ -409,23 +412,23 @@ function renderRecoveryRecords(snapshot) {
 
   const recoveryActionsDisabled = !snapshot.recoveryStorageAvailable;
   for (const record of snapshot.unverifiedItems) {
-    appendRecoveryRecord(record, '旧 shared-v1 記録（未検証・自動再送しません）', {
+    appendRecoveryRecord(record, t('旧 shared-v1 記録（未検証・自動再送しません）'), {
       disabled: recoveryActionsDisabled
     });
   }
   for (const record of snapshot.corruptedItems) {
-    appendRecoveryRecord(record, '読み取れない保存データ（元の内容を保持中）', {
+    appendRecoveryRecord(record, t('読み取れない保存データ（元の内容を保持中）'), {
       disabled: recoveryActionsDisabled
     });
   }
   for (const record of snapshot.quarantinedItems) {
-    appendRecoveryRecord(record, '恒久拒否として隔離した記録（再送しません）', {
+    appendRecoveryRecord(record, t('恒久拒否として隔離した記録（再送しません）'), {
       disabled: recoveryActionsDisabled
     });
   }
   pendingRankingRecoveryStatus.textContent = snapshot.recoveryStorageAvailable
-    ? '保全データは書き出してから、内容を確認した記録だけ削除できます。'
-    : '保全データの読み取りに失敗しました。削除操作は停止しています。';
+    ? t('保全データは書き出してから、内容を確認した記録だけ削除できます。')
+    : t('保全データの読み取りに失敗しました。削除操作は停止しています。');
 }
 
 async function renderPendingRankingPanel(message = '') {
@@ -445,30 +448,30 @@ async function renderPendingRankingPanel(message = '') {
     statuses.push(message);
   } else if (snapshot.count > 0) {
     statuses.push(snapshot.persisted
-      ? `未送信のランキング記録を${snapshot.count}件、端末に保存しています。ゲームはこのまま遊べます`
-      : `未送信のランキング記録を${snapshot.count}件、この画面内だけに保持しています。閉じると失われます`);
+      ? t('未送信のランキング記録を{0}件、端末に保存しています。ゲームはこのまま遊べます', { 0: snapshot.count })
+      : t('未送信のランキング記録を{0}件、この画面内だけに保持しています。閉じると失われます', { 0: snapshot.count }));
   }
   if (snapshot.corrupted) {
     statuses.push(
-      `確認できない保存データ${snapshot.corruptedCount}件は、上書きせず端末に保持しています`
+      t('確認できない保存データ{0}件は、上書きせず端末に保持しています', { 0: snapshot.corruptedCount })
     );
   }
   if (snapshot.unverified) {
     statuses.push(
-      `旧 shared-v1 の未検証記録${snapshot.unverifiedCount}件は、変換・再送せず保全しています`
+      t('旧 shared-v1 の未検証記録{0}件は、変換・再送せず保全しています', { 0: snapshot.unverifiedCount })
     );
   }
   if (snapshot.quarantined) {
     statuses.push(
-      `恒久拒否として隔離した記録${snapshot.quarantineCount}件は、再送せず保全しています`
+      t('恒久拒否として隔離した記録{0}件は、再送せず保全しています', { 0: snapshot.quarantineCount })
     );
   }
-  pendingRankingStatus.textContent = statuses.join('。');
+  pendingRankingStatus.textContent = statuses.join(t('。'));
   pendingRankingRetry.hidden = snapshot.count === 0;
   pendingRankingRetry.disabled = pendingRankingRetryFlight.active;
   pendingRankingRetry.textContent = pendingRankingRetryFlight.active
-    ? '再送中…'
-    : '未送信記録を再送';
+    ? t('再送中…')
+    : t('未送信記録を再送');
   renderRecoveryRecords(snapshot);
 }
 
@@ -481,20 +484,20 @@ function renderRankingStorageWarning(submission) {
 
   const messages = {
     'queue-full':
-      '未送信記録が上限に達したため、この結果を端末へ保存できませんでした。画面を閉じると失われます。',
+      t('未送信記録が上限に達したため、この結果を端末へ保存できませんでした。画面を閉じると失われます。'),
     'storage-unavailable':
-      'この結果を端末へ保存できませんでした。画面を閉じると失われます。通信に失敗した場合は「記録を再送する」を押してください。',
+      t('この結果を端末へ保存できませんでした。画面を閉じると失われます。通信に失敗した場合は「記録を再送する」を押してください。'),
     'storage-timeout':
-      '端末の保存領域の応答が遅いため、結果を一時的に画面へ保持しています。「記録を再送する」を押してください。',
+      t('端末の保存領域の応答が遅いため、結果を一時的に画面へ保持しています。「記録を再送する」を押してください。'),
     'submission-conflict':
-      '安全な登録番号を確保できなかったため、この結果の送信を止めました。',
+      t('安全な登録番号を確保できなかったため、この結果の送信を止めました。'),
     'invalid-submission':
-      'この結果を安全な未送信記録として保存できなかったため、送信を止めました。',
+      t('この結果を安全な未送信記録として保存できなかったため、送信を止めました。'),
     'ticket-unavailable':
-      'ランキング送信に失敗しました。結果画面から再試行できます。'
+      t('ランキング送信に失敗しました。結果画面から再試行できます。')
   };
   resultRankingStorageWarning.textContent = messages[submission.pendingSaveCode]
-    ?? 'この結果を端末へ保存できませんでした。画面を閉じると失われます。';
+    ?? t('この結果を端末へ保存できませんでした。画面を閉じると失われます。');
   resultRankingStorageWarning.hidden = false;
 }
 
@@ -513,7 +516,7 @@ async function exportPendingRankingRecovery() {
     const content = await pendingRankingSubmissions.exportRecoveryData();
     if (typeof globalThis.Blob !== 'function' || typeof globalThis.URL?.createObjectURL !== 'function') {
       pendingRankingRecoveryStatus.textContent =
-        'この環境では書き出し機能を使えません。画面を閉じず、別の環境で再試行してください。';
+        t('この環境では書き出し機能を使えません。画面を閉じず、別の環境で再試行してください。');
       return;
     }
     const blob = new Blob([content], { type: 'application/json;charset=utf-8' });
@@ -523,10 +526,10 @@ async function exportPendingRankingRecovery() {
     anchor.download = `sainome-ranking-recovery-${Date.now()}.json`;
     anchor.click();
     globalThis.URL.revokeObjectURL(objectUrl);
-    pendingRankingRecoveryStatus.textContent = '保全データを書き出しました。内容を確認してから削除してください。';
+    pendingRankingRecoveryStatus.textContent = t('保全データを書き出しました。内容を確認してから削除してください。');
   } catch (error) {
     console.error(error);
-    pendingRankingRecoveryStatus.textContent = '保全データの書き出しに失敗しました。記録は保持しています。';
+    pendingRankingRecoveryStatus.textContent = t('保全データの書き出しに失敗しました。記録は保持しています。');
   }
 }
 
@@ -534,7 +537,7 @@ async function deletePendingRankingRecovery(actionId) {
   if (recoveryActionPending) return;
   const record = recoveryActionRecords.get(actionId);
   if (!record || typeof globalThis.confirm !== 'function') return;
-  if (!globalThis.confirm('この保全データを書き出して内容を確認しましたか？削除後は元に戻せません。')) {
+  if (!globalThis.confirm(t('この保全データを書き出して内容を確認しましたか？削除後は元に戻せません。'))) {
     return;
   }
 
@@ -542,12 +545,12 @@ async function deletePendingRankingRecovery(actionId) {
   try {
     const result = await pendingRankingSubmissions.deleteRecoveryRecord(record);
     pendingRankingRecoveryStatus.textContent = result.removed
-      ? '確認した保全データを削除しました。'
-      : '保全データを削除できませんでした。元の内容は保持しています。';
+      ? t('確認した保全データを削除しました。')
+      : t('保全データを削除できませんでした。元の内容は保持しています。');
     if (result.removed) notifyPendingRankingChange();
   } catch (error) {
     console.error(error);
-    pendingRankingRecoveryStatus.textContent = '保全データの削除に失敗しました。元の内容は保持しています。';
+    pendingRankingRecoveryStatus.textContent = t('保全データの削除に失敗しました。元の内容は保持しています。');
   } finally {
     recoveryActionPending = false;
     await renderPendingRankingPanel();
@@ -561,10 +564,10 @@ async function retryStoredRankingSubmissions() {
       const initial = await pendingRankingSubmissions.refresh();
       if (initial.count === 0) return '';
       if (isBrowserOffline()) {
-        return '現在オフラインのため送信を開始しません。接続後に「未送信記録を再送」を押してください';
+        return t('現在オフラインのため送信を開始しません。接続後に「未送信記録を再送」を押してください');
       }
       if (!rankingClient) {
-        return 'ランキングへ接続できないため、未送信記録を端末に保持しています';
+        return t('ランキングへ接続できないため、未送信記録を端末に保持しています');
       }
 
       const batchSize = Math.min(MAX_MANUAL_PENDING_RETRIES, initial.items.length);
@@ -572,7 +575,7 @@ async function retryStoredRankingSubmissions() {
       const batch = Array.from({ length: batchSize }, (_, offset) =>
         initial.items[(startIndex + offset) % initial.items.length]);
       pendingRankingRetryCursor = (startIndex + batchSize) % initial.items.length;
-      await renderPendingRankingPanel(`未送信記録${batch.length}件を再送しています…`);
+      await renderPendingRankingPanel(t('未送信記録{0}件を再送しています…', { 0: batch.length }));
       let retryErrors = 0;
       let cleanupErrors = 0;
       let acceptedCount = 0;
@@ -611,13 +614,13 @@ async function retryStoredRankingSubmissions() {
 
       if (acceptedCount + cleanupErrors + quarantinedCount > 0) notifyPendingRankingChange();
       const messages = [];
-      if (acceptedCount > 0) messages.push(`${acceptedCount}件を登録しました`);
-      if (quarantinedCount > 0) messages.push(`${quarantinedCount}件を恒久拒否として隔離しました`);
+      if (acceptedCount > 0) messages.push(t('{0}件を登録しました', { 0: acceptedCount }));
+      if (quarantinedCount > 0) messages.push(t('{0}件を恒久拒否として隔離しました', { 0: quarantinedCount }));
       if (cleanupErrors > 0) {
-        messages.push(`${cleanupErrors}件は登録を確認しましたが、端末表示を更新できませんでした`);
+        messages.push(t('{0}件は登録を確認しましたが、端末表示を更新できませんでした', { 0: cleanupErrors }));
       }
       if (retryErrors > 0) {
-        messages.push(`${retryErrors}件は通信失敗のため未送信のまま保持しています`);
+        messages.push(t('{0}件は通信失敗のため未送信のまま保持しています', { 0: retryErrors }));
       }
       return messages.join('。');
     });
@@ -625,7 +628,7 @@ async function retryStoredRankingSubmissions() {
     finalMessage = flight.value;
   } catch (error) {
     console.error(error);
-    finalMessage = '再送処理を完了できませんでした。未送信記録は保持しています';
+    finalMessage = t('再送処理を完了できませんでした。未送信記録は保持しています');
   }
   await renderPendingRankingPanel(finalMessage);
 }
@@ -638,7 +641,7 @@ function renderRankingRows(rows) {
 
     const position = document.createElement('span');
     position.className = 'ranking-position';
-    position.textContent = `${row.rank}位`;
+    position.textContent = t('{0}位', { 0: row.rank });
 
     const name = document.createElement('bdi');
     name.className = 'ranking-name';
@@ -647,7 +650,7 @@ function renderRankingRows(rows) {
 
     const score = document.createElement('span');
     score.className = 'ranking-score';
-    score.textContent = `${numberFormatter.format(row.score)}点`;
+    score.textContent = t('{0}点', { 0: numberFormatter.format(row.score) });
 
     item.append(position, name, score);
     resultRankingList.append(item);
@@ -668,7 +671,7 @@ function setRankingPending(submission, pending) {
 
   if (!isCurrentRankingSubmission(submission)) return;
   resultRankingRetry.disabled = pending;
-  if (pending) resultRankingRetry.textContent = '通信中…';
+  if (pending) resultRankingRetry.textContent = t('通信中…');
 }
 
 function setResultRankingRetryAction(action, label = '') {
@@ -682,8 +685,8 @@ async function syncResultRanking(submission, { submit = true } = {}) {
   if (submit && isBrowserOffline()) {
     if (isCurrentRankingSubmission(submission)) {
       resultRankingStatus.textContent =
-        '現在オフラインのため記録を送信できません。接続後に「記録を再送する」を押してください';
-      setResultRankingRetryAction('submit', '記録を再送する');
+        t('現在オフラインのため記録を送信できません。接続後に「記録を再送する」を押してください');
+      setResultRankingRetryAction('submit', t('記録を再送する'));
     }
     return;
   }
@@ -695,8 +698,8 @@ async function syncResultRanking(submission, { submit = true } = {}) {
     update: () => {
       setResultRankingRetryAction(null);
       resultRankingStatus.textContent = submit
-        ? '記録を送信しています…'
-        : 'ランキングを読み込んでいます…';
+        ? t('記録を送信しています…')
+        : t('ランキングを読み込んでいます…');
     }
   });
 
@@ -764,35 +767,35 @@ async function syncResultRanking(submission, { submit = true } = {}) {
 
   if (submitError) {
     resultRankingStatus.textContent = rankingRows
-      ? 'ランキングは表示しましたが、今回の記録を送信できませんでした'
-      : '記録を送信できませんでした。通信状態を確認してください';
+      ? t('ランキングは表示しましたが、今回の記録を送信できませんでした')
+      : t('記録を送信できませんでした。通信状態を確認してください');
     const canRetrySubmit = submission.canSubmit !== false && !submission.acceptedOutcome;
     setResultRankingRetryAction(
       canRetrySubmit ? 'submit' : null,
-      canRetrySubmit ? '記録を再送する' : ''
+      canRetrySubmit ? t('記録を再送する') : ''
     );
   } else if (cleanupError) {
     resultRankingStatus.textContent =
-      '記録は登録しましたが、端末の未送信表示を更新できませんでした';
-    setResultRankingRetryAction('cleanup', '登録状態を再確認');
+      t('記録は登録しましたが、端末の未送信表示を更新できませんでした');
+    setResultRankingRetryAction('cleanup', t('登録状態を再確認'));
   } else if (rankingError) {
     resultRankingStatus.textContent = submitOutcome
-      ? '記録は登録しましたが、ランキングを読み込めませんでした'
-      : 'ランキングを読み込めませんでした';
-    setResultRankingRetryAction('ranking', 'ランキングを再読込');
+      ? t('記録は登録しましたが、ランキングを読み込めませんでした')
+      : t('ランキングを読み込めませんでした');
+    setResultRankingRetryAction('ranking', t('ランキングを再読込'));
   } else if (submitOutcome?.isFirstPlay) {
-    resultRankingStatus.textContent = '初回記録を登録しました';
+    resultRankingStatus.textContent = t('初回記録を登録しました');
     setResultRankingRetryAction(null);
   } else if (submitOutcome?.isNewBest) {
-    resultRankingStatus.textContent = 'ランキングの自己ベストを更新しました';
+    resultRankingStatus.textContent = t('ランキングの自己ベストを更新しました');
     setResultRankingRetryAction(null);
   } else if (submitOutcome) {
-    resultRankingStatus.textContent = '記録を登録しました';
+    resultRankingStatus.textContent = t('記録を登録しました');
     setResultRankingRetryAction(null);
   } else {
     resultRankingStatus.textContent = rankingRows?.length
-      ? 'ランキングを読み込みました'
-      : 'ランキングに記録がありません';
+      ? t('ランキングを読み込みました')
+      : t('ランキングに記録がありません');
     setResultRankingRetryAction(null);
   }
 }
@@ -805,7 +808,7 @@ async function retryAcceptedResultCleanup(submission) {
     isCurrent: isCurrentRankingSubmission,
     update: () => {
       setResultRankingRetryAction(null);
-      resultRankingStatus.textContent = '登録状態を確認しています…';
+      resultRankingStatus.textContent = t('登録状態を確認しています…');
     }
   });
 
@@ -823,8 +826,8 @@ async function retryAcceptedResultCleanup(submission) {
   setRankingPending(submission, false);
   if (!cleanup.ok) {
     resultRankingStatus.textContent =
-      '端末の未送信表示を更新できませんでした。記録は登録済みとして保持しています';
-    setResultRankingRetryAction('cleanup', '登録状態を再確認');
+      t('端末の未送信表示を更新できませんでした。記録は登録済みとして保持しています');
+    setResultRankingRetryAction('cleanup', t('登録状態を再確認'));
     return;
   }
 
@@ -835,9 +838,10 @@ async function retryAcceptedResultCleanup(submission) {
 }
 
 function setHomeSharePending(pending) {
+  languageToggle.disabled = pending || startPending;
   homeSharePending = pending;
   homeShareButton.disabled = pending;
-  homeShareButton.textContent = pending ? '共有中…' : 'このゲームをシェア';
+  homeShareButton.textContent = pending ? t('共有中…') : t('このゲームをシェア');
 }
 
 function setResultSharePending(pending) {
@@ -845,10 +849,11 @@ function setResultSharePending(pending) {
   resultShareButton.disabled = pending;
   replayButton.disabled = pending || startPending;
   resultHomeButton.disabled = pending;
-  resultShareButton.textContent = pending ? '共有中…' : '結果をシェア';
+  resultShareButton.textContent = pending ? t('共有中…') : t('結果をシェア');
 }
 
 function setStartPending(pending) {
+  languageToggle.disabled = pending || homeSharePending;
   startPending = pending;
   startButton.disabled = pending;
   replayButton.disabled = pending || resultSharePending;
@@ -861,8 +866,8 @@ function setStartPending(pending) {
   resumeButton.disabled = pending;
   retireButton.disabled = pending;
   playerNameInput.disabled = pending;
-  startButton.textContent = pending ? '3D盤面を準備中…' : 'ゲーム開始';
-  replayButton.textContent = pending ? '準備中…' : 'もう一度';
+  startButton.textContent = pending ? t('3D盤面を準備中…') : t('ゲーム開始');
+  replayButton.textContent = pending ? t('準備中…') : t('もう一度');
   app.setAttribute('aria-busy', String(pending));
   renderTutorial();
 }
@@ -889,10 +894,10 @@ function renderSoundToggle(snapshot = soundEffects.getSnapshot()) {
   soundToggle.setAttribute('aria-pressed', String(snapshot.enabled));
   soundToggle.setAttribute(
     'aria-label',
-    snapshot.enabled ? '効果音をオフにする' : '効果音をオンにする'
+    snapshot.enabled ? t('効果音をオフにする') : t('効果音をオンにする')
   );
   soundToggleIcon.textContent = snapshot.enabled ? '🔊' : '🔇';
-  soundToggleLabel.textContent = snapshot.enabled ? '効果音 オン' : '効果音 オフ';
+  soundToggleLabel.textContent = snapshot.enabled ? t('効果音 オン') : t('効果音 オフ');
 }
 
 async function preserveFinishedRanking(provisional) {
@@ -922,7 +927,7 @@ async function preserveFinishedRanking(provisional) {
   if (latestRankingSubmission?.runId === provisional.runId) {
     latestRankingSubmission = prepared;
     renderRankingStorageWarning(prepared);
-    resultRankingStatus.textContent = '記録を送信しています…';
+    resultRankingStatus.textContent = t('記録を送信しています…');
     setResultRankingRetryAction(null);
   }
   await syncResultRanking(prepared);
@@ -933,12 +938,12 @@ function formatSavedGameSummary(state) {
   const seconds = formatRemainingSeconds(
     Math.max(0, mode.durationMs - state.game.session.elapsedMs)
   );
-  return `${mode.label}・残り${seconds}秒・${numberFormatter.format(state.game.session.score)}点`;
+  return t('{0}・残り{1}秒・{2}点', { 0: t(mode.label), 1: seconds, 2: numberFormatter.format(state.game.session.score) });
 }
 
 function renderGameRecovery() {
-  gameRecoveryResume.textContent = '続きから再開';
-  gameRecoveryDiscard.textContent = '保存を削除';
+  gameRecoveryResume.textContent = t('続きから再開');
+  gameRecoveryDiscard.textContent = t('保存を削除');
   if (!savedGameRecovery) {
     gameRecoveryPanel.hidden = true;
     gameRecoveryStatus.textContent = '';
@@ -949,18 +954,18 @@ function renderGameRecovery() {
 
   gameRecoveryPanel.hidden = false;
   if (savedGameRecovery.unavailable) {
-    gameRecoveryResume.textContent = '保存を再確認';
+    gameRecoveryResume.textContent = t('保存を再確認');
     gameRecoveryResume.disabled = gameStateOperationPending;
     gameRecoveryDiscard.disabled = true;
     gameRecoveryStatus.textContent =
-      '保存領域を確認できないため、新しいプレイを開始できません。保存を再確認してください';
+      t('保存領域を確認できないため、新しいプレイを開始できません。保存を再確認してください');
     return;
   }
   if (savedGameRecovery.invalid) {
     gameRecoveryResume.disabled = true;
     gameRecoveryDiscard.disabled = gameStateOperationPending;
     gameRecoveryStatus.textContent =
-      '前回のプレイ保存を確認できません。削除するまで新しい保存を上書きしません';
+      t('前回のプレイ保存を確認できません。削除するまで新しい保存を上書きしません');
     return;
   }
   gameRecoveryResume.disabled = gameStateOperationPending;
@@ -996,12 +1001,12 @@ function requestGameStateSave(snapshot) {
       savedGameRecovery = { state: persisted, serialized: result.serialized };
       if (!hadSavedGame) notifyGameStateChange();
     } else {
-      message.textContent = 'プレイ状態を端末へ保存できません。画面を閉じないでください';
+      message.textContent = t('プレイ状態を端末へ保存できません。画面を閉じないでください');
     }
     return result;
   }).catch((error) => {
     console.error(error);
-    message.textContent = 'プレイ状態を端末へ保存できません。画面を閉じないでください';
+    message.textContent = t('プレイ状態を端末へ保存できません。画面を閉じないでください');
   });
 }
 
@@ -1121,13 +1126,13 @@ function beginWebGLRecovery() {
   clearWebGLRecoveryTimer();
   webglRecoveryVisible = true;
   webglRecoveryActionPending = true;
-  webglRecoveryStatus.textContent = '3D表示を復元しています…操作を一時停止します';
+  webglRecoveryStatus.textContent = t('3D表示を復元しています…操作を一時停止します');
   renderWebGLRecovery();
   webglRecoveryTimerId = window.setTimeout(() => {
     webglRecoveryTimerId = null;
     if (runId !== webglRecoveryRunId) return;
     showWebGLRecovery(
-      '3D表示を自動復元できません。保存地点は端末に残しています。'
+      t('3D表示を自動復元できません。保存地点は端末に残しています。')
     );
   }, WEBGL_RECOVERY_WAIT_MS);
 }
@@ -1146,7 +1151,7 @@ function handleWebGLContextRestored() {
 
 function handleWebGLRecoveryFailed() {
   showWebGLRecovery(
-    '3D表示の資源を作り直せませんでした。保存地点は端末に残しています。'
+    t('3D表示の資源を作り直せませんでした。保存地点は端末に残しています。')
   );
 }
 
@@ -1190,7 +1195,7 @@ async function resumeSavedGame() {
     resetHudDisplay(mode);
     game.restoreState(saved.game);
     const snapshot = flow.resumePlaying();
-    if (!snapshot) throw new Error('ゲーム画面を再開できませんでした');
+    if (!snapshot) throw new Error(t('ゲーム画面を再開できませんでした'));
     savedGameRecovery = loaded;
     renderFlow(snapshot);
     game.emitStateSnapshot();
@@ -1210,18 +1215,18 @@ async function discardSavedGame() {
   if (!expectedSerialized) return;
   if (
     typeof globalThis.confirm === 'function'
-    && !globalThis.confirm('前回のプレイ保存を削除しますか？削除後は復元できません。')
+    && !globalThis.confirm(t('前回のプレイ保存を削除しますか？削除後は復元できません。'))
   ) return;
   gameStateOperationPending = true;
   renderGameRecovery();
   try {
     const result = await clearGameState(expectedSerialized);
     if (result.status === 'conflict') {
-      gameRecoveryStatus.textContent = '別の保存状態が作られたため、削除を止めました。画面を更新して確認してください';
+      gameRecoveryStatus.textContent = t('別の保存状態が作られたため、削除を止めました。画面を更新して確認してください');
     }
   } catch (error) {
     console.error(error);
-    gameRecoveryStatus.textContent = '保存を削除できませんでした。元のデータを保持しています';
+    gameRecoveryStatus.textContent = t('保存を削除できませんでした。元のデータを保持しています');
   } finally {
     gameStateOperationPending = false;
     renderGameRecovery();
@@ -1314,7 +1319,7 @@ const gameCallbacks = {
     clearRankingRows();
     renderFlow(next);
     renderRankingStorageWarning(null);
-    resultRankingStatus.textContent = '記録を端末へ保存しています…';
+    resultRankingStatus.textContent = t('記録を端末へ保存しています…');
     setResultRankingRetryAction(null);
     void preserveFinishedRanking(provisional);
     void gameStateCleanup.finally(() => {
@@ -1365,8 +1370,7 @@ async function ensureGame(initialModeId = DEFAULT_GAME_MODE_ID) {
     console.error(error);
     gameLoadPromise = null;
     loading.classList.add('hidden');
-    homeError.textContent = WEBGL_LOAD_FAILURE_MESSAGE;
-    homeError.hidden = false;
+    showHomeStartError(WEBGL_LOAD_FAILURE_MESSAGE);
     return false;
   }
 }
@@ -1430,7 +1434,7 @@ async function recreateWebGLGame() {
   } catch (error) {
     console.error(error);
     showWebGLRecovery(
-      '3D表示を再生成できませんでした。保存地点を残したまま、ホームへ戻れます。'
+      t('3D表示を再生成できませんでした。保存地点を残したまま、ホームへ戻れます。')
     );
   } finally {
     webglRecoveryActionPending = false;
@@ -1488,8 +1492,8 @@ function renderFlow(snapshot = flow.getSnapshot()) {
     const resultReason = snapshot.result.endedReason === 'retired'
       ? 'RETIRED'
       : 'TIME UP';
-    resultKicker.textContent = `${resultMode.label}モード · ${resultReason}`;
-    resultRankingTitle.textContent = `${resultMode.label}ランキング`;
+    resultKicker.textContent = t('{0}モード · {1}', { 0: t(resultMode.label), 1: resultReason });
+    resultRankingTitle.textContent = t('{0}ランキング', { 0: t(resultMode.label) });
     resultPlayerName.textContent = latestRankingSubmission?.displayName ?? activePlayerName;
     resultScore.textContent = numberFormatter.format(snapshot.result.score);
     resultCleared.textContent = numberFormatter.format(snapshot.result.clearedDice);
@@ -1510,15 +1514,15 @@ async function handleHomeShare() {
     });
     const status = await shareResult(content);
     const messages = {
-      [RESULT_SHARE_STATUSES.SHARED]: 'ゲームを共有しました',
-      [RESULT_SHARE_STATUSES.COPIED]: 'シェア文をコピーしました',
-      [RESULT_SHARE_STATUSES.CANCELLED]: '共有をキャンセルしました',
-      [RESULT_SHARE_STATUSES.FAILED]: 'コピーできませんでした'
+      [RESULT_SHARE_STATUSES.SHARED]: t('ゲームを共有しました'),
+      [RESULT_SHARE_STATUSES.COPIED]: t('シェア文をコピーしました'),
+      [RESULT_SHARE_STATUSES.CANCELLED]: t('共有をキャンセルしました'),
+      [RESULT_SHARE_STATUSES.FAILED]: t('コピーできませんでした')
     };
     homeShareStatus.textContent = messages[status];
   } catch (error) {
     console.error(error);
-    homeShareStatus.textContent = 'コピーできませんでした';
+    homeShareStatus.textContent = t('コピーできませんでした');
   } finally {
     setHomeSharePending(false);
   }
@@ -1545,15 +1549,15 @@ async function handleResultShare() {
     });
     const status = await shareResult(content);
     const messages = {
-      [RESULT_SHARE_STATUSES.SHARED]: 'ゲーム結果を共有しました',
-      [RESULT_SHARE_STATUSES.COPIED]: 'シェア文をコピーしました',
-      [RESULT_SHARE_STATUSES.CANCELLED]: '共有をキャンセルしました',
-      [RESULT_SHARE_STATUSES.FAILED]: 'コピーできませんでした'
+      [RESULT_SHARE_STATUSES.SHARED]: t('ゲーム結果を共有しました'),
+      [RESULT_SHARE_STATUSES.COPIED]: t('シェア文をコピーしました'),
+      [RESULT_SHARE_STATUSES.CANCELLED]: t('共有をキャンセルしました'),
+      [RESULT_SHARE_STATUSES.FAILED]: t('コピーできませんでした')
     };
     resultShareStatus.textContent = messages[status];
   } catch (error) {
     console.error(error);
-    resultShareStatus.textContent = 'コピーできませんでした';
+    resultShareStatus.textContent = t('コピーできませんでした');
   } finally {
     setResultSharePending(false);
   }
@@ -1573,9 +1577,9 @@ function renderTutorial(snapshot = tutorial.getSnapshot()) {
   tutorialPreviousButton.disabled = startPending || snapshot.isFirst;
   tutorialNextButton.disabled = startPending;
   let nextLabel = snapshot.isLast
-    ? `${selectedMode.label}で始める`
-    : '次へ';
-  if (startPending) nextLabel = '3D盤面を準備中…';
+    ? t('{0}で始める', { 0: t(selectedMode.label) })
+    : t('次へ');
+  if (startPending) nextLabel = t('3D盤面を準備中…');
   tutorialNextButton.textContent = nextLabel;
 }
 
@@ -1605,7 +1609,7 @@ function scheduleCountdown(runId) {
         showHomeStartError('ゲームを開始できませんでした。もう一度お試しください。');
         return;
       }
-      message.textContent = '盤面に沿って斜めにフリック';
+      message.textContent = t('盤面に沿って斜めにフリック');
       canvas.focus({ preventScroll: true });
       return;
     }
@@ -1616,7 +1620,8 @@ function scheduleCountdown(runId) {
 
 function showHomeStartError(errorMessage) {
   loading.classList.add('hidden');
-  homeError.textContent = errorMessage;
+  homeStartError = errorMessage;
+  homeError.textContent = t(errorMessage);
   homeError.hidden = false;
   if (flow.getSnapshot().screen !== SCREEN_PHASES.HOME) {
     renderFlow(flow.goHome());
@@ -1794,7 +1799,7 @@ stage.addEventListener('pointerup', (event) => {
   if (direction) {
     requestMove(direction);
   } else if (Math.hypot(deltaX, deltaY) >= DEFAULT_SWIPE_DISTANCE) {
-    message.textContent = '斜め方向へフリックするか、矢印をタップします';
+    message.textContent = t('斜め方向へフリックするか、矢印をタップします');
   }
 });
 
@@ -1839,6 +1844,11 @@ for (const button of directionButtons) {
 pauseButton.addEventListener('click', pauseRound);
 resumeButton.addEventListener('click', resumeRound);
 retireButton.addEventListener('click', retireRound);
+languageToggle.addEventListener('click', () => {
+  if (startPending || homeSharePending) return;
+  setLanguage(getLanguage() === 'ja' ? 'en' : 'ja');
+  refreshLanguage();
+});
 startButton.addEventListener('click', startRound);
 replayButton.addEventListener('click', startRound);
 gameRecoveryResume.addEventListener('click', () => {
@@ -1893,12 +1903,12 @@ soundToggle.addEventListener('click', async () => {
 
     if (targetEnabled && !snapshot.running) {
       soundStatus.textContent = snapshot.available
-        ? '効果音は一時中断中です。次の操作で再開します'
-        : 'この環境では効果音を開始できませんでした';
+        ? t('効果音は一時中断中です。次の操作で再開します')
+        : t('この環境では効果音を開始できませんでした');
     } else {
       soundStatus.textContent = targetEnabled
-        ? '効果音をオンにしました'
-        : '効果音をオフにしました';
+        ? t('効果音をオンにしました')
+        : t('効果音をオフにしました');
     }
 
     renderSoundToggle(snapshot);
@@ -1957,7 +1967,7 @@ playerNameInput.addEventListener('change', () => {
   playerNameInput.value = saved.name;
   showPlayerNameError(saved.persisted
     ? ''
-    : 'この端末へ名前を保存できませんが、今回のランキングには使えます', {
+    : t('この端末へ名前を保存できませんが、今回のランキングには使えます'), {
     invalid: false
   });
 });
@@ -1998,12 +2008,30 @@ window.addEventListener('pagehide', () => {
   }
 }, { once: true });
 
+function refreshLanguage() {
+  applyTranslations();
+  const english = getLanguage() === 'en';
+  languageToggle.textContent = english ? '日本語🇯🇵' : 'English🇺🇸';
+  languageToggle.lang = english ? 'ja' : 'en';
+  languageToggle.setAttribute('aria-label', english ? '日本語に切り替える' : 'Switch to English');
+  numberFormatter = new Intl.NumberFormat(english ? 'en-US' : 'ja-JP');
+  applyModeLabels(selectedMode);
+  renderSoundToggle();
+  renderGameRecovery();
+  renderFlow();
+  if (!homeError.hidden) homeError.textContent = t(homeStartError);
+  if (!playerNameError.hidden) {
+    const validation = validatePlayerName(playerNameInput.value);
+    showPlayerNameError(validation.ok
+      ? t('この端末へ名前を保存できませんが、今回のランキングには使えます')
+      : validation.message, { invalid: !validation.ok });
+  }
+  void renderPendingRankingPanel();
+}
+
 setupReleaseDiagnostics();
-applyModeLabels(selectedMode);
 resetHudDisplay(selectedMode);
-renderSoundToggle();
-renderFlow();
-void renderPendingRankingPanel();
+refreshLanguage();
 void loadGameRecovery().catch((error) => {
   console.error(error);
 });
