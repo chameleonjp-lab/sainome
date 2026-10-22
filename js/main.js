@@ -2011,7 +2011,7 @@ window.addEventListener('pagehide', () => {
 function refreshLanguage() {
   applyTranslations();
   const english = getLanguage() === 'en';
-  languageToggle.textContent = english ? '日本語🇯🇵' : 'English🇺🇸';
+  languageToggle.textContent = english ? '日本語🇯🇵' : 'English';
   languageToggle.lang = english ? 'ja' : 'en';
   languageToggle.setAttribute('aria-label', english ? '日本語に切り替える' : 'Switch to English');
   numberFormatter = new Intl.NumberFormat(english ? 'en-US' : 'ja-JP');
