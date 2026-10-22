@@ -20,8 +20,8 @@ body {
   touch-action: none;
 }
 button { font: inherit; -webkit-tap-highlight-color: transparent; }
-input { font: inherit; }
-button:focus-visible { outline: 3px solid #fff3b5; outline-offset: 3px; }
+input, select { font: inherit; }
+button:focus-visible, select:focus-visible { outline: 3px solid #fff3b5; outline-offset: 3px; }
 button:disabled { opacity: .55; }
 .visually-hidden {
   position: absolute !important;
@@ -177,6 +177,8 @@ button:disabled { opacity: .55; }
   transition: opacity .25s ease;
 }
 .loading.hidden { opacity: 0; pointer-events: none; }
+.app[data-screen="home"] .loading,
+.app[data-screen="tutorial"] .loading { visibility: hidden; }
 .message {
   position: absolute;
   z-index: 2;
@@ -332,7 +334,9 @@ button:disabled { opacity: .55; }
   display: flex;
   justify-content: flex-end;
 }
-.language-toggle {
+.language-select {
+  max-width: 100%;
+  width: 220px;
   min-height: 44px;
   padding: 8px 14px;
   border: 1px solid rgba(245,196,81,.48);
@@ -343,7 +347,7 @@ button:disabled { opacity: .55; }
   font-weight: 800;
   touch-action: manipulation;
 }
-.language-toggle:active { background: rgba(245,196,81,.24); }
+.language-select:active { background: rgba(245,196,81,.24); }
 .screen-lead {
   max-width: 480px;
   margin: 0;
@@ -662,6 +666,7 @@ button:disabled { opacity: .55; }
   display: grid;
 }
 .tutorial-slide {
+  min-width: 0;
   display: grid;
   place-items: center;
   align-content: center;
@@ -714,6 +719,8 @@ button:disabled { opacity: .55; }
 }
 .match-visual {
   display: flex;
+  max-width: 100%;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   gap: 7px;
@@ -775,6 +782,10 @@ button:disabled { opacity: .55; }
   display: grid;
   grid-template-columns: 1fr 1fr 1.25fr;
   gap: 8px;
+}
+.tutorial-actions button {
+  padding-inline: 10px;
+  font-size: .8rem;
 }
 
 .countdown-screen { overflow: hidden; }
