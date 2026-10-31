@@ -269,5 +269,12 @@ export default Object.freeze({
   'この文字はランキング名に使えません': 'Dieses Zeichen ist im Bestenlistennamen nicht erlaubt',
   '文字として表示されるランキング名を入力してください': 'Gib einen Bestenlistennamen mit sichtbaren Zeichen ein',
   '見えない文字や結合記号の並びが不正です': 'Ungültige Folge unsichtbarer Zeichen oder kombinierender Zeichen',
-  '。': '. '
+  '。': '. ',
+  "Xでシェア": "Auf X teilen",
+  "ランキング": "Rangliste",
+  "上位30名": "Top 30",
+  "音量": "Lautstärke",
+  "名前なし": "Ohne Namen",
+  "Xの投稿画面を開きました": "Das Beitragsfenster von X wurde geöffnet",
+  "名前を入力すると、名前と記録がランキングに公開されます。空欄でも遊べます。名前は20文字以内です。": "Wenn du einen Namen eingibst, werden dein Name und dein Ergebnis in der Rangliste veröffentlicht. Du kannst ohne Namen spielen. Höchstens 20 Zeichen."
 });

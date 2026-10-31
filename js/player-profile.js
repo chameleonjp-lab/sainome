@@ -424,7 +424,9 @@ export class PlayerProfile {
   }
 
   saveName(value) {
-    const validated = validatePlayerName(value);
+    const validated = typeof value === 'string' && !value.trim()
+      ? { ok: true, name: '', length: 0 }
+      : validatePlayerName(value);
     if (!validated.ok) return validated;
 
     this.name = validated.name;

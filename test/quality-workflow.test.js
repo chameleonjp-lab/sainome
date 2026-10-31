@@ -27,8 +27,8 @@ test('品質ワークフローはPRとmain更新でロック済み検査を実�
 });
 
 test('構文検査はリポジトリのnpmスクリプトとして再実行できる', () => {
-  assert.equal(packageJson.scripts?.['check:syntax'], 'node --check js/*.js');
-  assert.equal(packageJson.scripts?.['check:release-syntax'], 'node --check scripts/*.js');
+  assert.equal(packageJson.scripts?.['check:syntax'], 'node scripts/check-syntax.js js');
+  assert.equal(packageJson.scripts?.['check:release-syntax'], 'node scripts/check-syntax.js scripts');
 });
 
 test('Pages公開は同じコミットで生成・検査した_siteだけを配信する', () => {

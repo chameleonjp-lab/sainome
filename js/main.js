@@ -33,7 +33,7 @@ import {
   createHomeShareContent,
   createResultShareContent,
   RESULT_SHARE_STATUSES,
-  shareResult
+  shareOnX
 } from './result-share.js';
 import { PlayerProfile, validatePlayerName } from './player-profile.js';
 import {
@@ -56,7 +56,8 @@ import {
 } from './ranking-submission-flow.js';
 import {
   SUPABASE_PUBLISHABLE_KEY,
-  SUPABASE_URL
+  SUPABASE_URL,
+  SAINOME_GAME_URL
 } from './supabase-config.js';
 import { checkWebGL2Support } from './webgl-support.js';
 import {
@@ -127,6 +128,7 @@ const directionButtons = [...document.querySelectorAll('[data-direction]')];
 const resultKicker = document.querySelector('#result-kicker');
 const playNoteTitle = document.querySelector('#play-note-title');
 const playNoteText = document.querySelector('#play-note-text');
+const soundVolume = document.querySelector('#sound-volume');
 const soundToggle = document.querySelector('#sound-toggle');
 const soundToggleIcon = document.querySelector('#sound-toggle-icon');
 const soundToggleLabel = document.querySelector('#sound-toggle-label');
@@ -714,11 +716,11 @@ async function syncResultRanking(submission, { submit = true } = {}) {
   let submitOutcome = submission.acceptedOutcome ?? null;
   let submitError = null;
   let rankingRows = null;
-  let rankingError = null;
+  let rankingError = isBrowserOffline() ? new Error('offline') : null;
 
   let cleanupError = null;
   if (submit) {
-    if (submission.canSubmit === false) {
+    if (submission.canSubmit === false || !submission.displayName) {
       submitError = new Error('ranking submission is not safe to send');
     } else {
       try {
@@ -848,7 +850,7 @@ function setHomeSharePending(pending) {
   languageSelect.disabled = pending || startPending;
   homeSharePending = pending;
   homeShareButton.disabled = pending;
-  homeShareButton.textContent = pending ? t('共有中…') : t('このゲームをシェア');
+  homeShareButton.textContent = pending ? t('共有中…') : t('Xでシェア');
 }
 
 function setResultSharePending(pending) {
@@ -856,7 +858,7 @@ function setResultSharePending(pending) {
   resultShareButton.disabled = pending;
   replayButton.disabled = pending || startPending;
   resultHomeButton.disabled = pending;
-  resultShareButton.textContent = pending ? t('共有中…') : t('結果をシェア');
+  resultShareButton.textContent = pending ? t('共有中…') : t('Xでシェア');
 }
 
 function setStartPending(pending) {
@@ -898,6 +900,7 @@ function updateSessionDisplay(snapshot) {
 }
 
 function renderSoundToggle(snapshot = soundEffects.getSnapshot()) {
+  soundVolume.value = String(Math.round(snapshot.volume * 100));
   soundToggle.setAttribute('aria-pressed', String(snapshot.enabled));
   soundToggle.setAttribute(
     'aria-label',
@@ -908,6 +911,11 @@ function renderSoundToggle(snapshot = soundEffects.getSnapshot()) {
 }
 
 async function preserveFinishedRanking(provisional) {
+  if (!provisional.displayName) {
+    // Guest consent is fixed at start; never enqueue this result for later publication.
+    await syncResultRanking(provisional, { submit: false });
+    return;
+  }
   let prepared;
   try {
     prepared = await prepareDirectRankingSubmission({
@@ -1320,7 +1328,7 @@ const gameCallbacks = {
       result: next.result,
       persisted: true,
       pendingSaveCode: null,
-      canSubmit: true
+      canSubmit: Boolean(activePlayerName)
     });
     latestRankingSubmission = provisional;
     clearRankingRows();
@@ -1501,11 +1509,24 @@ function renderFlow(snapshot = flow.getSnapshot()) {
       : t('TIME UP');
     resultKicker.textContent = t('{0}モード · {1}', { 0: t(resultMode.label), 1: resultReason });
     resultRankingTitle.textContent = t('{0}ランキング', { 0: t(resultMode.label) });
-    resultPlayerName.textContent = latestRankingSubmission?.displayName ?? activePlayerName;
+    resultPlayerName.textContent = (latestRankingSubmission?.displayName ?? activePlayerName) || t('名前なし');
     resultScore.textContent = numberFormatter.format(snapshot.result.score);
     resultCleared.textContent = numberFormatter.format(snapshot.result.clearedDice);
     if (latestRecordOutcome) renderResultRecord(latestRecordOutcome);
   }
+}
+
+function renderShareStatus(element, message, status, content) {
+  element.textContent = message;
+  if (status !== 'failed') return;
+  const fallback = document.createElement('textarea');
+  fallback.readOnly = true;
+  fallback.value = content.copyText;
+  fallback.setAttribute('aria-label', t('Xでシェア'));
+  fallback.className = 'share-copy-fallback';
+  element.append(fallback);
+  fallback.focus();
+  fallback.select();
 }
 
 async function handleHomeShare() {
@@ -1517,16 +1538,16 @@ async function handleHomeShare() {
 
   try {
     const content = createHomeShareContent({
-      pageUrl: window.location.href
+      pageUrl: SAINOME_GAME_URL
     });
-    const status = await shareResult(content);
+    const status = await shareOnX(content);
     const messages = {
-      [RESULT_SHARE_STATUSES.SHARED]: t('ゲームを共有しました'),
+      opened: t('Xの投稿画面を開きました'),
       [RESULT_SHARE_STATUSES.COPIED]: t('シェア文をコピーしました'),
       [RESULT_SHARE_STATUSES.CANCELLED]: t('共有をキャンセルしました'),
       [RESULT_SHARE_STATUSES.FAILED]: t('コピーできませんでした')
     };
-    homeShareStatus.textContent = messages[status];
+    renderShareStatus(homeShareStatus, messages[status], status, content);
   } catch (error) {
     console.error(error);
     homeShareStatus.textContent = t('コピーできませんでした');
@@ -1551,17 +1572,17 @@ async function handleResultShare() {
     const content = createResultShareContent({
       result: snapshot.result,
       recordMessage: formatRecordMessage(latestRecordOutcome),
-      pageUrl: window.location.href,
+      pageUrl: SAINOME_GAME_URL,
       formatNumber: (value) => numberFormatter.format(value)
     });
-    const status = await shareResult(content);
+    const status = await shareOnX(content);
     const messages = {
-      [RESULT_SHARE_STATUSES.SHARED]: t('ゲーム結果を共有しました'),
+      opened: t('Xの投稿画面を開きました'),
       [RESULT_SHARE_STATUSES.COPIED]: t('シェア文をコピーしました'),
       [RESULT_SHARE_STATUSES.CANCELLED]: t('共有をキャンセルしました'),
       [RESULT_SHARE_STATUSES.FAILED]: t('コピーできませんでした')
     };
-    resultShareStatus.textContent = messages[status];
+    renderShareStatus(resultShareStatus, messages[status], status, content);
   } catch (error) {
     console.error(error);
     resultShareStatus.textContent = t('コピーできませんでした');
@@ -1652,7 +1673,7 @@ function canStartWebGLGame() {
 async function startRound() {
   if (startPending || flow.getSnapshot().screen === SCREEN_PHASES.COUNTDOWN) return;
   const roundPlayerName = capturePlayerName();
-  if (!roundPlayerName) {
+  if (roundPlayerName === null) {
     if (flow.getSnapshot().screen !== SCREEN_PHASES.HOME) renderFlow(flow.goHome());
     window.setTimeout(() => playerNameInput.focus(), 0);
     return;
@@ -1696,15 +1717,11 @@ async function startRound() {
   // プレイ開始時に名前だけでプレイ回数を1回増やす。
   // 通信に失敗してもゲーム自体は開始し、結果画面で送信を再試行できる。
   activePlayTicket = null;
-  if (rankingClient) {
-    try {
-      await rankingClient.startPlay({
-        displayName: roundPlayerName,
-        modeId: roundMode.id
-      });
-    } catch (error) {
-      console.error(error);
-    }
+  if (rankingClient && roundPlayerName) {
+    void rankingClient.startPlay({
+      displayName: roundPlayerName,
+      modeId: roundMode.id
+    }).catch((error) => console.error(error));
   }
   setStartPending(false);
 
@@ -1906,6 +1923,10 @@ pendingRankingRecoveryList.addEventListener('click', (event) => {
   const button = event.target.closest('button[data-recovery-action]');
   if (!button) return;
   void deletePendingRankingRecovery(button.dataset.recoveryAction);
+});
+soundVolume.addEventListener('input', () => {
+  soundEffects.setVolume(Number(soundVolume.value) / 100);
+  void soundEffects.unlock();
 });
 soundToggle.addEventListener('click', async () => {
   if (soundTogglePending) return;

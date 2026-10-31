@@ -269,5 +269,12 @@ export default Object.freeze({
   "この文字はランキング名に使えません": "Questo carattere non può essere usato nel nome in classifica",
   "文字として表示されるランキング名を入力してください": "Inserisci un nome per la classifica con caratteri visibili",
   "見えない文字や結合記号の並びが不正です": "Sequenza non valida di caratteri invisibili o segni combinanti",
-  "。": ". "
+  "。": ". ",
+  "Xでシェア": "Condividi su X",
+  "ランキング": "Classifica",
+  "上位30名": "Primi 30",
+  "音量": "Volume",
+  "名前なし": "Senza nome",
+  "Xの投稿画面を開きました": "È stata aperta la finestra di pubblicazione su X",
+  "名前を入力すると、名前と記録がランキングに公開されます。空欄でも遊べます。名前は20文字以内です。": "Se inserisci un nome, il nome e il punteggio saranno pubblicati in classifica. Puoi giocare senza nome. Massimo 20 caratteri."
 });

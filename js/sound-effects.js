@@ -1,10 +1,12 @@
+export const SOUND_VOLUME_KEY = 'sainome:sound-volume:v1';
+
 export const SOUND_PREFERENCE_KEY = 'sainome:sound-enabled:v1';
 
 function readStoredPreference(storage) {
   try {
-    return storage?.getItem(SOUND_PREFERENCE_KEY) === 'true';
+    return storage?.getItem(SOUND_PREFERENCE_KEY) !== 'false';
   } catch {
-    return false;
+    return true;
   }
 }
 
@@ -40,6 +42,12 @@ export class SoundEffects {
     this.contextFactory = contextFactory;
     this.random = random;
     this.enabled = readStoredPreference(storage);
+    this.volume = 0.5;
+    try {
+      const stored = storage?.getItem(SOUND_VOLUME_KEY);
+      const value = stored === null || stored === undefined || stored.trim() === '' ? NaN : Number(stored);
+      if (Number.isFinite(value) && value >= 0 && value <= 1) this.volume = value;
+    } catch { /* Use the initial volume when storage is unavailable. */ }
     this.context = null;
     this.masterGain = null;
     this.noiseBuffer = null;
@@ -54,10 +62,20 @@ export class SoundEffects {
   getSnapshot() {
     return Object.freeze({
       enabled: this.enabled,
+      volume: this.volume,
       available: !this.audioUnavailable,
       running: this.context?.state === 'running',
       state: this.context?.state ?? null
     });
+  }
+
+  setVolume(value) {
+    if (!Number.isFinite(value) || value < 0 || value > 1) return this.getSnapshot();
+    this.volume = value;
+    try { this.storage?.setItem(SOUND_VOLUME_KEY, String(value)); } catch { /* In-memory setting remains valid. */ }
+    this.masterGain?.gain.setValueAtTime(0.42 * value, this.context.currentTime);
+    if (value === 0) this.stopActiveSounds();
+    return this.getSnapshot();
   }
 
   async setEnabled(enabled) {
@@ -93,7 +111,7 @@ export class SoundEffects {
     this.context = context;
     try {
       this.masterGain = context.createGain();
-      this.masterGain.gain.setValueAtTime(0.42, context.currentTime);
+      this.masterGain.gain.setValueAtTime(0.42 * this.volume, context.currentTime);
       this.masterGain.connect(context.destination);
       this.bindContextStateChanges(context);
       this.noiseBuffer = null;
@@ -155,7 +173,7 @@ export class SoundEffects {
   }
 
   getPlayableContext() {
-    if (!this.enabled) return null;
+    if (!this.enabled || this.volume === 0 || this.hidden) return null;
     const context = this.context;
     if (!context) return null;
     return context.state === 'running' ? context : null;

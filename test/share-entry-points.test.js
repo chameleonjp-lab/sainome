@@ -49,12 +49,12 @@ test('ホームと結果のシェア導線を他ゲームと同じ表示へ揃�
   const configured = configureShareEntryPoints(root);
 
   assert.deepEqual(configured, { home: true, result: true });
-  assert.equal(homeShare.textContent, 'ゲームをシェア');
-  assert.equal(homeShare.className, 'lab-link home-lab-link');
+  assert.equal(homeShare.textContent, 'Xでシェア');
+  assert.equal(homeShare.className, 'share-button home-share-button');
   assert.equal(homeShare.getAttribute('aria-label'), 'サイノメをシェア');
   assert.deepEqual(parent.inserted, { node: homeShare, reference: homeLab });
-  assert.equal(resultShare.textContent, '結果をシェア');
-  assert.equal(resultShare.className, 'secondary-button');
+  assert.equal(resultShare.textContent, 'Xでシェア');
+  assert.equal(resultShare.className, 'share-button');
   assert.equal(resultShare.getAttribute('aria-label'), '今回のスコアをシェア');
 });
 

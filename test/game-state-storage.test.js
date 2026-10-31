@@ -318,3 +318,11 @@ test('IndexedDBへの保存失敗時は保存対象をlocalStorageへ退避す�
   assert.equal(removed.status, 'removed');
   assert.equal((await storage.load()).status, 'unavailable');
 });
+
+
+test('guest consent stays blank through persisted game recovery', () => {
+  const state = { ...createState(), displayName: '', playTicket: null };
+  const recovered = deserializePersistedGameState(serializePersistedGameState(state));
+  assert.equal(recovered.displayName, '');
+  assert.deepEqual(recovered.game, deserializePersistedGameState(serializePersistedGameState(createState())).game);
+});

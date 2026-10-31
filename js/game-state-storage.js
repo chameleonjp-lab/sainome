@@ -245,7 +245,7 @@ export function normalizePersistedGameState(value) {
     throw new RangeError('persisted game state version is invalid');
   }
   const displayNameResult = validatePlayerName(source.displayName);
-  if (!displayNameResult.ok || displayNameResult.name !== source.displayName) {
+  if (source.displayName !== '' && (!displayNameResult.ok || displayNameResult.name !== source.displayName)) {
     throw new TypeError('persisted game state displayName is invalid');
   }
 

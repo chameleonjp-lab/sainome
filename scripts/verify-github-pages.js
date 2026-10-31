@@ -43,8 +43,8 @@ requireText(indexHtml, `./css/style.css?v=${release}`, 'stylesheet version');
 requireText(indexHtml, `./js/ranking-status-ui.js?v=${release}`, 'ranking status module version');
 requireText(indexHtml, `./js/main.js?v=${release}`, 'main module version');
 requireText(indexHtml, 'id="result-ranking-error-detail"', 'ranking error detail output');
-requireText(indexHtml, 'URLと紹介文をシェア', 'home share button');
-requireText(indexHtml, 'URLとスコアをシェア', 'result share button');
+requireText(indexHtml, 'Xでシェア', 'home share button');
+requireText(indexHtml, 'Xでシェア', 'result share button');
 
 const previewImageUrl = 'https://chameleonjp-lab.github.io/sainome/assets/sainome-ogp.jpg';
 requireText(indexHtml, '<meta property="og:url" content="https://chameleonjp-lab.github.io/sainome/">', 'social preview URL');

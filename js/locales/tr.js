@@ -270,4 +270,11 @@ export default Object.freeze({
   "文字として表示されるランキング名を入力してください": "Görünür karakterlerden oluşan bir sıralama adı girin",
   "見えない文字や結合記号の並びが不正です": "Görünmez karakter veya birleştirme işareti dizisi geçersiz",
   "。": ". ",
+  "Xでシェア": "X’te paylaş",
+  "ランキング": "Sıralama",
+  "上位30名": "İlk 30",
+  "音量": "Ses düzeyi",
+  "名前なし": "İsimsiz",
+  "Xの投稿画面を開きました": "X gönderi penceresi açıldı",
+  "名前を入力すると、名前と記録がランキングに公開されます。空欄でも遊べます。名前は20文字以内です。": "Bir isim girerseniz isminiz ve skorunuz sıralamada yayınlanır. İsimsiz de oynayabilirsiniz. En fazla 20 karakter."
 });

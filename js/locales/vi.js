@@ -269,5 +269,12 @@ export default Object.freeze({
   "この文字はランキング名に使えません": "Không thể dùng ký tự này trong tên trên bảng xếp hạng",
   "文字として表示されるランキング名を入力してください": "Nhập tên trên bảng xếp hạng bằng các ký tự hiển thị được",
   "見えない文字や結合記号の並びが不正です": "Chuỗi ký tự ẩn hoặc dấu kết hợp không hợp lệ",
-  "。": ". "
+  "。": ". ",
+  "Xでシェア": "Chia sẻ lên X",
+  "ランキング": "Bảng xếp hạng",
+  "上位30名": "30 người dẫn đầu",
+  "音量": "Âm lượng",
+  "名前なし": "Không có tên",
+  "Xの投稿画面を開きました": "Đã mở cửa sổ soạn bài đăng trên X",
+  "名前を入力すると、名前と記録がランキングに公開されます。空欄でも遊べます。名前は20文字以内です。": "Nếu nhập tên, tên và điểm của bạn sẽ được công khai trên bảng xếp hạng. Bạn vẫn có thể chơi khi để trống. Tối đa 20 ký tự."
 });

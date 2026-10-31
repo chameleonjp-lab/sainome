@@ -269,5 +269,12 @@ export default Object.freeze({
   'この文字はランキング名に使えません': 'This character cannot be used in a leaderboard name',
   '文字として表示されるランキング名を入力してください': 'Enter a leaderboard name with visible characters',
   '見えない文字や結合記号の並びが不正です': 'Invalid sequence of invisible characters or combining marks',
-  '。': '. '
+  '。': '. ',
+  "Xでシェア": "Share on X",
+  "ランキング": "Leaderboard",
+  "上位30名": "Top 30",
+  "音量": "Volume",
+  "名前なし": "No name",
+  "Xの投稿画面を開きました": "Opened the X post composer",
+  "名前を入力すると、名前と記録がランキングに公開されます。空欄でも遊べます。名前は20文字以内です。": "Enter a name to publish your name and score on the leaderboard. You can play without a name. Maximum 20 characters."
 });

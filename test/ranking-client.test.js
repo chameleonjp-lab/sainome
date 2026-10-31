@@ -74,7 +74,7 @@ test('ランキング対象は300秒だけに固定する', () => {
   assert.deepEqual(RANKING_GAME_SLUGS, {
     [MODE_ID]: GAME_SLUG
   });
-  assert.equal(RANKING_LIMIT, 10);
+  assert.equal(RANKING_LIMIT, 30);
   assert.equal(RANKING_CLIENT_VERSION, 'sainome-web-3');
 });
 
@@ -133,7 +133,7 @@ test('終了時にsubmit_scoreへ300秒の得点を送る', async () => {
   });
 });
 
-test('300秒ランキングを上位10件取得する', async () => {
+test('300秒ランキングを上位30件取得する', async () => {
   const calls = [];
   const client = makeClient(async (url, options) => {
     calls.push({ url, options });

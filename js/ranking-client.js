@@ -1,7 +1,7 @@
 import { GAME_MODE_IDS } from './game-modes.js';
 import { validatePlayerName } from './player-profile.js';
 
-export const RANKING_LIMIT = 10;
+export const RANKING_LIMIT = 30;
 export const RANKING_CLIENT_VERSION = 'sainome-web-3';
 export const RANKING_SUBMISSION_CONTRACT_VERSION = 'sainome-play-v2';
 export const RANKING_NAME_CONTRACT_VERSION = 'sainome-name-v1';

@@ -269,5 +269,12 @@ export default Object.freeze({
   "この文字はランキング名に使えません": "Karakter ini tidak dapat digunakan dalam nama papan peringkat",
   "文字として表示されるランキング名を入力してください": "Masukkan nama papan peringkat dengan karakter yang terlihat",
   "見えない文字や結合記号の並びが不正です": "Urutan karakter tak terlihat atau tanda gabung tidak valid",
-  "。": ". "
+  "。": ". ",
+  "Xでシェア": "Bagikan di X",
+  "ランキング": "Papan peringkat",
+  "上位30名": "30 teratas",
+  "音量": "Volume",
+  "名前なし": "Tanpa nama",
+  "Xの投稿画面を開きました": "Jendela penulisan postingan X dibuka",
+  "名前を入力すると、名前と記録がランキングに公開されます。空欄でも遊べます。名前は20文字以内です。": "Jika Anda memasukkan nama, nama dan skor Anda akan dipublikasikan di papan peringkat. Anda bisa bermain tanpa nama. Maksimal 20 karakter."
 });

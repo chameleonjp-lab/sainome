@@ -4,12 +4,15 @@
   "type": "module",
   "scripts": {
     "test": "node --test",
-    "check:syntax": "node --check js/*.js",
-    "check:release-syntax": "node --check scripts/*.js",
+    "check:syntax": "node scripts/check-syntax.js js",
+    "check:release-syntax": "node scripts/check-syntax.js scripts",
     "build:pages": "node scripts/prepare-github-pages.js",
-    "verify:pages": "node scripts/verify-github-pages.js"
+    "verify:pages": "node scripts/verify-github-pages.js",
+    "test:browser": "node scripts/common-spec-browser-check.cjs"
   },
   "devDependencies": {
-    "fake-indexeddb": "^6.2.4"
+    "fake-indexeddb": "^6.2.4",
+    "playwright": "1.62.1",
+    "three": "0.185.1"
   }
 }

@@ -20,14 +20,14 @@ test('表示中の結果とURLだけを共有処理へ渡す', () => {
   assert.match(main, /snapshot\.screen !== SCREEN_PHASES\.RESULT/);
   assert.match(main, /createResultShareContent\(\{/);
   assert.match(main, /result: snapshot\.result/);
-  assert.match(main, /pageUrl: window\.location\.href/);
-  assert.match(main, /shareResult\(content\)/);
+  assert.match(main, /pageUrl: SAINOME_GAME_URL/);
+  assert.match(main, /shareOnX\(content\)/);
 });
 
 test('共有中の連打を止め、すべての結果を画面へ通知する', () => {
   assert.match(main, /resultSharePending/);
   assert.match(main, /resultShareButton\.disabled = pending/);
-  assert.match(main, /ゲーム結果を共有しました/);
+  assert.match(main, /Xの投稿画面を開きました/);
   assert.match(main, /シェア文をコピーしました/);
   assert.match(main, /共有をキャンセルしました/);
   assert.match(main, /コピーできませんでした/);

@@ -64,8 +64,8 @@ test('再試行できる送信失敗では再送ボタンを活性化する', ()
 });
 
 test('ホームと結果画面に目的が明確なシェアボタンを表示する', () => {
-  assert.match(indexHtml, /id="home-share-button"[^>]*>URLと紹介文をシェア</u);
-  assert.match(indexHtml, /id="result-share-button"[^>]*>URLとスコアをシェア</u);
+  assert.match(indexHtml, /id="home-share-button"[^>]*>Xでシェア</u);
+  assert.match(indexHtml, /id="result-share-button"[^>]*>Xでシェア</u);
 });
 
 test('結果画面に送信失敗の詳細表示と再送ボタンを備える', () => {
