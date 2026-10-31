@@ -1,3 +1,4 @@
+import { normalizeRankingRun } from './ranking-run.js';
 import { getGameMode } from './game-modes.js';
 import {
   isValidRankingClientVersion,
@@ -255,6 +256,7 @@ export function normalizePersistedGameState(value) {
     savedAt: requireSafeInteger(source.savedAt, 'savedAt', { min: 0 }),
     displayName: source.displayName,
     playTicket: normalizePlayTicket(source.playTicket ?? null, source.displayName, game.modeId),
+    rankingRun: normalizeRankingRun(source.rankingRun ?? null, {displayName:source.displayName, modeId:game.modeId}),
     game
   });
 }

@@ -51,7 +51,7 @@ function createDirectSubmission(overrides = {}) {
   };
   return {
     kind: 'direct-name',
-    submissionId: 'direct-test-12345678',
+    submissionId: '12345678-1234-4234-8234-123456789012',
     contractVersion: RANKING_NAME_CONTRACT_VERSION,
     clientVersion: RANKING_CLIENT_VERSION,
     displayName: 'プレイヤー',
@@ -149,7 +149,7 @@ test('廃止した60秒・180秒記録は再送待ちへ入れない', async () 
   const manager = new PendingRankingSubmissions({ storage: createMemoryStorage() });
   for (const modeId of ['60-seconds', '180-seconds']) {
     const result = await manager.enqueue(createDirectSubmission({
-      submissionId: `direct-${modeId}-record`,
+      submissionId: '12345678-1234-4234-8234-123456789012',
       result: { modeId }
     }));
     assert.equal(result.ok, false);

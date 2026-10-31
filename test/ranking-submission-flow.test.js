@@ -58,6 +58,8 @@ function acceptedOutcome(request, overrides = {}) {
 function directAcceptedOutcome(request, overrides = {}) {
   return Object.freeze({
     accepted: true,
+    submissionId: request.submissionId,
+    clientVersion: request.clientVersion,
     gameSlug: RANKING_GAME_SLUGS[request.modeId],
     displayName: request.displayName,
     submittedScore: request.score,
@@ -199,7 +201,7 @@ test('名前だけ方式の300秒記録を保存して再送後に削除する',
     displayName: 'プレイヤー',
     result: RESULT,
     now: () => 100,
-    submissionId: 'direct-test-12345678'
+    submissionId: '12345678-1234-4234-8234-123456789012'
   });
 
   assert.equal(submission.kind, 'direct-name');
@@ -230,7 +232,7 @@ test('端末保存が使えない場合も名前だけ方式の画面内送信�
       displayName: 'プレイヤー',
       result: RESULT,
       now: () => 100,
-      submissionId: `direct-storage-${String(++index).padStart(8, '0')}`
+      submissionId: `12345678-1234-4234-8234-${String(++index).padStart(12, '0')}`
     });
     assert.equal(submission.pendingSaveCode, 'storage-unavailable');
     assert.equal(submission.persisted, false);

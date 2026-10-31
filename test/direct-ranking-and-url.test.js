@@ -15,7 +15,7 @@ const RESULT = Object.freeze({
   endedReason: 'retired'
 });
 
-test('direct score submission is never blocked by local queue rejection', async () => {
+test('conflicting local payload cannot be sent with the same receipt ID', async () => {
   const submission = await prepareDirectRankingSubmission({
     pendingSubmissions: {
       enqueue: async () => ({
@@ -28,10 +28,10 @@ test('direct score submission is never blocked by local queue rejection', async 
     displayName: 'BE',
     result: RESULT,
     now: () => 100,
-    submissionId: 'direct-score-12345678'
+    submissionId: '12345678-1234-4234-8234-123456789012'
   });
 
-  assert.equal(submission.canSubmit, true);
+  assert.equal(submission.canSubmit, false);
   assert.equal(submission.persisted, false);
   assert.equal(submission.pendingSaveCode, 'submission-conflict');
 });

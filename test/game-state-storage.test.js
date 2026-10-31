@@ -326,3 +326,14 @@ test('guest consent stays blank through persisted game recovery', () => {
   assert.equal(recovered.displayName, '');
   assert.deepEqual(recovered.game, deserializePersistedGameState(serializePersistedGameState(createState())).game);
 });
+
+test('active state retains its new receipt identity and keeps old/guest saves without minting an ID',async()=>{
+ const {captureRankingRun}=await import('../js/ranking-run.js');
+ const state=createState();state.playTicket=null;state.rankingRun=captureRankingRun(state.displayName,MODE_ID);
+ const restored=deserializePersistedGameState(serializePersistedGameState(state));
+ assert.deepEqual(restored.rankingRun,state.rankingRun);
+ delete state.rankingRun;
+ assert.equal(deserializePersistedGameState(serializePersistedGameState(state)).rankingRun,null);
+ state.displayName='';
+ assert.equal(deserializePersistedGameState(serializePersistedGameState(state)).rankingRun,null);
+});

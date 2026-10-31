@@ -36,9 +36,8 @@ import {
   shareOnX
 } from './result-share.js';
 import { PlayerProfile, validatePlayerName } from './player-profile.js';
+import { captureRankingRun, clearAcceptedRankingState } from './ranking-run.js';
 import {
-  createSubmissionId,
-  isValidRankingSubmissionId,
   RankingClient
 } from './ranking-client.js';
 import {
@@ -199,6 +198,7 @@ let activePlayerName = playerProfile.getName();
 let latestRecordOutcome = null;
 let latestRankingSubmission = null;
 let activePlayTicket = null;
+let activeRankingRun = null;
 let rankingRunId = 0;
 let stageImpactAnimation = null;
 let pendingRankingRetryCursor = 0;
@@ -421,7 +421,7 @@ function renderRecoveryRecords(snapshot) {
 
   const recoveryActionsDisabled = !snapshot.recoveryStorageAvailable;
   for (const record of snapshot.unverifiedItems) {
-    appendRecoveryRecord(record, t('旧 shared-v1 記録（未検証・自動再送しません）'), {
+    appendRecoveryRecord(record, t('以前の方式の未確認記録（自動再送しません）'), {
       disabled: recoveryActionsDisabled
     });
   }
@@ -467,7 +467,7 @@ async function renderPendingRankingPanel(message = '') {
   }
   if (snapshot.unverified) {
     statuses.push(
-      t('旧 shared-v1 の未検証記録{0}件は、変換・再送せず保全しています', { 0: snapshot.unverifiedCount })
+      t('以前の方式の未確認記録{0}件は、変換・再送せず保全しています', { 0: snapshot.unverifiedCount })
     );
   }
   if (snapshot.quarantined) {
@@ -514,11 +514,6 @@ function isBrowserOffline() {
   return globalThis.navigator?.onLine === false;
 }
 
-function createDirectSubmissionId() {
-  const generated = createSubmissionId();
-  if (isValidRankingSubmissionId(generated)) return generated;
-  return `direct-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 14)}`;
-}
 
 async function exportPendingRankingRecovery() {
   try {
@@ -603,6 +598,7 @@ async function retryStoredRankingSubmissions() {
               pendingSubmissions: pendingRankingSubmissions,
               submission
             });
+          if (submission.kind === 'direct-name') void clearAcceptedRankingGameState(submission);
           if (cleanup.ok) acceptedCount += 1;
           else cleanupErrors += 1;
         } catch (error) {
@@ -728,13 +724,16 @@ async function syncResultRanking(submission, { submit = true } = {}) {
         submitOutcome = await rankingClient.submitScoreDirect({
           displayName: submission.displayName,
           modeId: submission.result.modeId,
-          score: submission.result.score
+          score: submission.result.score,
+          submissionId: submission.submissionId,
+          clientVersion: submission.clientVersion
         });
         currentSubmission = Object.freeze({
           ...submission,
           acceptedOutcome: submitOutcome,
           canSubmit: false
         });
+        void clearAcceptedRankingGameState(currentSubmission);
         if (submission.kind === 'direct-name') {
           try {
             const cleanup = await pendingRankingSubmissions.markAccepted(currentSubmission);
@@ -913,8 +912,8 @@ function renderSoundToggle(snapshot = soundEffects.getSnapshot()) {
 async function preserveFinishedRanking(provisional) {
   if (!provisional.displayName) {
     // Guest consent is fixed at start; never enqueue this result for later publication.
-    await syncResultRanking(provisional, { submit: false });
-    return;
+    void syncResultRanking(provisional, { submit: false });
+    return provisional;
   }
   let prepared;
   try {
@@ -922,8 +921,9 @@ async function preserveFinishedRanking(provisional) {
       pendingSubmissions: pendingRankingSubmissions,
       displayName: provisional.displayName,
       result: provisional.result,
-      now: () => Date.now(),
-      submissionId: createDirectSubmissionId()
+      now: () => provisional.createdAt,
+      submissionId: provisional.submissionId,
+      clientVersion: provisional.clientVersion
     });
     prepared = Object.freeze({
       ...prepared,
@@ -945,7 +945,8 @@ async function preserveFinishedRanking(provisional) {
     resultRankingStatus.textContent = t('記録を送信しています…');
     setResultRankingRetryAction(null);
   }
-  await syncResultRanking(prepared);
+  void syncResultRanking(prepared);
+  return prepared;
 }
 
 function formatSavedGameSummary(state) {
@@ -1000,8 +1001,9 @@ function createPersistedGameState(snapshot) {
   return {
     version: GAME_STATE_VERSION,
     savedAt: Date.now(),
-    displayName: activePlayerName,
+    displayName: activeRankingRun?.displayName ?? activePlayerName,
     playTicket: activePlayTicket,
+    rankingRun: activeRankingRun,
     game: snapshot
   };
 }
@@ -1041,6 +1043,17 @@ async function clearGameState(expectedSerialized = null) {
     notifyGameStateChange();
   }
   return result;
+}
+
+async function clearAcceptedRankingGameState(submission) {
+  try {
+    const result = await enqueueGameStateOperation(() => clearAcceptedRankingState(gameStateStorage, submission));
+    if (result.status === 'removed' && savedGameRecovery?.serialized === result.serialized) {
+      savedGameRecovery = null;
+      renderGameRecovery();
+      notifyGameStateChange();
+    }
+  } catch (error) { console.error(error); }
 }
 
 async function clearFinishedGameState() {
@@ -1205,6 +1218,7 @@ async function resumeSavedGame() {
     selectedMode = mode;
     activePlayerName = saved.displayName;
     activePlayTicket = saved.playTicket;
+    activeRankingRun = saved.rankingRun;
     playerNameInput.value = saved.displayName;
     applyModeLabels(mode);
     resetHudDisplay(mode);
@@ -1319,12 +1333,14 @@ const gameCallbacks = {
     const next = flow.finish(result);
     if (!next) return;
     setStartPending(true);
-    const gameStateCleanup = clearFinishedGameState();
     activePlayTicket = null;
     latestRecordOutcome = bestRecords.recordResult(next.result);
     const provisional = Object.freeze({
       runId: ++rankingRunId,
-      displayName: activePlayerName,
+      displayName: activeRankingRun?.displayName ?? activePlayerName,
+      submissionId: activeRankingRun?.submissionId ?? null,
+      clientVersion: activeRankingRun?.clientVersion,
+      createdAt: activeRankingRun?.createdAt,
       result: next.result,
       persisted: true,
       pendingSaveCode: null,
@@ -1336,7 +1352,14 @@ const gameCallbacks = {
     renderRankingStorageWarning(null);
     resultRankingStatus.textContent = t('記録を端末へ保存しています…');
     setResultRankingRetryAction(null);
-    void preserveFinishedRanking(provisional);
+    // Preserve the immutable finalized request before removing its active save.
+    // Ranking network I/O runs independently inside preserveFinishedRanking.
+    const gameStateCleanup = preserveFinishedRanking(provisional).then((prepared) => {
+      if (prepared?.persisted || !provisional.displayName) return clearFinishedGameState();
+      // A failed queue write is not a durable backup. Keep the active save
+      // until this receipt is acknowledged or the player explicitly discards it.
+      return {status:'retained'};
+    });
     void gameStateCleanup.finally(() => {
       setStartPending(false);
       if (
@@ -1429,6 +1452,7 @@ async function recreateWebGLGame() {
       selectedMode = mode;
       activePlayerName = saved.displayName;
       activePlayTicket = saved.playTicket;
+      activeRankingRun = saved.rankingRun;
       playerNameInput.value = saved.displayName;
       applyModeLabels(mode);
       resetHudDisplay(mode);
@@ -1717,6 +1741,7 @@ async function startRound() {
   // プレイ開始時に名前だけでプレイ回数を1回増やす。
   // 通信に失敗してもゲーム自体は開始し、結果画面で送信を再試行できる。
   activePlayTicket = null;
+  activeRankingRun = captureRankingRun(roundPlayerName, roundMode.id);
   if (rankingClient && roundPlayerName) {
     void rankingClient.startPlay({
       displayName: roundPlayerName,

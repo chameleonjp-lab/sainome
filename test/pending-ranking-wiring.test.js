@@ -26,7 +26,7 @@ test('端末保存失敗を通信状態とは別の警告として結果画面�
 
 test('開始は名前だけ、終了時は直接送信して結果画面で順位を読む', () => {
   assert.match(main, /void rankingClient\.startPlay\(/);
-  assert.match(main, /await syncResultRanking\(prepared\)/);
+  assert.match(main, /void syncResultRanking\(prepared\)/);
   assert.match(main, /prepareDirectRankingSubmission\(/);
   assert.match(main, /pendingRankingSubmissions\.markAccepted\(/);
   assert.match(main, /submitPendingDirectRanking\(/);
@@ -60,12 +60,12 @@ test('結果画面の再挑戦は保存削除完了まで無効化する', () =>
   const finish = main.slice(finishStart, finishEnd);
 
   const disableAt = finish.indexOf('setStartPending(true);');
-  const cleanupAt = finish.indexOf('clearFinishedGameState();');
+  const cleanupAt = finish.indexOf('clearFinishedGameState()');
   const enableAt = finish.indexOf('setStartPending(false);', cleanupAt);
 
   assert.equal(finishStart >= 0, true);
   assert.equal(disableAt >= 0, true);
-  assert.equal(cleanupAt > disableAt, true);
+  assert.equal(cleanupAt > finish.indexOf('preserveFinishedRanking(provisional)'), true);
   assert.match(finish, /gameStateCleanup\.finally\(\(\) => \{/);
   assert.equal(enableAt > cleanupAt, true);
   assert.match(main, /replayButton\.disabled = pending \|\| resultSharePending;/);

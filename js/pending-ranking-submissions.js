@@ -338,7 +338,7 @@ function normalizeDirectSubmission(value) {
   if (!value || typeof value !== 'object' || value.kind !== 'direct-name') {
     throw new TypeError('direct submission is invalid');
   }
-  if (!isValidPendingSubmissionId(value.submissionId)) {
+  if (!isValidRankingSubmissionId(value.submissionId)) {
     throw new TypeError('direct submissionId is invalid');
   }
   if (!isValidRankingClientVersion(value.clientVersion)) {
@@ -391,7 +391,8 @@ function isLegacySharedV1Record(record) {
   try {
     const parsed = JSON.parse(record.serialized);
     const submission = parsed?.submission ?? parsed;
-    return parsed?.version === PENDING_RANKING_LEGACY_CONTRACT_VERSION
+    return (submission?.kind === 'direct-name' && submission?.contractVersion === 'sainome-name-v1')
+      || parsed?.version === PENDING_RANKING_LEGACY_CONTRACT_VERSION
       || parsed?.contractVersion === PENDING_RANKING_LEGACY_CONTRACT_VERSION
       || parsed?.contract_version === PENDING_RANKING_LEGACY_CONTRACT_VERSION
       || submission?.contractVersion === PENDING_RANKING_LEGACY_CONTRACT_VERSION
@@ -513,7 +514,7 @@ export class PendingRankingSubmissions {
     for (const record of records) {
       if (isLegacySharedV1Record(record)) {
         unverifiedItems.push(createRecoveryRecord(record, 'unverified', {
-          contractVersion: PENDING_RANKING_LEGACY_CONTRACT_VERSION
+          contractVersion: JSON.parse(record.serialized)?.submission?.contractVersion ?? PENDING_RANKING_LEGACY_CONTRACT_VERSION
         }));
         continue;
       }
