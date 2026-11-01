@@ -14,6 +14,17 @@ export const GAME_STATE_DATABASE_NAME = 'sainome-game-state';
 export const GAME_STATE_OBJECT_STORE = 'active-play-v1';
 export const GAME_STATE_DATABASE_VERSION = 1;
 export const GAME_STATE_STORAGE_KEY = 'active-play';
+export const GAME_STATE_LOCAL_STORAGE_KEY = 'sainome.active-play.v1';
+
+function isIdentifiedLegacySainomeState(serialized) {
+  try {
+    const state = deserializePersistedGameState(serialized);
+    const slug = RANKING_GAME_SLUGS[state.game.modeId];
+    return state.rankingRun?.gameSlug === slug || state.playTicket?.gameSlug === slug;
+  } catch {
+    return false;
+  }
+}
 
 const BOARD_SIZE = 7;
 const MAX_DICE = BOARD_SIZE * BOARD_SIZE;
@@ -384,7 +395,7 @@ export class IndexedDbGameStateStorage {
 }
 
 export class LocalStorageGameStateStorage {
-  constructor({ localStorage = globalThis.localStorage, storageKey = GAME_STATE_STORAGE_KEY } = {}) {
+  constructor({ localStorage = globalThis.localStorage, storageKey = GAME_STATE_LOCAL_STORAGE_KEY } = {}) {
     if (!localStorage || typeof localStorage.getItem !== 'function') {
       throw new TypeError('localStorage is unavailable');
     }
@@ -393,7 +404,17 @@ export class LocalStorageGameStateStorage {
   }
 
   async load() {
-    const serialized = this.localStorage.getItem(this.storageKey);
+    let serialized = this.localStorage.getItem(this.storageKey);
+    // The generic legacy key belongs to the whole origin. Never alter it, nor
+    // adopt shape-compatible data without an explicit validated Sainome slug.
+    if (serialized === null && this.storageKey === GAME_STATE_LOCAL_STORAGE_KEY
+      && this.localStorage.getItem(`${this.storageKey}.legacy-import-disabled`) !== '1') {
+      const legacy = this.localStorage.getItem(GAME_STATE_STORAGE_KEY);
+      if (isIdentifiedLegacySainomeState(legacy)) {
+        this.localStorage.setItem(this.storageKey, legacy);
+        serialized = legacy;
+      }
+    }
     return serialized === null ? undefined : { key: this.storageKey, serialized };
   }
 
@@ -407,6 +428,11 @@ export class LocalStorageGameStateStorage {
     if (existingSerialized === null) return { status: 'not-found' };
     if (expectedSerialized !== null && existingSerialized !== expectedSerialized) {
       return { status: 'conflict', record: { key: this.storageKey, serialized: existingSerialized } };
+    }
+    // Disable legacy import before removal. If this write fails, the current
+    // save remains recoverable and the caller must not report removal success.
+    if (this.storageKey === GAME_STATE_LOCAL_STORAGE_KEY) {
+      this.localStorage.setItem(`${this.storageKey}.legacy-import-disabled`, '1');
     }
     this.localStorage.removeItem(this.storageKey);
     return { status: 'removed', record: { key: this.storageKey, serialized: existingSerialized } };
