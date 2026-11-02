@@ -130,13 +130,12 @@ export class SoundEffects {
 
     const unlockPromise = this.unlockAudioContext();
     this.unlockPromise = unlockPromise;
-    try {
-      return await unlockPromise;
-    } finally {
-      if (this.unlockPromise === unlockPromise) {
-        this.unlockPromise = null;
-      }
-    }
+    // Only share work within this synchronous gesture. A browser can leave
+    // resume() pending indefinitely; later gestures must retry synchronously.
+    Promise.resolve().then(() => {
+      if (this.unlockPromise === unlockPromise) this.unlockPromise = null;
+    });
+    return unlockPromise;
   }
 
   async unlockAudioContext() {
@@ -148,6 +147,7 @@ export class SoundEffects {
       if (context.state === 'suspended' || context.state === 'interrupted') {
         await context.resume();
       }
+      if (this.context !== context) return false;
       if (!this.enabled || this.hidden) {
         await this.suspend();
         return false;
