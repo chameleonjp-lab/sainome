@@ -260,7 +260,9 @@ export class WebGLSainome {
     this.reset();
     this.resize();
 
-    this.resizeObserver = new ResizeObserver(() => this.resize());
+    this.resizeFrameId = null;
+    this.resizeDisposed = false;
+    this.resizeObserver = new ResizeObserver(() => this.scheduleResize());
     this.resizeObserver.observe(this.canvas.parentElement);
     this.bindLifecycleEvents();
   }
@@ -334,7 +336,10 @@ export class WebGLSainome {
     this.queuedDirection = null;
     window.clearTimeout(this.queueTimerId);
     this.queueTimerId = null;
+    this.resizeDisposed = true;
     this.resizeObserver?.disconnect();
+    if (this.resizeFrameId !== null) window.cancelAnimationFrame(this.resizeFrameId);
+    this.resizeFrameId = null;
     this.canvas.removeEventListener('webglcontextlost', this.handleContextLost);
     this.canvas.removeEventListener('webglcontextrestored', this.handleContextRestored);
     document.removeEventListener('visibilitychange', this.handleVisibilityChange);
@@ -1292,6 +1297,15 @@ export class WebGLSainome {
     this.emitSession(result, true);
     this.callbacks.onFinish?.(result);
     this.callbacks.onMessage?.(t('{0}終了。得点は{1}点です', { 0: t(this.mode.label), 1: result.score }));
+  }
+
+  scheduleResize() {
+    // Canvas sizing can affect its parent: defer writes beyond observer delivery.
+    if (this.resizeDisposed || this.resizeFrameId !== null) return;
+    this.resizeFrameId = window.requestAnimationFrame(() => {
+      this.resizeFrameId = null;
+      if (!this.resizeDisposed) this.resize();
+    });
   }
 
   resize() {
