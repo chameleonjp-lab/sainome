@@ -106,7 +106,7 @@ async function checkShareAcceptance(page, languages, engine) {
     await page.clock.fastForward(301000);
     await page.clock.runFor(2000);
     await page.locator('#result-share-button').waitFor({state:'visible'});
-    if (language === 'ja') assert.match(await page.locator('#result-kicker').textContent(), /TIME UP/);
+    if (language === 'ja') assert.match(await page.locator('#result-kicker').textContent(), /時間切れ/);
     for (const viewport of viewports) {
       await page.setViewportSize(viewport);
       await checkShareButton(page, '#result-share-button', {language,screen:'result',engine,screenshot:representative.has(language)});
