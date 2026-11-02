@@ -5,6 +5,7 @@ import {
   RANKING_CLIENT_VERSION,
   RANKING_GAME_SLUGS,
   RANKING_NAME_CONTRACT_VERSION,
+  isValidRankingClientVersion,
   RANKING_SUBMISSION_CONTRACT_VERSION
 } from './ranking-client.js';
 import { validatePlayerName } from './player-profile.js';
@@ -17,12 +18,6 @@ function requireCanonicalPlayerName(displayName) {
   return displayName;
 }
 
-const DIRECT_SUBMISSION_ID_PATTERN = /^direct-[A-Za-z0-9_-]{8,120}$/u;
-
-function isValidDirectSubmissionId(value) {
-  return isValidRankingSubmissionId(value)
-    || (typeof value === 'string' && DIRECT_SUBMISSION_ID_PATTERN.test(value));
-}
 
 function requirePlayTicket(playTicket, result) {
   if (!playTicket || typeof playTicket !== 'object') return null;
@@ -175,7 +170,8 @@ export async function prepareDirectRankingSubmission({
   displayName,
   result,
   now = () => Date.now(),
-  submissionId
+  submissionId,
+  clientVersion = RANKING_CLIENT_VERSION
 }) {
   if (!pendingSubmissions || typeof pendingSubmissions.enqueue !== 'function') {
     throw new TypeError('pendingSubmissions is invalid');
@@ -184,15 +180,16 @@ export async function prepareDirectRankingSubmission({
     throw new TypeError('submission clock is invalid');
   }
   requireCanonicalPlayerName(displayName);
-  if (!isValidDirectSubmissionId(submissionId)) {
+  if (!isValidRankingSubmissionId(submissionId)) {
     throw new TypeError('direct submissionId is invalid');
   }
+  if (!isValidRankingClientVersion(clientVersion)) throw new TypeError('clientVersion is invalid');
 
   const candidate = Object.freeze({
     kind: 'direct-name',
     submissionId,
     contractVersion: RANKING_NAME_CONTRACT_VERSION,
-    clientVersion: RANKING_CLIENT_VERSION,
+    clientVersion,
     displayName,
     result,
     createdAt: now()
@@ -212,15 +209,13 @@ export async function prepareDirectRankingSubmission({
     };
   }
 
-  // New Sainome results use the same direct-ranking rule as Gorilla Rain:
-  // local IndexedDB is optional backup only and must never decide whether
-  // submit_score is called. Name, mode and score are validated again by the
-  // ranking client and by the Supabase RPC.
+  // Durable storage is preferred; a same-session retry with this exact UUID
+  // remains safe if storage is unavailable. Conflicting payloads must not send.
   return Object.freeze({
     ...candidate,
     persisted: queued?.persisted === true,
     pendingSaveCode: queued?.code ?? 'storage-unavailable',
-    canSubmit: true
+    canSubmit: !['submission-conflict', 'invalid-submission'].includes(queued?.code)
   });
 }
 
@@ -240,10 +235,14 @@ export async function submitPendingDirectRanking({
   const outcome = await rankingClient.submitScoreDirect({
     displayName: submission.displayName,
     modeId: submission.result.modeId,
-    score: submission.result.score
+    score: submission.result.score,
+    submissionId: submission.submissionId,
+    clientVersion: submission.clientVersion
   });
   if (
     outcome?.accepted !== true
+    || outcome.submissionId !== submission.submissionId
+    || outcome.clientVersion !== submission.clientVersion
     || outcome.displayName !== submission.displayName
     || outcome.gameSlug !== RANKING_GAME_SLUGS[submission.result.modeId]
     || outcome.submittedScore !== submission.result.score

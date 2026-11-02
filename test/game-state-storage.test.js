@@ -318,3 +318,125 @@ test('IndexedDBへの保存失敗時は保存対象をlocalStorageへ退避す�
   assert.equal(removed.status, 'removed');
   assert.equal((await storage.load()).status, 'unavailable');
 });
+
+
+test('guest consent stays blank through persisted game recovery', () => {
+  const state = { ...createState(), displayName: '', playTicket: null };
+  const recovered = deserializePersistedGameState(serializePersistedGameState(state));
+  assert.equal(recovered.displayName, '');
+  assert.deepEqual(recovered.game, deserializePersistedGameState(serializePersistedGameState(createState())).game);
+});
+
+test('active state retains its new receipt identity and keeps old/guest saves without minting an ID',async()=>{
+ const {captureRankingRun}=await import('../js/ranking-run.js');
+ const state=createState();state.playTicket=null;state.rankingRun=captureRankingRun(state.displayName,MODE_ID);
+ const restored=deserializePersistedGameState(serializePersistedGameState(state));
+ assert.deepEqual(restored.rankingRun,state.rankingRun);
+ delete state.rankingRun;
+ assert.equal(deserializePersistedGameState(serializePersistedGameState(state)).rankingRun,null);
+ state.displayName='';
+ assert.equal(deserializePersistedGameState(serializePersistedGameState(state)).rankingRun,null);
+});
+
+function localStorageFixture(entries = []) {
+  const values = new Map(entries);
+  return { values, storage: {
+    getItem(key) { return values.has(key) ? values.get(key) : null; },
+    setItem(key, value) { values.set(key, String(value)); },
+    removeItem(key) { values.delete(key); }
+  } };
+}
+
+test('local fallback saves and clears only Sainome, preserving another game legacy key', async () => {
+  const foreign = '{"game":"another-game","score":42}';
+  const {values, storage:localStorage} = localStorageFixture([['active-play', foreign]]);
+  const adapter = new LocalStorageGameStateStorage({localStorage});
+  assert.equal(await adapter.load(), undefined);
+  const serialized = serializePersistedGameState(createState());
+  await adapter.save(serialized);
+  assert.equal(values.get('active-play'), foreign);
+  assert.equal((await adapter.load()).serialized, serialized);
+  assert.equal((await adapter.clearIfMatch(serialized)).status, 'removed');
+  assert.equal(values.get('active-play'), foreign);
+  assert.equal(await adapter.load(), undefined);
+});
+
+test('valid legacy Sainome state is copied unchanged and not resurrected after acceptance', async () => {
+  const serialized = serializePersistedGameState(createState());
+  const {values, storage:localStorage} = localStorageFixture([['active-play', serialized]]);
+  const adapter = new LocalStorageGameStateStorage({localStorage});
+  assert.equal((await adapter.load()).serialized, serialized);
+  assert.equal(values.get('active-play'), serialized);
+  assert.equal((await adapter.clearIfMatch(serialized)).status, 'removed');
+  assert.equal(values.get('active-play'), serialized);
+  assert.equal(await new LocalStorageGameStateStorage({localStorage}).load(), undefined);
+});
+
+test('new fallback state wins over legacy and a stale acceptance cannot clear it', async () => {
+  const old = serializePersistedGameState(createState());
+  const next = serializePersistedGameState(createState({session:{score:1234}}));
+  const {values, storage:localStorage} = localStorageFixture([['active-play', old]]);
+  const adapter = new LocalStorageGameStateStorage({localStorage});
+  await adapter.load();
+  await adapter.save(next);
+  assert.equal((await adapter.clearIfMatch(old)).status, 'conflict');
+  assert.equal((await adapter.load()).serialized, next);
+  assert.equal(values.get('active-play'), old);
+});
+
+test('failed migration or tombstone writes preserve original and current recoverable state', async () => {
+  const old = serializePersistedGameState(createState());
+  const {values, storage:localStorage} = localStorageFixture([['active-play', old]]);
+  const adapter = new LocalStorageGameStateStorage({localStorage});
+  const set = localStorage.setItem;
+  localStorage.setItem = () => {throw new Error('quota');};
+  await assert.rejects(adapter.load(), /quota/);
+  assert.equal(values.get('active-play'), old);
+  localStorage.setItem = set;
+  await adapter.load();
+  localStorage.setItem = () => {throw new Error('quota');};
+  await assert.rejects(adapter.clearIfMatch(old), /quota/);
+  assert.equal((await adapter.load()).serialized, old);
+  assert.equal(values.get('active-play'), old);
+});
+
+test('schema-compatible legacy state without explicit Sainome identity is preserved, never adopted', async () => {
+  const state = createState(); state.playTicket = null;
+  const legacy = serializePersistedGameState(state);
+  const {values, storage:localStorage} = localStorageFixture([['active-play', legacy]]);
+  const adapter = new LocalStorageGameStateStorage({localStorage});
+  assert.equal(await adapter.load(), undefined);
+  assert.deepEqual([...values], [['active-play', legacy]]);
+});
+
+test('failed removal after import-disable marker keeps new save and never mutates legacy', async () => {
+  const legacy = serializePersistedGameState(createState());
+  const {values, storage:localStorage} = localStorageFixture([['active-play', legacy]]);
+  const adapter = new LocalStorageGameStateStorage({localStorage});
+  await adapter.load();
+  localStorage.removeItem = () => {throw new Error('SecurityError');};
+  await assert.rejects(adapter.clearIfMatch(legacy), /SecurityError/);
+  assert.equal((await new LocalStorageGameStateStorage({localStorage}).load()).serialized, legacy);
+  assert.equal(values.get('active-play'), legacy);
+});
+
+test('corrupt namespaced data is surfaced rather than silently replaced by legacy', async () => {
+  const legacy = serializePersistedGameState(createState());
+  const {values, storage:localStorage} = localStorageFixture([
+    ['active-play', legacy], ['sainome.active-play.v1', '{broken']
+  ]);
+  const storage = new GameStateStorage({adapter:new LocalStorageGameStateStorage({localStorage})});
+  assert.equal((await storage.load()).status, 'invalid');
+  assert.equal(values.get('active-play'), legacy);
+  assert.equal(values.get('sainome.active-play.v1'), '{broken');
+});
+
+test('explicit custom local storage key never imports or marks the generic legacy key', async () => {
+  const legacy = serializePersistedGameState(createState());
+  const {values, storage:localStorage} = localStorageFixture([['active-play', legacy]]);
+  const adapter = new LocalStorageGameStateStorage({localStorage, storageKey:'custom-game'});
+  assert.equal(await adapter.load(), undefined);
+  await adapter.save('custom state');
+  assert.equal((await adapter.clearIfMatch('custom state')).status, 'removed');
+  assert.deepEqual([...values], [['active-play', legacy]]);
+});

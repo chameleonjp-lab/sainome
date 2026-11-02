@@ -74,7 +74,7 @@ test('ランキング対象は300秒だけに固定する', () => {
   assert.deepEqual(RANKING_GAME_SLUGS, {
     [MODE_ID]: GAME_SLUG
   });
-  assert.equal(RANKING_LIMIT, 10);
+  assert.equal(RANKING_LIMIT, 30);
   assert.equal(RANKING_CLIENT_VERSION, 'sainome-web-3');
 });
 
@@ -104,28 +104,32 @@ test('開始時にrecord_game_playへ300秒slugを送る', async () => {
   });
 });
 
-test('終了時にsubmit_scoreへ300秒の得点を送る', async () => {
+test('終了時に固定UUIDと300秒の得点を冪等RPCへ送る', async () => {
   const calls = [];
   const client = makeClient(async (url, options) => {
     calls.push({ url, options });
     return jsonResponse([{
       accepted: true,
+      result_normalized_name: 'プレイヤー',
+      result_first_score: 0,
       result_display_name: 'プレイヤー',
       result_best_score: 3200,
       result_play_count: 1,
       is_first_play: true,
+      was_duplicate: false,
       is_new_best: true
     }]);
   });
 
-  const result = await client.submitScoreDirect({
+  const result = await client.submitScoreDirect({ submissionId: SUBMISSION_ID,
     displayName: 'プレイヤー', modeId: MODE_ID, score: 3200
   });
 
   assert.equal(result.accepted, true);
   assert.equal(result.bestScore, 3200);
-  assert.equal(calls[0].url, `${URL}/rest/v1/rpc/submit_score`);
+  assert.equal(calls[0].url, `${URL}/rest/v1/rpc/submit_score_once_shared_v1`);
   assert.deepEqual(JSON.parse(calls[0].options.body), {
+    p_submission_id: SUBMISSION_ID,
     p_display_name: 'プレイヤー',
     p_game_slug: GAME_SLUG,
     p_score: 3200,
@@ -133,7 +137,7 @@ test('終了時にsubmit_scoreへ300秒の得点を送る', async () => {
   });
 });
 
-test('300秒ランキングを上位10件取得する', async () => {
+test('300秒ランキングを上位30件取得する', async () => {
   const calls = [];
   const client = makeClient(async (url, options) => {
     calls.push({ url, options });
@@ -208,7 +212,7 @@ test('廃止した60秒・180秒は通信前に拒否する', async () => {
 
   for (const modeId of ['60-seconds', '180-seconds']) {
     await assert.rejects(
-      client.submitScoreDirect({ displayName: 'プレイヤー', modeId, score: 100 }),
+      client.submitScoreDirect({ submissionId: SUBMISSION_ID, displayName: 'プレイヤー', modeId, score: 100 }),
       /Unknown ranking mode/
     );
   }
@@ -241,12 +245,12 @@ test('HTTP失敗は状態・RPC・サーバー理由・slugを保持する', asy
   }, { ok: false, status: 404 }));
 
   await assert.rejects(
-    client.submitScoreDirect({ displayName: 'プレイヤー', modeId: MODE_ID, score: 100 }),
+    client.submitScoreDirect({ submissionId: SUBMISSION_ID, displayName: 'プレイヤー', modeId: MODE_ID, score: 100 }),
     (error) => {
       assert.ok(error instanceof RankingError);
       assert.equal(error.code, 'request-failed');
       assert.equal(error.status, 404);
-      assert.equal(error.rpcName, 'submit_score');
+      assert.equal(error.rpcName, 'submit_score_once_shared_v1');
       assert.equal(error.serverCode, 'GAME_NOT_FOUND');
       assert.equal(error.serverMessage, 'game not found');
       assert.equal(error.serverHint, 'register the game');
@@ -273,11 +277,11 @@ test('ネットワーク切断と時間切れを再送可能として返す', as
     throw error;
   });
   await assert.rejects(
-    timeout.submitScoreDirect({ displayName: 'プレイヤー', modeId: MODE_ID, score: 100 }),
+    timeout.submitScoreDirect({ submissionId: SUBMISSION_ID, displayName: 'プレイヤー', modeId: MODE_ID, score: 100 }),
     (error) => error instanceof RankingError
       && error.code === 'timeout'
       && isRetryableRankingError(error)
-      && error.rpcName === 'submit_score'
+      && error.rpcName === 'submit_score_once_shared_v1'
   );
 });
 
@@ -292,10 +296,10 @@ test('応答内容が要求と一致しなければ成功扱いにしない', as
   }]));
 
   await assert.rejects(
-    client.submitScoreDirect({ displayName: 'プレイヤー', modeId: MODE_ID, score: 100 }),
+    client.submitScoreDirect({ submissionId: SUBMISSION_ID, displayName: 'プレイヤー', modeId: MODE_ID, score: 100 }),
     (error) => error instanceof RankingError
       && error.code === 'invalid-response'
-      && error.rpcName === 'submit_score'
+      && error.rpcName === 'submit_score_once_shared_v1'
       && error.gameSlug === GAME_SLUG
   );
 });
@@ -331,11 +335,11 @@ test('不正な名前・得点・登録番号を通信前に拒否する', async
   });
 
   await assert.rejects(
-    client.submitScoreDirect({ displayName: '', modeId: MODE_ID, score: 100 }),
+    client.submitScoreDirect({ submissionId: SUBMISSION_ID, displayName: '', modeId: MODE_ID, score: 100 }),
     /displayName/
   );
   await assert.rejects(
-    client.submitScoreDirect({ displayName: 'プレイヤー', modeId: MODE_ID, score: 1.5 }),
+    client.submitScoreDirect({ submissionId: SUBMISSION_ID, displayName: 'プレイヤー', modeId: MODE_ID, score: 1.5 }),
     /score/
   );
   await assert.rejects(

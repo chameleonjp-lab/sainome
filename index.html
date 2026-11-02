@@ -80,7 +80,7 @@
           <span data-i18n>例：3のサイコロを5個消す → 3 × 5 × 100 = 1,500点</span>
         </p>
         <label class="player-name-field" for="player-name-input">
-          <span><span data-i18n>ランキング名</span> <b data-i18n>必須</b></span>
+          <span><span data-i18n>ランキング名</span></span>
           <input
             id="player-name-input"
             name="player-name"
@@ -94,7 +94,7 @@
             placeholder="名前を入力"
             data-i18n-attrs="placeholder"
           >
-          <small id="player-name-help" data-i18n>1〜20文字。ランキングに公開され、次回も同じ名前を使います</small>
+          <small id="player-name-help" data-i18n>名前を入力すると、名前と記録がランキングに公開されます。空欄でも遊べます。名前は20文字以内です。</small>
         </label>
         <p id="player-name-error" class="player-name-error" role="alert" hidden></p>
         <p class="home-best-record">
@@ -110,7 +110,8 @@
         <div class="home-actions">
           <button id="start-button" class="primary-button" type="button" data-i18n>ゲーム開始</button>
           <button id="tutorial-button" class="secondary-button" type="button" data-i18n>遊び方を見る</button>
-          <button id="home-share-button" class="share-button home-share-button" type="button" data-i18n>URLと紹介文をシェア</button>
+          <a id="home-ranking-link" class="lab-link" href="https://chameleonjp-lab.github.io/chameleonjp_lab/ranking.html?game=sainome_300_seconds" data-i18n>ランキング</a>
+          <button id="home-share-button" class="share-button home-share-button" type="button" data-i18n>Xでシェア</button>
         </div>
         <p id="home-share-status" class="result-share-status home-share-status" role="status" aria-live="polite"></p>
         <section id="game-recovery-panel" class="game-recovery-panel" aria-labelledby="game-recovery-title" hidden>
@@ -232,7 +233,8 @@
           <div><dt data-i18n>消した数</dt><dd id="result-cleared">0</dd></div>
         </dl>
         <div class="result-actions">
-          <button id="result-share-button" class="share-button" type="button" data-i18n>URLとスコアをシェア</button>
+          <a id="result-ranking-link" class="lab-link" href="https://chameleonjp-lab.github.io/chameleonjp_lab/ranking.html?game=sainome_300_seconds" data-i18n>ランキング</a>
+          <button id="result-share-button" class="share-button" type="button" data-i18n>Xでシェア</button>
           <button id="replay-button" class="primary-button" type="button" data-i18n>もう一度</button>
           <button id="result-home-button" class="secondary-button" type="button" data-i18n>ホームへ</button>
           <a
@@ -246,7 +248,7 @@
         <section class="result-ranking" aria-labelledby="result-ranking-title">
           <header>
             <h3 id="result-ranking-title" data-i18n>300秒ランキング</h3>
-            <span data-i18n>上位10名</span>
+            <span data-i18n>上位30名</span>
           </header>
           <p id="result-ranking-status" class="result-ranking-status" role="status" aria-live="polite" data-i18n>
             ランキングを読み込んでいます…
@@ -301,6 +303,7 @@
         <span id="sound-toggle-icon" aria-hidden="true">🔇</span>
         <span id="sound-toggle-label" data-i18n>効果音 オフ</span>
       </button>
+      <label class="sound-volume"><span data-i18n>音量</span><input id="sound-volume" type="range" min="0" max="100" step="1" value="50" aria-label="音量" data-i18n-attrs="aria-label"></label>
       <p id="sound-status" class="visually-hidden" aria-live="polite"></p>
     </footer>
   </main>

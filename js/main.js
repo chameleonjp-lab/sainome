@@ -33,12 +33,11 @@ import {
   createHomeShareContent,
   createResultShareContent,
   RESULT_SHARE_STATUSES,
-  shareResult
+  shareOnX
 } from './result-share.js';
 import { PlayerProfile, validatePlayerName } from './player-profile.js';
+import { captureRankingRun, clearAcceptedRankingState } from './ranking-run.js';
 import {
-  createSubmissionId,
-  isValidRankingSubmissionId,
   RankingClient
 } from './ranking-client.js';
 import {
@@ -56,7 +55,8 @@ import {
 } from './ranking-submission-flow.js';
 import {
   SUPABASE_PUBLISHABLE_KEY,
-  SUPABASE_URL
+  SUPABASE_URL,
+  SAINOME_GAME_URL
 } from './supabase-config.js';
 import { checkWebGL2Support } from './webgl-support.js';
 import {
@@ -127,6 +127,7 @@ const directionButtons = [...document.querySelectorAll('[data-direction]')];
 const resultKicker = document.querySelector('#result-kicker');
 const playNoteTitle = document.querySelector('#play-note-title');
 const playNoteText = document.querySelector('#play-note-text');
+const soundVolume = document.querySelector('#sound-volume');
 const soundToggle = document.querySelector('#sound-toggle');
 const soundToggleIcon = document.querySelector('#sound-toggle-icon');
 const soundToggleLabel = document.querySelector('#sound-toggle-label');
@@ -197,6 +198,7 @@ let activePlayerName = playerProfile.getName();
 let latestRecordOutcome = null;
 let latestRankingSubmission = null;
 let activePlayTicket = null;
+let activeRankingRun = null;
 let rankingRunId = 0;
 let stageImpactAnimation = null;
 let pendingRankingRetryCursor = 0;
@@ -419,7 +421,7 @@ function renderRecoveryRecords(snapshot) {
 
   const recoveryActionsDisabled = !snapshot.recoveryStorageAvailable;
   for (const record of snapshot.unverifiedItems) {
-    appendRecoveryRecord(record, t('旧 shared-v1 記録（未検証・自動再送しません）'), {
+    appendRecoveryRecord(record, t('以前の方式の未確認記録（自動再送しません）'), {
       disabled: recoveryActionsDisabled
     });
   }
@@ -465,7 +467,7 @@ async function renderPendingRankingPanel(message = '') {
   }
   if (snapshot.unverified) {
     statuses.push(
-      t('旧 shared-v1 の未検証記録{0}件は、変換・再送せず保全しています', { 0: snapshot.unverifiedCount })
+      t('以前の方式の未確認記録{0}件は、変換・再送せず保全しています', { 0: snapshot.unverifiedCount })
     );
   }
   if (snapshot.quarantined) {
@@ -512,11 +514,6 @@ function isBrowserOffline() {
   return globalThis.navigator?.onLine === false;
 }
 
-function createDirectSubmissionId() {
-  const generated = createSubmissionId();
-  if (isValidRankingSubmissionId(generated)) return generated;
-  return `direct-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 14)}`;
-}
 
 async function exportPendingRankingRecovery() {
   try {
@@ -601,6 +598,7 @@ async function retryStoredRankingSubmissions() {
               pendingSubmissions: pendingRankingSubmissions,
               submission
             });
+          if (submission.kind === 'direct-name') void clearAcceptedRankingGameState(submission);
           if (cleanup.ok) acceptedCount += 1;
           else cleanupErrors += 1;
         } catch (error) {
@@ -714,11 +712,11 @@ async function syncResultRanking(submission, { submit = true } = {}) {
   let submitOutcome = submission.acceptedOutcome ?? null;
   let submitError = null;
   let rankingRows = null;
-  let rankingError = null;
+  let rankingError = isBrowserOffline() ? new Error('offline') : null;
 
   let cleanupError = null;
   if (submit) {
-    if (submission.canSubmit === false) {
+    if (submission.canSubmit === false || !submission.displayName) {
       submitError = new Error('ranking submission is not safe to send');
     } else {
       try {
@@ -726,13 +724,16 @@ async function syncResultRanking(submission, { submit = true } = {}) {
         submitOutcome = await rankingClient.submitScoreDirect({
           displayName: submission.displayName,
           modeId: submission.result.modeId,
-          score: submission.result.score
+          score: submission.result.score,
+          submissionId: submission.submissionId,
+          clientVersion: submission.clientVersion
         });
         currentSubmission = Object.freeze({
           ...submission,
           acceptedOutcome: submitOutcome,
           canSubmit: false
         });
+        void clearAcceptedRankingGameState(currentSubmission);
         if (submission.kind === 'direct-name') {
           try {
             const cleanup = await pendingRankingSubmissions.markAccepted(currentSubmission);
@@ -848,7 +849,7 @@ function setHomeSharePending(pending) {
   languageSelect.disabled = pending || startPending;
   homeSharePending = pending;
   homeShareButton.disabled = pending;
-  homeShareButton.textContent = pending ? t('共有中…') : t('このゲームをシェア');
+  homeShareButton.textContent = pending ? t('共有中…') : t('Xでシェア');
 }
 
 function setResultSharePending(pending) {
@@ -856,7 +857,7 @@ function setResultSharePending(pending) {
   resultShareButton.disabled = pending;
   replayButton.disabled = pending || startPending;
   resultHomeButton.disabled = pending;
-  resultShareButton.textContent = pending ? t('共有中…') : t('結果をシェア');
+  resultShareButton.textContent = pending ? t('共有中…') : t('Xでシェア');
 }
 
 function setStartPending(pending) {
@@ -898,6 +899,7 @@ function updateSessionDisplay(snapshot) {
 }
 
 function renderSoundToggle(snapshot = soundEffects.getSnapshot()) {
+  soundVolume.value = String(Math.round(snapshot.volume * 100));
   soundToggle.setAttribute('aria-pressed', String(snapshot.enabled));
   soundToggle.setAttribute(
     'aria-label',
@@ -908,14 +910,20 @@ function renderSoundToggle(snapshot = soundEffects.getSnapshot()) {
 }
 
 async function preserveFinishedRanking(provisional) {
+  if (!provisional.displayName) {
+    // Guest consent is fixed at start; never enqueue this result for later publication.
+    void syncResultRanking(provisional, { submit: false });
+    return provisional;
+  }
   let prepared;
   try {
     prepared = await prepareDirectRankingSubmission({
       pendingSubmissions: pendingRankingSubmissions,
       displayName: provisional.displayName,
       result: provisional.result,
-      now: () => Date.now(),
-      submissionId: createDirectSubmissionId()
+      now: () => provisional.createdAt,
+      submissionId: provisional.submissionId,
+      clientVersion: provisional.clientVersion
     });
     prepared = Object.freeze({
       ...prepared,
@@ -937,7 +945,8 @@ async function preserveFinishedRanking(provisional) {
     resultRankingStatus.textContent = t('記録を送信しています…');
     setResultRankingRetryAction(null);
   }
-  await syncResultRanking(prepared);
+  void syncResultRanking(prepared);
+  return prepared;
 }
 
 function formatSavedGameSummary(state) {
@@ -992,8 +1001,9 @@ function createPersistedGameState(snapshot) {
   return {
     version: GAME_STATE_VERSION,
     savedAt: Date.now(),
-    displayName: activePlayerName,
+    displayName: activeRankingRun?.displayName ?? activePlayerName,
     playTicket: activePlayTicket,
+    rankingRun: activeRankingRun,
     game: snapshot
   };
 }
@@ -1033,6 +1043,17 @@ async function clearGameState(expectedSerialized = null) {
     notifyGameStateChange();
   }
   return result;
+}
+
+async function clearAcceptedRankingGameState(submission) {
+  try {
+    const result = await enqueueGameStateOperation(() => clearAcceptedRankingState(gameStateStorage, submission));
+    if (result.status === 'removed' && savedGameRecovery?.serialized === result.serialized) {
+      savedGameRecovery = null;
+      renderGameRecovery();
+      notifyGameStateChange();
+    }
+  } catch (error) { console.error(error); }
 }
 
 async function clearFinishedGameState() {
@@ -1197,6 +1218,7 @@ async function resumeSavedGame() {
     selectedMode = mode;
     activePlayerName = saved.displayName;
     activePlayTicket = saved.playTicket;
+    activeRankingRun = saved.rankingRun;
     playerNameInput.value = saved.displayName;
     applyModeLabels(mode);
     resetHudDisplay(mode);
@@ -1311,16 +1333,18 @@ const gameCallbacks = {
     const next = flow.finish(result);
     if (!next) return;
     setStartPending(true);
-    const gameStateCleanup = clearFinishedGameState();
     activePlayTicket = null;
     latestRecordOutcome = bestRecords.recordResult(next.result);
     const provisional = Object.freeze({
       runId: ++rankingRunId,
-      displayName: activePlayerName,
+      displayName: activeRankingRun?.displayName ?? activePlayerName,
+      submissionId: activeRankingRun?.submissionId ?? null,
+      clientVersion: activeRankingRun?.clientVersion,
+      createdAt: activeRankingRun?.createdAt,
       result: next.result,
       persisted: true,
       pendingSaveCode: null,
-      canSubmit: true
+      canSubmit: Boolean(activePlayerName)
     });
     latestRankingSubmission = provisional;
     clearRankingRows();
@@ -1328,7 +1352,14 @@ const gameCallbacks = {
     renderRankingStorageWarning(null);
     resultRankingStatus.textContent = t('記録を端末へ保存しています…');
     setResultRankingRetryAction(null);
-    void preserveFinishedRanking(provisional);
+    // Preserve the immutable finalized request before removing its active save.
+    // Ranking network I/O runs independently inside preserveFinishedRanking.
+    const gameStateCleanup = preserveFinishedRanking(provisional).then((prepared) => {
+      if (prepared?.persisted || !provisional.displayName) return clearFinishedGameState();
+      // A failed queue write is not a durable backup. Keep the active save
+      // until this receipt is acknowledged or the player explicitly discards it.
+      return {status:'retained'};
+    });
     void gameStateCleanup.finally(() => {
       setStartPending(false);
       if (
@@ -1421,6 +1452,7 @@ async function recreateWebGLGame() {
       selectedMode = mode;
       activePlayerName = saved.displayName;
       activePlayTicket = saved.playTicket;
+      activeRankingRun = saved.rankingRun;
       playerNameInput.value = saved.displayName;
       applyModeLabels(mode);
       resetHudDisplay(mode);
@@ -1501,11 +1533,24 @@ function renderFlow(snapshot = flow.getSnapshot()) {
       : t('TIME UP');
     resultKicker.textContent = t('{0}モード · {1}', { 0: t(resultMode.label), 1: resultReason });
     resultRankingTitle.textContent = t('{0}ランキング', { 0: t(resultMode.label) });
-    resultPlayerName.textContent = latestRankingSubmission?.displayName ?? activePlayerName;
+    resultPlayerName.textContent = (latestRankingSubmission?.displayName ?? activePlayerName) || t('名前なし');
     resultScore.textContent = numberFormatter.format(snapshot.result.score);
     resultCleared.textContent = numberFormatter.format(snapshot.result.clearedDice);
     if (latestRecordOutcome) renderResultRecord(latestRecordOutcome);
   }
+}
+
+function renderShareStatus(element, message, status, content) {
+  element.textContent = message;
+  if (status !== 'failed') return;
+  const fallback = document.createElement('textarea');
+  fallback.readOnly = true;
+  fallback.value = content.copyText;
+  fallback.setAttribute('aria-label', t('Xでシェア'));
+  fallback.className = 'share-copy-fallback';
+  element.append(fallback);
+  fallback.focus();
+  fallback.select();
 }
 
 async function handleHomeShare() {
@@ -1517,16 +1562,16 @@ async function handleHomeShare() {
 
   try {
     const content = createHomeShareContent({
-      pageUrl: window.location.href
+      pageUrl: SAINOME_GAME_URL
     });
-    const status = await shareResult(content);
+    const status = await shareOnX(content);
     const messages = {
-      [RESULT_SHARE_STATUSES.SHARED]: t('ゲームを共有しました'),
+      opened: t('Xの投稿画面を開きました'),
       [RESULT_SHARE_STATUSES.COPIED]: t('シェア文をコピーしました'),
       [RESULT_SHARE_STATUSES.CANCELLED]: t('共有をキャンセルしました'),
       [RESULT_SHARE_STATUSES.FAILED]: t('コピーできませんでした')
     };
-    homeShareStatus.textContent = messages[status];
+    renderShareStatus(homeShareStatus, messages[status], status, content);
   } catch (error) {
     console.error(error);
     homeShareStatus.textContent = t('コピーできませんでした');
@@ -1551,17 +1596,17 @@ async function handleResultShare() {
     const content = createResultShareContent({
       result: snapshot.result,
       recordMessage: formatRecordMessage(latestRecordOutcome),
-      pageUrl: window.location.href,
+      pageUrl: SAINOME_GAME_URL,
       formatNumber: (value) => numberFormatter.format(value)
     });
-    const status = await shareResult(content);
+    const status = await shareOnX(content);
     const messages = {
-      [RESULT_SHARE_STATUSES.SHARED]: t('ゲーム結果を共有しました'),
+      opened: t('Xの投稿画面を開きました'),
       [RESULT_SHARE_STATUSES.COPIED]: t('シェア文をコピーしました'),
       [RESULT_SHARE_STATUSES.CANCELLED]: t('共有をキャンセルしました'),
       [RESULT_SHARE_STATUSES.FAILED]: t('コピーできませんでした')
     };
-    resultShareStatus.textContent = messages[status];
+    renderShareStatus(resultShareStatus, messages[status], status, content);
   } catch (error) {
     console.error(error);
     resultShareStatus.textContent = t('コピーできませんでした');
@@ -1652,7 +1697,7 @@ function canStartWebGLGame() {
 async function startRound() {
   if (startPending || flow.getSnapshot().screen === SCREEN_PHASES.COUNTDOWN) return;
   const roundPlayerName = capturePlayerName();
-  if (!roundPlayerName) {
+  if (roundPlayerName === null) {
     if (flow.getSnapshot().screen !== SCREEN_PHASES.HOME) renderFlow(flow.goHome());
     window.setTimeout(() => playerNameInput.focus(), 0);
     return;
@@ -1696,15 +1741,12 @@ async function startRound() {
   // プレイ開始時に名前だけでプレイ回数を1回増やす。
   // 通信に失敗してもゲーム自体は開始し、結果画面で送信を再試行できる。
   activePlayTicket = null;
-  if (rankingClient) {
-    try {
-      await rankingClient.startPlay({
-        displayName: roundPlayerName,
-        modeId: roundMode.id
-      });
-    } catch (error) {
-      console.error(error);
-    }
+  activeRankingRun = captureRankingRun(roundPlayerName, roundMode.id);
+  if (rankingClient && roundPlayerName) {
+    void rankingClient.startPlay({
+      displayName: roundPlayerName,
+      modeId: roundMode.id
+    }).catch((error) => console.error(error));
   }
   setStartPending(false);
 
@@ -1906,6 +1948,10 @@ pendingRankingRecoveryList.addEventListener('click', (event) => {
   const button = event.target.closest('button[data-recovery-action]');
   if (!button) return;
   void deletePendingRankingRecovery(button.dataset.recoveryAction);
+});
+soundVolume.addEventListener('input', () => {
+  soundEffects.setVolume(Number(soundVolume.value) / 100);
+  void soundEffects.unlock();
 });
 soundToggle.addEventListener('click', async () => {
   if (soundTogglePending) return;

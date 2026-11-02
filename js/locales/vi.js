@@ -128,7 +128,7 @@ export default Object.freeze({
   "{0}点": "{0} điểm",
   "この端末へ名前を保存できませんが、今回のランキングには使えます": "Không thể lưu tên trên thiết bị này, nhưng vẫn có thể dùng tên đó cho điểm lần này.",
   "確認して削除": "Xem lại và xóa",
-  "旧 shared-v1 記録（未検証・自動再送しません）": "Bản ghi shared-v1 cũ (chưa xác minh; không tự động gửi lại)",
+  "以前の方式の未確認記録（自動再送しません）": "Bản ghi cũ (chưa xác minh; không tự động gửi lại)",
   "読み取れない保存データ（元の内容を保持中）": "Dữ liệu lưu không đọc được (đã giữ nguyên bản gốc)",
   "恒久拒否として隔離した記録（再送しません）": "Bản ghi bị từ chối vĩnh viễn (được giữ lại; sẽ không gửi lại)",
   "保全データは書き出してから、内容を確認した記録だけ削除できます。": "Hãy xuất dữ liệu được giữ lại trước, rồi chỉ xóa những bản ghi đã xem xét.",
@@ -136,7 +136,7 @@ export default Object.freeze({
   "未送信のランキング記録を{0}件、端末に保存しています。ゲームはこのまま遊べます": "{0} bản ghi xếp hạng chưa gửi được lưu trên thiết bị này. Bạn vẫn có thể tiếp tục chơi.",
   "未送信のランキング記録を{0}件、この画面内だけに保持しています。閉じると失われます": "{0} bản ghi xếp hạng chưa gửi chỉ được giữ trên trang này. Đóng trang sẽ làm mất chúng.",
   "確認できない保存データ{0}件は、上書きせず端末に保持しています": "{0} bản ghi không đọc được được giữ nguyên trên thiết bị này, không bị ghi đè.",
-  "旧 shared-v1 の未検証記録{0}件は、変換・再送せず保全しています": "{0} bản ghi shared-v1 cũ chưa xác minh được giữ lại, không chuyển đổi hoặc gửi lại.",
+  "以前の方式の未確認記録{0}件は、変換・再送せず保全しています": "{0} bản ghi cũ chưa xác minh được giữ lại, không chuyển đổi hoặc gửi lại.",
   "恒久拒否として隔離した記録{0}件は、再送せず保全しています": "{0} bản ghi bị từ chối vĩnh viễn được giữ lại, không gửi lại.",
   "再送中…": "Đang gửi lại…",
   "未送信記録が上限に達したため、この結果を端末へ保存できませんでした。画面を閉じると失われます。": "Đã đạt giới hạn bản ghi chưa gửi. Không thể lưu kết quả này trên thiết bị và kết quả sẽ mất nếu bạn đóng trang.",
@@ -269,5 +269,12 @@ export default Object.freeze({
   "この文字はランキング名に使えません": "Không thể dùng ký tự này trong tên trên bảng xếp hạng",
   "文字として表示されるランキング名を入力してください": "Nhập tên trên bảng xếp hạng bằng các ký tự hiển thị được",
   "見えない文字や結合記号の並びが不正です": "Chuỗi ký tự ẩn hoặc dấu kết hợp không hợp lệ",
-  "。": ". "
+  "。": ". ",
+  "Xでシェア": "Chia sẻ lên X",
+  "ランキング": "Bảng xếp hạng",
+  "上位30名": "30 người dẫn đầu",
+  "音量": "Âm lượng",
+  "名前なし": "Không có tên",
+  "Xの投稿画面を開きました": "Đã mở cửa sổ soạn bài đăng trên X",
+  "名前を入力すると、名前と記録がランキングに公開されます。空欄でも遊べます。名前は20文字以内です。": "Nếu nhập tên, tên và điểm của bạn sẽ được công khai trên bảng xếp hạng. Bạn vẫn có thể chơi khi để trống. Tối đa 20 ký tự."
 });

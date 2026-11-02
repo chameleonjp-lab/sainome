@@ -43,8 +43,8 @@ requireText(indexHtml, `./css/style.css?v=${release}`, 'stylesheet version');
 requireText(indexHtml, `./js/ranking-status-ui.js?v=${release}`, 'ranking status module version');
 requireText(indexHtml, `./js/main.js?v=${release}`, 'main module version');
 requireText(indexHtml, 'id="result-ranking-error-detail"', 'ranking error detail output');
-requireText(indexHtml, 'URLと紹介文をシェア', 'home share button');
-requireText(indexHtml, 'URLとスコアをシェア', 'result share button');
+requireText(indexHtml, 'Xでシェア', 'home share button');
+requireText(indexHtml, 'Xでシェア', 'result share button');
 
 const previewImageUrl = 'https://chameleonjp-lab.github.io/sainome/assets/sainome-ogp.jpg';
 requireText(indexHtml, '<meta property="og:url" content="https://chameleonjp-lab.github.io/sainome/">', 'social preview URL');
@@ -89,7 +89,7 @@ requireText(mainJs, `import('./webgl-game.js?v=${release}')`, 'dynamic WebGL mod
 
 const rankingClient = await readFile(join(out, 'js', 'ranking-client.js'), 'utf8');
 requireText(rankingClient, "#rpc('record_game_play'", 'play start RPC');
-requireText(rankingClient, "#rpc('submit_score'", 'score submit RPC');
+requireText(rankingClient, "#rpc('submit_score_once_shared_v1'", 'score submit RPC');
 requireText(rankingClient, "#rpc('get_best_score_ranking'", 'ranking read RPC');
 requireText(rankingClient, "sainome_300_seconds", '300 second ranking slug');
 if (rankingClient.includes('sainome_60_seconds') || rankingClient.includes('sainome_180_seconds')) {

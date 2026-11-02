@@ -108,7 +108,7 @@ function memoryStorage(initial = {}) {
   };
 }
 
-test('初期状態は音なしで、音声機能をまだ作らない', () => {
+test('初期設定は音オンだが、操作前には音声機能を作らない', () => {
   let contextCount = 0;
   const sounds = new SoundEffects({
     storage: memoryStorage(),
@@ -118,7 +118,7 @@ test('初期状態は音なしで、音声機能をまだ作らない', () => {
     }
   });
 
-  assert.equal(sounds.getSnapshot().enabled, false);
+  assert.equal(sounds.getSnapshot().enabled, true);
   assert.equal(sounds.playFlick(), false);
   assert.equal(contextCount, 0);
 });

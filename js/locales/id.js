@@ -128,7 +128,7 @@ export default Object.freeze({
   "{0}点": "{0} poin",
   "この端末へ名前を保存できませんが、今回のランキングには使えます": "Nama Anda tidak dapat disimpan di perangkat ini, tetapi tetap dapat digunakan untuk skor kali ini.",
   "確認して削除": "Tinjau dan hapus",
-  "旧 shared-v1 記録（未検証・自動再送しません）": "Catatan shared-v1 lama (belum diverifikasi; tidak akan dikirim ulang otomatis)",
+  "以前の方式の未確認記録（自動再送しません）": "Catatan lama (belum diverifikasi; tidak akan dikirim ulang otomatis)",
   "読み取れない保存データ（元の内容を保持中）": "Data simpanan tidak terbaca (data asli dipertahankan)",
   "恒久拒否として隔離した記録（再送しません）": "Catatan ditolak permanen (dipertahankan; tidak akan dikirim ulang)",
   "保全データは書き出してから、内容を確認した記録だけ削除できます。": "Ekspor data yang dipertahankan sebelum menghapus catatan yang telah Anda tinjau.",
@@ -136,7 +136,7 @@ export default Object.freeze({
   "未送信のランキング記録を{0}件、端末に保存しています。ゲームはこのまま遊べます": "{0} catatan peringkat yang belum terkirim disimpan di perangkat ini. Anda tetap dapat bermain.",
   "未送信のランキング記録を{0}件、この画面内だけに保持しています。閉じると失われます": "{0} catatan peringkat yang belum terkirim hanya disimpan di halaman ini. Catatan akan hilang jika halaman ditutup.",
   "確認できない保存データ{0}件は、上書きせず端末に保持しています": "{0} catatan yang tidak terbaca dipertahankan di perangkat ini tanpa ditimpa.",
-  "旧 shared-v1 の未検証記録{0}件は、変換・再送せず保全しています": "{0} catatan shared-v1 lama yang belum diverifikasi dipertahankan tanpa dikonversi atau dikirim ulang.",
+  "以前の方式の未確認記録{0}件は、変換・再送せず保全しています": "{0} catatan lama yang belum diverifikasi dipertahankan tanpa dikonversi atau dikirim ulang.",
   "恒久拒否として隔離した記録{0}件は、再送せず保全しています": "{0} catatan yang ditolak permanen dipertahankan tanpa dikirim ulang.",
   "再送中…": "Mengirim ulang…",
   "未送信記録が上限に達したため、この結果を端末へ保存できませんでした。画面を閉じると失われます。": "Batas catatan yang belum terkirim telah tercapai. Hasil ini tidak dapat disimpan di perangkat dan akan hilang jika halaman ditutup.",
@@ -269,5 +269,12 @@ export default Object.freeze({
   "この文字はランキング名に使えません": "Karakter ini tidak dapat digunakan dalam nama papan peringkat",
   "文字として表示されるランキング名を入力してください": "Masukkan nama papan peringkat dengan karakter yang terlihat",
   "見えない文字や結合記号の並びが不正です": "Urutan karakter tak terlihat atau tanda gabung tidak valid",
-  "。": ". "
+  "。": ". ",
+  "Xでシェア": "Bagikan di X",
+  "ランキング": "Papan peringkat",
+  "上位30名": "30 teratas",
+  "音量": "Volume",
+  "名前なし": "Tanpa nama",
+  "Xの投稿画面を開きました": "Jendela penulisan postingan X dibuka",
+  "名前を入力すると、名前と記録がランキングに公開されます。空欄でも遊べます。名前は20文字以内です。": "Jika Anda memasukkan nama, nama dan skor Anda akan dipublikasikan di papan peringkat. Anda bisa bermain tanpa nama. Maksimal 20 karakter."
 });

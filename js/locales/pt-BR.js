@@ -128,7 +128,7 @@ export default Object.freeze({
   "{0}点": "{0} pontos",
   "この端末へ名前を保存できませんが、今回のランキングには使えます": "Não é possível salvar seu nome neste dispositivo, mas ele pode ser usado para esta pontuação.",
   "確認して削除": "Revisar e excluir",
-  "旧 shared-v1 記録（未検証・自動再送しません）": "Registro antigo shared-v1 (não verificado; não será reenviado automaticamente)",
+  "以前の方式の未確認記録（自動再送しません）": "Registro antigo (não verificado; não será reenviado automaticamente)",
   "読み取れない保存データ（元の内容を保持中）": "Dados salvos ilegíveis (original preservado)",
   "恒久拒否として隔離した記録（再送しません）": "Registro rejeitado permanentemente (preservado; não será reenviado)",
   "保全データは書き出してから、内容を確認した記録だけ削除できます。": "Exporte os dados preservados antes de excluir os registros que você revisou.",
@@ -136,7 +136,7 @@ export default Object.freeze({
   "未送信のランキング記録を{0}件、端末に保存しています。ゲームはこのまま遊べます": "Registros do ranking não enviados salvos neste dispositivo: {0}. Você pode continuar jogando.",
   "未送信のランキング記録を{0}件、この画面内だけに保持しています。閉じると失われます": "Registros do ranking não enviados mantidos apenas nesta página: {0}. Eles serão perdidos se você a fechar.",
   "確認できない保存データ{0}件は、上書きせず端末に保持しています": "Registros ilegíveis preservados neste dispositivo sem sobrescrever: {0}.",
-  "旧 shared-v1 の未検証記録{0}件は、変換・再送せず保全しています": "Registros antigos shared-v1 não verificados preservados sem conversão nem reenvio: {0}.",
+  "以前の方式の未確認記録{0}件は、変換・再送せず保全しています": "Registros antigos não verificados preservados sem conversão nem reenvio: {0}.",
   "恒久拒否として隔離した記録{0}件は、再送せず保全しています": "Registros rejeitados permanentemente preservados sem reenvio: {0}.",
   "再送中…": "Reenviando…",
   "未送信記録が上限に達したため、この結果を端末へ保存できませんでした。画面を閉じると失われます。": "O limite de registros não enviados foi atingido. Este resultado não pôde ser salvo no dispositivo e será perdido se você fechar esta página.",
@@ -269,5 +269,12 @@ export default Object.freeze({
   "この文字はランキング名に使えません": "Este caractere não pode ser usado no nome do ranking",
   "文字として表示されるランキング名を入力してください": "Digite um nome para o ranking com caracteres visíveis",
   "見えない文字や結合記号の並びが不正です": "Sequência inválida de caracteres invisíveis ou marcas de combinação",
-  "。": ". "
+  "。": ". ",
+  "Xでシェア": "Compartilhar no X",
+  "ランキング": "Ranking",
+  "上位30名": "Top 30",
+  "音量": "Volume",
+  "名前なし": "Sem nome",
+  "Xの投稿画面を開きました": "A janela de publicação do X foi aberta",
+  "名前を入力すると、名前と記録がランキングに公開されます。空欄でも遊べます。名前は20文字以内です。": "Ao informar um nome, seu nome e sua pontuação serão publicados no ranking. Você pode jogar sem nome. Máximo de 20 caracteres."
 });

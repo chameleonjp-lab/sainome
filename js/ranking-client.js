@@ -1,10 +1,10 @@
 import { GAME_MODE_IDS } from './game-modes.js';
 import { validatePlayerName } from './player-profile.js';
 
-export const RANKING_LIMIT = 10;
+export const RANKING_LIMIT = 30;
 export const RANKING_CLIENT_VERSION = 'sainome-web-3';
 export const RANKING_SUBMISSION_CONTRACT_VERSION = 'sainome-play-v2';
-export const RANKING_NAME_CONTRACT_VERSION = 'sainome-name-v1';
+export const RANKING_NAME_CONTRACT_VERSION = 'common-score-receipt-v1';
 export const RANKING_FAILURE_EVENT = 'sainome:ranking-failure';
 export const RANKING_GAME_SLUGS = Object.freeze({
   [GAME_MODE_IDS.THREE_HUNDRED_SECONDS]: 'sainome_300_seconds'
@@ -276,9 +276,12 @@ export function createSubmissionId(cryptoObject = globalThis.crypto) {
   if (typeof cryptoObject?.randomUUID === 'function') return cryptoObject.randomUUID();
   if (typeof cryptoObject?.getRandomValues === 'function') {
     const bytes = cryptoObject.getRandomValues(new Uint8Array(16));
-    return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+    bytes[6] = (bytes[6] & 15) | 64;
+    bytes[8] = (bytes[8] & 63) | 128;
+    const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+    return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
   }
-  return `fallback_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 14)}`;
+  throw new TypeError('secure submission identifiers are unavailable');
 }
 
 function parseSimpleStartResponse(data, expected) {
@@ -303,14 +306,23 @@ function parseSimpleSubmitResponse(data, expected) {
   const row = parseOneRow(data, '記録登録の応答が不正です');
   if (
     row.accepted !== true
+    // The shared DB contract uses btrim, not Unicode/case normalization.
+    || row.result_normalized_name !== expected.displayName.replace(/^ +| +$/g, '')
     || row.result_display_name !== expected.displayName
+    || !Number.isSafeInteger(row.result_first_score)
+    || row.result_first_score < 0
+    || row.result_first_score > MAX_SCORE
+    || typeof row.was_duplicate !== 'boolean'
     || typeof row.result_best_score !== 'number'
     || !Number.isSafeInteger(row.result_best_score)
     || row.result_best_score < 0
     || row.result_best_score > MAX_SCORE
+    || row.result_best_score < expected.score
+    || row.result_best_score < row.result_first_score
     || typeof row.result_play_count !== 'number'
     || !Number.isSafeInteger(row.result_play_count)
     || row.result_play_count < 1
+    || row.result_play_count > 2147483647
     || typeof row.is_first_play !== 'boolean'
     || typeof row.is_new_best !== 'boolean'
   ) {
@@ -318,6 +330,9 @@ function parseSimpleSubmitResponse(data, expected) {
   }
   return Object.freeze({
     accepted: true,
+    submissionId: expected.submissionId,
+    clientVersion: expected.clientVersion,
+    wasDuplicate: row.was_duplicate,
     displayName: row.result_display_name,
     gameSlug: expected.gameSlug,
     submittedScore: expected.score,
@@ -453,24 +468,20 @@ export class RankingClient {
     }
   }
 
-  async submitScoreDirect({ displayName, modeId, score }) {
+  async submitScoreDirect({ displayName, modeId, score, submissionId, clientVersion = RANKING_CLIENT_VERSION }) {
     const expected = Object.freeze({
-      displayName: requireDisplayName(displayName),
-      gameSlug: requireModeSlug(modeId),
-      score: requireScore(score)
+      displayName: requireDisplayName(displayName), gameSlug: requireModeSlug(modeId),
+      score: requireScore(score), submissionId: requireSubmissionId(submissionId),
+      clientVersion: requireClientVersion(clientVersion)
     });
     const parameters = {
-      p_display_name: expected.displayName,
-      p_game_slug: expected.gameSlug,
-      p_score: expected.score,
-      p_client_version: RANKING_CLIENT_VERSION
+      p_submission_id: expected.submissionId,
+      p_display_name: expected.displayName, p_game_slug: expected.gameSlug,
+      p_score: expected.score, p_client_version: expected.clientVersion
     };
-    const data = await this.#rpc('submit_score', parameters);
-    try {
-      return parseSimpleSubmitResponse(data, expected);
-    } catch (error) {
-      return this.#reportParsedFailure(error, 'submit_score', parameters);
-    }
+    const data = await this.#rpc('submit_score_once_shared_v1', parameters);
+    try { return parseSimpleSubmitResponse(data, expected); }
+    catch (error) { return this.#reportParsedFailure(error, 'submit_score_once_shared_v1', parameters); }
   }
 
   async issuePlay({ displayName, modeId }) {

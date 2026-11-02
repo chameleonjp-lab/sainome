@@ -33,9 +33,9 @@ export function configureShareEntryPoints(root = globalThis.document) {
   const homeLabLink = root.querySelector('#home-lab-link');
   let homeConfigured = false;
   if (homeShareButton) {
-    homeShareButton.textContent = t('ゲームをシェア');
-    homeShareButton.setAttribute?.('data-i18n', 'ゲームをシェア');
-    setButtonClass(homeShareButton, 'lab-link home-lab-link');
+    homeShareButton.textContent = t('Xでシェア');
+    homeShareButton.setAttribute?.('data-i18n', 'Xでシェア');
+    setButtonClass(homeShareButton, 'share-button home-share-button');
     homeShareButton.setAttribute?.('aria-label', 'サイノメをシェア');
     homeShareButton.setAttribute?.('data-i18n-attrs', 'aria-label');
 
@@ -54,9 +54,9 @@ export function configureShareEntryPoints(root = globalThis.document) {
   const resultShareButton = root.querySelector('#result-share-button');
   let resultConfigured = false;
   if (resultShareButton) {
-    resultShareButton.textContent = t('結果をシェア');
-    resultShareButton.setAttribute?.('data-i18n', '結果をシェア');
-    setButtonClass(resultShareButton, 'secondary-button');
+    resultShareButton.textContent = t('Xでシェア');
+    resultShareButton.setAttribute?.('data-i18n', 'Xでシェア');
+    setButtonClass(resultShareButton, 'share-button');
     resultShareButton.setAttribute?.('aria-label', '今回のスコアをシェア');
     resultShareButton.setAttribute?.('data-i18n-attrs', 'aria-label');
     resultConfigured = true;
@@ -170,4 +170,18 @@ export async function shareResult(content, navigatorObject = globalThis.navigato
 
 if (typeof globalThis.document?.querySelector === 'function') {
   configureShareEntryPoints(globalThis.document);
+}
+
+// Opening the composer is not confirmation that a post was published.
+export async function shareOnX(content, { open = (...args) => globalThis.open(...args), navigatorObject = globalThis.navigator } = {}) {
+  const intent = new URL('https://x.com/intent/post');
+  intent.searchParams.set('text', content.text);
+  try {
+    const popup = open(intent.href, '_blank');
+    if (popup) {
+      try { popup.opener = null; } catch { /* Cross-origin browser restriction. */ }
+      return 'opened';
+    }
+  } catch { /* Clipboard fallback is available for blocked popup windows. */ }
+  return await copyShareText(navigatorObject, content.copyText) ? 'copied' : 'failed';
 }

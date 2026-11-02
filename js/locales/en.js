@@ -128,7 +128,7 @@ export default Object.freeze({
   '{0}点': '{0} points',
   'この端末へ名前を保存できませんが、今回のランキングには使えます': 'Your name cannot be saved on this device, but can be used for this score.',
   '確認して削除': 'Review and delete',
-  '旧 shared-v1 記録（未検証・自動再送しません）': 'Legacy shared-v1 record (unverified; will not be resent automatically)',
+  '以前の方式の未確認記録（自動再送しません）': 'Legacy record (unverified; will not be resent automatically)',
   '読み取れない保存データ（元の内容を保持中）': 'Unreadable saved data (original preserved)',
   '恒久拒否として隔離した記録（再送しません）': 'Permanently rejected record (preserved; will not be resent)',
   '保全データは書き出してから、内容を確認した記録だけ削除できます。': 'Export preserved data before deleting any records you have reviewed.',
@@ -136,7 +136,7 @@ export default Object.freeze({
   '未送信のランキング記録を{0}件、端末に保存しています。ゲームはこのまま遊べます': '{0} unsent leaderboard record(s) saved on this device. You can keep playing.',
   '未送信のランキング記録を{0}件、この画面内だけに保持しています。閉じると失われます': '{0} unsent leaderboard record(s) kept on this page only. Closing it will lose them.',
   '確認できない保存データ{0}件は、上書きせず端末に保持しています': '{0} unreadable record(s) preserved on this device without overwriting.',
-  '旧 shared-v1 の未検証記録{0}件は、変換・再送せず保全しています': '{0} unverified legacy shared-v1 record(s) preserved without conversion or resending.',
+  '以前の方式の未確認記録{0}件は、変換・再送せず保全しています': '{0} unverified legacy record(s) preserved without conversion or resending.',
   '恒久拒否として隔離した記録{0}件は、再送せず保全しています': '{0} permanently rejected record(s) preserved without resending.',
   '再送中…': 'Resending…',
   '未送信記録が上限に達したため、この結果を端末へ保存できませんでした。画面を閉じると失われます。': 'The unsent-record limit was reached. This result could not be saved on this device and will be lost if you close this page.',
@@ -269,5 +269,12 @@ export default Object.freeze({
   'この文字はランキング名に使えません': 'This character cannot be used in a leaderboard name',
   '文字として表示されるランキング名を入力してください': 'Enter a leaderboard name with visible characters',
   '見えない文字や結合記号の並びが不正です': 'Invalid sequence of invisible characters or combining marks',
-  '。': '. '
+  '。': '. ',
+  "Xでシェア": "Share on X",
+  "ランキング": "Leaderboard",
+  "上位30名": "Top 30",
+  "音量": "Volume",
+  "名前なし": "No name",
+  "Xの投稿画面を開きました": "Opened the X post composer",
+  "名前を入力すると、名前と記録がランキングに公開されます。空欄でも遊べます。名前は20文字以内です。": "Enter a name to publish your name and score on the leaderboard. You can play without a name. Maximum 20 characters."
 });

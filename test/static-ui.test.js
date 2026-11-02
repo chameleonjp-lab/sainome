@@ -121,7 +121,7 @@ test('再読み込み後に保存状態を確認して続きから再開でき�
   assert.match(startFunction, /続きから再開/);
   assert.doesNotMatch(startFunction, /clearGameState\(/);
   assert.match(main, /function clearFinishedGameState\(\)[\s\S]*?expectedSerialized = savedGameRecovery\?\.serialized/);
-  assert.match(main, /const gameStateCleanup = clearFinishedGameState\(\)/);
+  assert.match(main, /const gameStateCleanup = preserveFinishedRanking\(provisional\)\.then\(/);
   assert.match(main, /gameStateCleanup\.finally\([\s\S]*?setStartPending\(false\)/);
   assert.match(css, /\.game-recovery-panel\s*\{/);
 });
