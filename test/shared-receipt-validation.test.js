@@ -8,6 +8,9 @@ const good = { accepted: true, result_normalized_name: 'Alice', result_display_n
 function client(row) { return new RankingClient({ url: 'https://example.supabase.co', publishableKey: 'sb_publishable_test_test_test', fetchImpl: async () => ({ ok: true, status: 200, json: async () => [row] }) }); }
 
 for (const [name, overrides] of Object.entries({
+  'play count exceeds SQL integer': { result_play_count: 2147483648 },
+  'play count is fractional': { result_play_count: 1.5 },
+  'play count is string': { result_play_count: '1' },
   'missing normalized name': { result_normalized_name: undefined },
   'wrong normalized name': { result_normalized_name: 'Bob' },
   'missing first score': { result_first_score: undefined },
@@ -34,3 +37,10 @@ for (const wasDuplicate of [false, true]) {
     assert.equal(cleanups, 1);
   });
 }
+
+test('SQL integer maximum play count remains valid', async () => {
+  let cleanups = 0;
+  const result = await submitPendingDirectRanking({ rankingClient: client({ ...good, result_play_count: 2147483647 }), submission, pendingSubmissions: { markAccepted: async () => { cleanups++; return { status: 'removed' }; } } });
+  assert.equal(result.outcome.accepted, true);
+  assert.equal(cleanups, 1);
+});

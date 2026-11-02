@@ -322,6 +322,7 @@ function parseSimpleSubmitResponse(data, expected) {
     || typeof row.result_play_count !== 'number'
     || !Number.isSafeInteger(row.result_play_count)
     || row.result_play_count < 1
+    || row.result_play_count > 2147483647
     || typeof row.is_first_play !== 'boolean'
     || typeof row.is_new_best !== 'boolean'
   ) {
