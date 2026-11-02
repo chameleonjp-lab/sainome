@@ -81,8 +81,8 @@ export function createHomeShareContent({ pageUrl, language = getLanguage() }) {
   const text = [
     t('サイノメ'),
     t('サイコロを転がし、上面の目と同じ数以上を縦横につなげて消す、300秒の3Dブラウザパズルゲームです。'),
-    `URL: ${url}`,
-    t('#サイノメ')
+    url,
+    '#サイノメ #ゲーム制作'
   ].join('\n');
 
   return Object.freeze({
@@ -113,8 +113,8 @@ export function createResultShareContent({
     t('サイノメの{0}モードで{1}点！', { 0: language === 'ja' ? mode.label : mode.durationMs / 1000, 1: formatNumber(score) }),
     t('消した数{0}個', { 0: formatNumber(clearedDice) }),
     recordMessage.trim(),
-    `URL: ${url}`,
-    t('#サイノメ')
+    url,
+    '#サイノメ #ゲーム制作'
   ].join('\n');
 
   return Object.freeze({

@@ -35,7 +35,8 @@ test('English sharing includes translated rules, score and cleared dice', () => 
   assert.match(result.text, /900 points in Sainome's 300-second mode!/);
   assert.match(result.text, /Dice cleared: 3/);
   assert.equal(result.url, 'https://example.com/sainome/');
-  assert.doesNotMatch(result.text, /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u);
+  // Official discovery hashtags are deliberately language-independent.
+      assert.doesNotMatch((result.text).replaceAll('#サイノメ #ゲーム制作', ''), /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u);
 });
 
 test('English ranking failures still allow retries and block them while sending', () => {

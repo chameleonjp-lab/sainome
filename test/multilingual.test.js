@@ -41,7 +41,8 @@ test('every language localizes game sharing, result sharing, best records and ra
     assert.ok(share.text.includes(recordMessage));
     assert.doesNotMatch(share.text, /\{\d+\}/);
     if (language !== 'ja') {
-      assert.doesNotMatch(home.text + share.text, /[\p{Script=Hiragana}\p{Script=Katakana}]/u, language);
+      // Official discovery hashtags are deliberately language-independent.
+      assert.doesNotMatch((home.text + share.text).replaceAll('#サイノメ #ゲーム制作', ''), /[\p{Script=Hiragana}\p{Script=Katakana}]/u, language);
       assert.notEqual(describeRankingFailure({ code: 'network' }, language).summary,
         describeRankingFailure({ code: 'network' }, 'ja').summary, language);
     }

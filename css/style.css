@@ -888,7 +888,7 @@ button:disabled { opacity: .55; }
   font-weight: 950;
   touch-action: manipulation;
 }
-.share-button:active { background: rgba(245,196,81,.2); }
+.share-button:active { background: #000; }
 .result-share-status {
   min-height: 1.2em;
   margin: -4px 0 0;
