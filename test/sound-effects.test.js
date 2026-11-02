@@ -315,3 +315,72 @@ test('画面復帰だけでは音声を再開せず、明示操作まで設定�
   assert.equal(context.resumeCalls, resumeCallsAfterHide + 1);
   assert.equal(sounds.getSnapshot().enabled, true);
 });
+
+function pendingFirstContext() {
+  const context = new FakeAudioContext();
+  let resolveFirst;
+  context.resume = () => {
+    context.resumeCalls += 1;
+    if (context.resumeCalls === 1) return new Promise(resolve => { resolveFirst = resolve; });
+    context.changeState('running');
+    return Promise.resolve();
+  };
+  return { context, settle: () => resolveFirst() };
+}
+
+test('next gesture retries a permanently pending resume; old completion never queues sound', async () => {
+  const { context, settle } = pendingFirstContext();
+  const sounds = new SoundEffects({ storage: memoryStorage(), contextFactory: () => context });
+  const old = sounds.unlock();
+  void sounds.unlock();
+  assert.equal(context.resumeCalls, 1);
+  assert.equal(sounds.playFlick(), false);
+  await new Promise(setImmediate);
+  const next = sounds.unlock();
+  assert.equal(context.resumeCalls, 2, 'resume must run directly in this gesture');
+  assert.equal(await next, true);
+  settle();
+  await old;
+  assert.equal(context.started, 0);
+});
+
+for (const state of ['disabled', 'hidden', 'zero']) {
+  test(`pending resume recovery preserves ${state}`, { timeout: 1000 }, async () => {
+    const { context, settle } = pendingFirstContext();
+    const sounds = new SoundEffects({ storage: memoryStorage(), contextFactory: () => context });
+    const old = sounds.unlock();
+    await new Promise(setImmediate);
+    if (state === 'disabled') await sounds.setEnabled(false);
+    if (state === 'hidden') sounds.handleVisibility(true);
+    if (state === 'zero') sounds.setVolume(0);
+    const next = sounds.unlock();
+    assert.equal(context.resumeCalls, state === 'zero' ? 2 : 1);
+    assert.equal(await next, state === 'zero');
+    assert.equal(sounds.playFlick(), false);
+    settle();
+    await old;
+    assert.equal(context.started, 0);
+    assert.equal(sounds.getSnapshot().volume, state === 'zero' ? 0 : 0.5);
+    if (state === 'disabled') await sounds.setEnabled(true);
+    if (state === 'hidden') sounds.handleVisibility(false);
+    assert.equal(await sounds.unlock(), true);
+  });
+}
+
+test('old pending context completion cannot suspend a replacement context', async () => {
+  const { context: oldContext, settle } = pendingFirstContext();
+  const replacement = new FakeAudioContext();
+  let creations = 0;
+  const sounds = new SoundEffects({ storage: memoryStorage(), contextFactory: () => ++creations === 1 ? oldContext : replacement });
+  const old = sounds.unlock();
+  oldContext.close();
+  await new Promise(setImmediate);
+  const next = sounds.unlock();
+  assert.equal(creations, 2);
+  assert.equal(await next, true);
+  sounds.hidden = true; // model visibility changing before a stale resume settles
+  settle();
+  assert.equal(await old, false);
+  assert.equal(replacement.suspendCalls, 0, 'stale work does not target the new context');
+  assert.equal(replacement.started, 0);
+});
