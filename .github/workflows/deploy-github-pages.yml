@@ -34,7 +34,7 @@ jobs:
         run: npm test
 
       - name: Install browser for isolated UI checks
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium webkit
 
       - name: Verify browser flows with mocked ranking
         run: npm run test:browser

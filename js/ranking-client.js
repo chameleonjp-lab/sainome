@@ -306,12 +306,19 @@ function parseSimpleSubmitResponse(data, expected) {
   const row = parseOneRow(data, '記録登録の応答が不正です');
   if (
     row.accepted !== true
+    // The shared DB contract uses btrim, not Unicode/case normalization.
+    || row.result_normalized_name !== expected.displayName.replace(/^ +| +$/g, '')
     || row.result_display_name !== expected.displayName
+    || !Number.isSafeInteger(row.result_first_score)
+    || row.result_first_score < 0
+    || row.result_first_score > MAX_SCORE
     || typeof row.was_duplicate !== 'boolean'
     || typeof row.result_best_score !== 'number'
     || !Number.isSafeInteger(row.result_best_score)
     || row.result_best_score < 0
     || row.result_best_score > MAX_SCORE
+    || row.result_best_score < expected.score
+    || row.result_best_score < row.result_first_score
     || typeof row.result_play_count !== 'number'
     || !Number.isSafeInteger(row.result_play_count)
     || row.result_play_count < 1

@@ -110,6 +110,8 @@ test('終了時に固定UUIDと300秒の得点を冪等RPCへ送る', async () =
     calls.push({ url, options });
     return jsonResponse([{
       accepted: true,
+      result_normalized_name: 'プレイヤー',
+      result_first_score: 0,
       result_display_name: 'プレイヤー',
       result_best_score: 3200,
       result_play_count: 1,

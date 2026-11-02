@@ -10,6 +10,14 @@ const deployWorkflow = readFileSync(
 );
 const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 
+test('PRとマージ後の検証はChromiumとWebKitを実行する', () => {
+  for (const source of [workflow, deployWorkflow]) {
+    assert.match(source, /playwright install --with-deps chromium webkit/);
+  }
+  const browserCheck = readFileSync(new URL('scripts/common-spec-browser-check.cjs', rootUrl), 'utf8');
+  assert.match(browserCheck, /\[chromium, webkit\]/);
+});
+
 test('品質ワークフローはPRとmain更新でロック済み検査を実行する', () => {
   assert.match(workflow, /^on:\n\s+push:\n\s+pull_request:\n\s+workflow_dispatch:/m);
   assert.match(workflow, /permissions:\n\s+contents: read/);

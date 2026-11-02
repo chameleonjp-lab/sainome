@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const { createServer } = require('node:http');
 const { readFile } = require('node:fs/promises');
 const { resolve, extname } = require('node:path');
-const { chromium } = require('playwright');
+const { chromium, webkit } = require('playwright');
 (async () => {
   const root = resolve(__dirname, '..');
   const server = createServer(async (request, response) => {
@@ -12,10 +12,12 @@ const { chromium } = require('playwright');
     catch { response.writeHead(404).end(); }
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-  const browser = await chromium.launch({ headless:true, args:['--no-sandbox','--enable-unsafe-swiftshader'] });
+  try {
+  for (const browserType of [chromium, webkit]) {
+  const browser = await browserType.launch({ headless:true, ...(browserType === chromium ? { args:['--no-sandbox','--enable-unsafe-swiftshader'] } : {}) });
   try {
     const page = await browser.newPage({ viewport:{width:393,height:852},locale:'ja-JP' });
-    const errors = []; const writes = []; const reads = []; const receipts = new Map(); let loseNextReceipt = true;
+    const errors = []; const writes = []; const reads = []; const receipts = new Map(); let loseNextReceipt = true; let malformedNextReceipt = false;
     page.on('pageerror', error => errors.push(error.message));
     await page.route('https://cdn.jsdelivr.net/npm/three@0.185.1/**', route => route.fulfill({path:resolve(root, 'node_modules/three', route.request().url().split('three@0.185.1/')[1]), contentType:'text/javascript'}));
     await page.route('**/rest/v1/rpc/**', async route => {
@@ -30,9 +32,10 @@ const { chromium } = require('playwright');
         } else {
           assert.equal(rpc,'submit_score_once_shared_v1','never fall back to legacy submit_score');
           const duplicate=receipts.has(body.p_submission_id);
-          const receipt=receipts.get(body.p_submission_id)??{accepted:true,result_display_name:body.p_display_name,result_best_score:body.p_score,result_play_count:1,is_first_play:true,is_new_best:true};
+          const receipt=receipts.get(body.p_submission_id)??{accepted:true,result_normalized_name:body.p_display_name,result_first_score:0,result_display_name:body.p_display_name,result_best_score:body.p_score,result_play_count:1,is_first_play:true,is_new_best:true};
           receipts.set(body.p_submission_id,receipt);
           if(loseNextReceipt){loseNextReceipt=false;await route.abort();}
+          else if(malformedNextReceipt){malformedNextReceipt=false;const incomplete={...receipt,was_duplicate:duplicate};delete incomplete.result_normalized_name;delete incomplete.result_first_score;await route.fulfill({json:[incomplete]});}
           else await route.fulfill({json:[{...receipt,was_duplicate:duplicate}]});
         }
       }
@@ -66,6 +69,17 @@ const { chromium } = require('playwright');
     const submitted=writes.filter(x=>x.rpc==='submit_score_once_shared_v1');
     assert.equal(submitted.length,2);assert.deepEqual(submitted[1].body,first);assert.equal(receipts.size,1);
     await page.selectOption('#language-select','ja');
+    // An incomplete acceptance must not clear the durable queue or saved result.
+    malformedNextReceipt=true;
+    await page.fill('#player-name-input','別の名前');await page.click('#start-button');await page.locator('#pause-button').waitFor({state:'visible'});
+    await page.click('#pause-button');await page.click('#retire-button');
+    await page.waitForFunction(()=>document.querySelector('#result-ranking-status').textContent.includes('送信できませんでした'));
+    const malformedRequest=structuredClone(writes.at(-1).body);
+    assert.equal(writes.filter(x=>x.rpc==='submit_score_once_shared_v1').length,3);
+    await page.reload();await page.locator('#pending-ranking-retry').waitFor({state:'visible'});
+    await page.click('#pending-ranking-retry');await page.locator('#pending-ranking-panel').waitFor({state:'hidden'});
+    const afterMalformed=writes.filter(x=>x.rpc==='submit_score_once_shared_v1');
+    assert.equal(afterMalformed.length,4);assert.deepEqual(afterMalformed[3].body,malformedRequest);assert.equal(receipts.size,2);
     await page.fill('#player-name-input','');await page.click('#start-button');await page.locator('#pause-button').waitFor({state:'visible'});
     await page.click('#pause-button');await page.click('#retire-button');await page.waitForFunction(()=>document.querySelectorAll('#result-ranking-list li').length===30);
     for(const viewport of [{width:852,height:393},{width:393,height:600}]) {
@@ -78,6 +92,8 @@ const { chromium } = require('playwright');
     assert.equal(await page.locator('#sound-volume').inputValue(),'0');
     assert.equal(await page.locator('#sound-toggle').getAttribute('aria-pressed'),'false');
     assert.deepEqual(errors,[]);
-    console.log('Chromium: 15 languages; guest start/result and later name; 30 rows; immutable named result; lost acceptance + reload uses same receipt; no resubmit on language change; narrow/landscape layout; stored sound off/zero passed. All Supabase calls mocked.');
-  } finally { await browser.close(); await new Promise(resolve=>server.close(resolve)); }
+    console.log(browserType.name() + ': 15 languages; guest start/result and later name; 30 rows; immutable named result; lost/malformed acceptance + reload uses same receipt; no resubmit on language change; narrow/landscape layout; stored sound off/zero passed. All Supabase calls mocked.');
+  } finally { await browser.close(); }
+  }
+  } finally { await new Promise(resolve=>server.close(resolve)); }
 })().catch(error=>{console.error(error);process.exitCode=1;});

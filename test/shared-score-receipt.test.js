@@ -27,7 +27,7 @@ test('lost acceptance response survives IndexedDB reload and resends the same UU
   const payload=JSON.parse(options.body);calls.push({url,payload});
   assert.ok(url.endsWith('/submit_score_once_shared_v1'));
   let receipt=receipts.get(payload.p_submission_id);
-  if(!receipt){writes++;receipt={accepted:true,result_display_name:payload.p_display_name,result_best_score:payload.p_score,result_play_count:1,is_first_play:true,is_new_best:true,was_duplicate:false};receipts.set(payload.p_submission_id,receipt);}
+  if(!receipt){writes++;receipt={accepted:true,result_normalized_name:payload.p_display_name,result_first_score:payload.p_score,result_display_name:payload.p_display_name,result_best_score:payload.p_score,result_play_count:1,is_first_play:true,is_new_best:true,was_duplicate:false};receipts.set(payload.p_submission_id,receipt);}
   else receipt={...receipt,was_duplicate:true};
   if(lose){lose=false;throw Error('accepted response was lost');}
   return {ok:true,status:200,json:async()=>[receipt]};
