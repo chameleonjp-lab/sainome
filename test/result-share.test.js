@@ -39,8 +39,8 @@ test('結果共有文に300秒のスコアとURLを含める', () => {
     'サイノメの300秒モードで3,200点！\n'
       + '消した数12個\n'
       + '自己ベスト更新！ +400点\n'
-      + 'URL: https://example.com/sainome/\n'
-      + '#サイノメ'
+      + 'https://example.com/sainome/\n'
+      + '#サイノメ #ゲーム制作'
   );
   assert.equal(share.url, 'https://example.com/sainome/');
   assert.equal(share.copyText, share.text);
@@ -67,7 +67,7 @@ test('トップ共有文に紹介文とURLを含める', () => {
   assert.equal(share.title, 'サイノメ');
   assert.equal(share.url, 'https://example.com/sainome/');
   assert.match(share.text, /サイコロを転がし、上面の目と同じ数以上/u);
-  assert.equal(share.text.includes(`URL: ${share.url}`), true);
+  assert.equal(share.text.includes(share.url), true);
   assert.equal(share.copyText, share.text);
 });
 

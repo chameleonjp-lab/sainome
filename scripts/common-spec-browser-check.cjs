@@ -3,6 +3,7 @@ const { createServer } = require('node:http');
 const { readFile } = require('node:fs/promises');
 const { resolve, extname } = require('node:path');
 const { chromium, webkit } = require('playwright');
+const { checkShareAcceptance } = require('./share-visibility-check.cjs');
 (async () => {
   const root = resolve(__dirname, '..');
   const server = createServer(async (request, response) => {
@@ -16,10 +17,26 @@ const { chromium, webkit } = require('playwright');
   for (const browserType of [chromium, webkit]) {
   const browser = await browserType.launch({ headless:true, ...(browserType === chromium ? { args:['--no-sandbox','--enable-unsafe-swiftshader'] } : {}) });
   try {
-    const page = await browser.newPage({ viewport:{width:393,height:852},locale:'ja-JP' });
+    const origin = `http://127.0.0.1:${server.address().port}`;
+    async function createIsolatedContext(options = {}) {
+      const context = await browser.newContext({ viewport:{width:393,height:852},locale:'ja-JP',serviceWorkers:'block',...options });
+      await context.routeWebSocket('**/*', socket => socket.close());
+      await context.route('**/*', async route => {
+        if (new URL(route.request().url()).origin !== origin) { await route.abort(); return; }
+        const response = await route.fetch({ maxRedirects: 0 });
+        if (response.status() >= 300 && response.status() < 400) {
+          await route.abort(); throw new Error('Unexpected local redirect blocked');
+        }
+        await route.fulfill({ response });
+      });
+      await context.route('https://cdn.jsdelivr.net/npm/three@0.185.1/**', route => route.fulfill({path:resolve(root, 'node_modules/three', route.request().url().split('three@0.185.1/')[1]), contentType:'text/javascript'}));
+      return context;
+    }
+    // Preserve the existing desktop receipt/recovery checks without a fake clock.
+    const context = await createIsolatedContext();
+    const page = await context.newPage();
     const errors = []; const writes = []; const reads = []; const receipts = new Map(); let loseNextReceipt = true; let malformedNextReceipt = false;
     page.on('pageerror', error => errors.push(error.message));
-    await page.route('https://cdn.jsdelivr.net/npm/three@0.185.1/**', route => route.fulfill({path:resolve(root, 'node_modules/three', route.request().url().split('three@0.185.1/')[1]), contentType:'text/javascript'}));
     await page.route('**/rest/v1/rpc/**', async route => {
       const rpc=route.request().url().split('/').pop(), body=route.request().postDataJSON();
       if(rpc === 'get_best_score_ranking') {
@@ -92,6 +109,29 @@ const { chromium, webkit } = require('playwright');
     assert.equal(await page.locator('#sound-volume').inputValue(),'0');
     assert.equal(await page.locator('#sound-toggle').getAttribute('aria-pressed'),'false');
     assert.deepEqual(errors,[]);
+    await context.close();
+    // Independent mobile context: no names, persisted receipt state, or fake clock leak into desktop tests.
+    const mobile = await createIsolatedContext({isMobile:true,hasTouch:true});
+    await mobile.route('**/rest/v1/rpc/**', async route => {
+      const rpc = route.request().url().split('/').pop();
+      if (rpc !== 'get_best_score_ranking') { await route.abort(); throw new Error(`Unexpected anonymous RPC: ${rpc}`); }
+      await route.fulfill({json:[]});
+    });
+    await mobile.addInitScript(() => {
+      globalThis.__shareIntents = []; globalThis.__shareCopies = []; globalThis.__blockSharePopup = false;
+      globalThis.open = url => { globalThis.__shareIntents.push(String(url)); return globalThis.__blockSharePopup ? null : {opener:null}; };
+      Object.defineProperty(navigator, 'clipboard', { configurable:true, value:{writeText:async text => {globalThis.__shareCopies.push(text);}} });
+    });
+    const mobilePage = await mobile.newPage();
+    const mobileErrors = [];
+    mobilePage.on('pageerror', error => mobileErrors.push(error.message));
+    await mobilePage.clock.install();
+    await mobilePage.goto(origin);
+    await mobilePage.waitForFunction(()=>document.querySelector('#language-select').options.length===15);
+    await checkShareAcceptance(mobilePage, languages, browserType.name());
+    assert.deepEqual(mobileErrors, []);
+    await mobile.close();
+
     console.log(browserType.name() + ': 15 languages; guest start/result and later name; 30 rows; immutable named result; lost/malformed acceptance + reload uses same receipt; no resubmit on language change; narrow/landscape layout; stored sound off/zero passed. All Supabase calls mocked.');
   } finally { await browser.close(); }
   }
