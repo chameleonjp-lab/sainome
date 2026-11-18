@@ -210,7 +210,16 @@ export class IndexedDbRankingStorage {
           if (existingQuarantine.serialized !== serialized) {
             return { status: 'conflict', record: existingQuarantine };
           }
-          if (existing !== undefined) await requestResult(pendingStore.delete(submissionId));
+          if (existing !== undefined) {
+            if (
+              !existing
+              || existing.submissionId !== submissionId
+              || existing.serialized !== serialized
+            ) {
+              return { status: 'conflict', record: existing };
+            }
+            await requestResult(pendingStore.delete(submissionId));
+          }
           return { status: 'already-quarantined', record: existingQuarantine };
         }
         if (existing === undefined) return { status: 'not-found', record: null };
@@ -1068,3 +1077,4 @@ export class PendingRankingSubmissions {
     });
   }
 }
+
